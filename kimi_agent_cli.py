@@ -2,7 +2,7 @@
 from pathlib import Path
 from kaos.path import KaosPath
 import asyncio
-from kimi_utils import print_success, print_error, print_warning, print_info, prompt, clear_context, compact_context, sync_all, skill, _create_default_session, print_usage
+from kimi_utils import print_success, print_error, print_warning, print_info, prompt, clear_context, sync_all,  _create_default_session, print_usage
 import kimi_utils
 import os
 import sys
@@ -53,7 +53,7 @@ def cli():
         'clear', 'exit', 'help', 'compact', 'context'
     }
     input_str = None
-    _create_default_session(work_dir=work_dir, skills_dir=skills_dir)
+    session = _create_default_session(work_dir=work_dir, skills_dir=skills_dir)
     while True:
         try:
             input_str = input("\n>>>>>>>>> Enter your prompt or command:\n")
@@ -82,7 +82,7 @@ def cli():
                     clear_context()
                     continue
                 elif task_split[0] == 'compact':
-                    compact_context()
+                    prompt(f"/compact", session)
                     continue
                 elif task_split[0] == 'exit':
                     print_success('bye!')
@@ -94,7 +94,7 @@ def cli():
                     if len(task_split) < 2:
                         print_error('Command must be /skill:xx')
                         continue
-                    skill(task_split[1])
+                    prompt(f"/skill:{task_split[1]}", session)
                     continue
                 elif task_split[0] == 'file':
                     if len(task_split) != 2:
@@ -142,7 +142,7 @@ def cli():
                 except:
                     try:
                         if (input_str is not None) and len(input_str) > 0:
-                            prompt(prompt_str=input_str)
+                            prompt(prompt_str=input_str, session=session)
                     except KeyboardInterrupt as e:
                         print_warning('Keyboard Interrupt.')
         except Exception as e:

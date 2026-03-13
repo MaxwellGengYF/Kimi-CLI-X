@@ -32,6 +32,7 @@ elif _config_model != _default_model:
     print_debug(f'Using {_config_model} model.')
 
 default_work_dir = KaosPath(os.curdir)
+default_skill_dir = default_work_dir / ".agents/skills"
 
 _config = None
 _default_session = None
@@ -56,11 +57,14 @@ def _init_model():
     _config.loop_control.max_steps_per_turn = 1000
     _config.loop_control.max_retries_per_step = 32
     _config.loop_control.max_ralph_iterations = -1
-    _config.loop_control.reserved_context_size = 5_000
+    _config.loop_control.reserved_context_size = 10_000
 
-
-def create_session(work_dir: KaosPath = None, skills_dir: KaosPath = None, session_id: str = None):
-    global agent_file
+_session_idx = 0
+def create_session(session_id: str = None, work_dir: KaosPath = None, skills_dir: KaosPath = None):
+    global agent_file, _session_idx
+    if session_id is None:
+        session_id = str(_session_idx)
+        _session_idx += 1
     from kimi_agent_sdk import Session
     _init_model()
     if work_dir is None:
@@ -89,7 +93,7 @@ def _create_default_session(work_dir: KaosPath = None, skills_dir: KaosPath = No
     global _default_session
     if _default_session:
         return _default_session
-    _default_session = create_session(work_dir, skills_dir, "default")
+    _default_session = create_session("default", work_dir, skills_dir)
     return _default_session
 
 
@@ -122,46 +126,42 @@ def clear_context():
     _print_usage(_default_session)
 
 
-def compact_context(session=None):
-    from kimi_agent_sdk import TextPart
-    if session is None:
-        session = _create_default_session()
-    last_usage = session.status.context_usage
-    if last_usage < 1e-8:
-        _print_usage(_default_session)
-        return
+def prompt(prompt_str: str, session=None):
+    global _default_session
+    prompt_str = prompt_str.strip()
+
     async def func():
         nonlocal session
-        async for message in session.prompt(
-            user_input='/compact',
-            merge_wire_messages=True
-        ):
-            match message:
-                case TextPart(text=text):
-                    print_success(text)
-    asyncio.run(func())
-    cur_usage = session.status.context_usage
-    print_success(
-        f'Context compressed from {_percentage_str(last_usage)}% to {_percentage_str(cur_usage)}%'
-    )
-
-
-def skill(skill_str: str, session=None):
-    if session is None:
-        session = _create_default_session()
-
-    async def func():
-        import time
         max_retries = 5
         for attempt in range(max_retries):
-            print_debug(f'Loading skill: {skill_str}', end='\n\n')
+            if len(prompt_str) > 50:
+                print_debug(f'Prompt: {prompt_str[:50]}...', end='\n\n')
+            else:
+                print_debug(f'Prompt: {prompt_str}', end='\n\n')
             try:
-                async for message in session.prompt(
-                    '/skill:' + skill_str,
-                    merge_wire_messages=True,
-                ):
-                    print_agent_json(lambda: message.model_dump_json())
+                if session:
+                    async for message in session.prompt(
+                        prompt_str,
+                        merge_wire_messages=True,
+                    ):
+                        print_agent_json(lambda: message.model_dump_json())
+                    _print_usage(session)
+                else:
+                    from kimi_agent_sdk import prompt as kimi_prompt
+                    async for message in kimi_prompt(
+                        prompt_str,
+                        work_dir=default_work_dir,
+                        yolo=True,
+                        thinking=True,
+                        skills_dir=default_skill_dir,
+                        config=_config,
+                        agent_file=agent_file
+                    ):
+                        print_agent_json(lambda: message.model_dump_json())
+                    print_success('Finished')
+
             except Exception as e:
+                import time
                 if "429" in str(e):
                     wait_time = 4 ** attempt  # 1, 4, 16, 64, 128 秒
                     print_warning(f"Rate limited. Waiting {wait_time}s...")
@@ -170,57 +170,7 @@ def skill(skill_str: str, session=None):
                 else:
                     raise
             break
-
     asyncio.run(func())
-    _print_usage(session)
-
-
-def prompt(prompt_str: str, session=None, create_session: bool = False):
-    global _default_session
-    prompt_str = prompt_str.strip()
-    if session is None:
-        if create_session:
-            session = create_session()
-        else:
-            session = _create_default_session()
-    else:
-        create_session = False
-
-    async def func():
-        try:
-            nonlocal session
-            max_retries = 5
-            for attempt in range(max_retries):
-                if len(prompt_str) > 50:
-                    print_debug(f'Prompt: {prompt_str[:50]}...', end='\n\n')
-                else:
-                    print_debug(f'Prompt: {prompt_str}', end='\n\n')
-                try:
-                    async for message in session.prompt(
-                        prompt_str,
-                        merge_wire_messages=True,
-                    ):
-                        print_agent_json(lambda: message.model_dump_json())
-
-                except Exception as e:
-                    import time
-                    if "429" in str(e):
-                        wait_time = 4 ** attempt  # 1, 4, 16, 64, 128 秒
-                        print_warning(f"Rate limited. Waiting {wait_time}s...")
-                        time.sleep(wait_time)
-                        continue
-                    else:
-                        raise
-                break
-        finally:
-            if create_session:
-                await session.close()
-                del session
-    asyncio.run(func())
-    if create_session:
-        print_success('Finished')
-    else:
-        _print_usage(session)
 
 
 def prompt_path(path: Path, split_word: str = None, session=None):
@@ -243,8 +193,7 @@ def fix_error(
         extra_prompt: str = None,
         skip_success: bool = True,
         keycode: tuple = ('error'),
-        session=None,
-        create_session: bool = False):
+        session=None):
     result = _run_process_with_error(
         command, keycode, skip_success=skip_success)
     if result is None:
@@ -260,12 +209,12 @@ def fix_error(
     if extra_prompt is not None:
         prompt_str = f'{extra_prompt}, {prompt_str}'
 
-    prompt(prompt_str, session, create_session)
+    prompt(prompt_str, session)
     return False
 
 
 def async_prompt(prompt_str: str, session=None):
-    return run_thread(prompt, (prompt_str, session, True))
+    return run_thread(prompt, (prompt_str, session))
 
 
 def async_fix_error(
@@ -275,7 +224,7 @@ def async_fix_error(
     keycode: tuple = ('error',),
     session=None
 ):
-    return run_thread(fix_error, (command, extra_prompt, skip_success, keycode, session, True))
+    return run_thread(fix_error, (command, extra_prompt, skip_success, keycode, session))
 
 
 def read_file(path: Path, split_word: str = None):
