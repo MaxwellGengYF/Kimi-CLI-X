@@ -53,6 +53,7 @@ def cli():
         'clear', 'exit', 'help', 'compact', 'context'
     }
     input_str = None
+    _create_default_session(work_dir=work_dir, skills_dir=skills_dir)
     while True:
         try:
             input_str = input("\n>>>>>>>>> Enter your prompt or command:\n")
@@ -62,7 +63,6 @@ def cli():
         except EOFError as e:
             print_success('bye.')
             return
-        _create_default_session(work_dir=work_dir, skills_dir=skills_dir)
         try:
             if len(input_str) == 0:
                 continue

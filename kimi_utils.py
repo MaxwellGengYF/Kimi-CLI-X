@@ -1,3 +1,4 @@
+import kimi_agent_sdk
 from agent_utils import *
 from agent_utils import _run_process_with_error, _percentage_str
 from kaos.path import KaosPath
@@ -19,7 +20,7 @@ api_key = os.environ.get("KIMI_API_KEY")
 if not _check_legal(api_key, 'sk'):
     print_error('API key shoud be setted to KIMI_API_KEY environment var')
     exit(1)
-    
+
 if not _check_legal(os.environ.get("KIMI_BASE_URL"), 'http'):
     os.environ["KIMI_BASE_URL"] = "https://api.kimi.com/coding/v1"
 _default_model = 'kimi-for-coding'
@@ -36,6 +37,10 @@ _config = None
 _default_session = None
 
 agent_file = Path(__file__).parent / 'agent.yaml'
+
+# init
+
+
 def _init_model():
     global _config
     if _config:
@@ -52,8 +57,6 @@ def _init_model():
     _config.loop_control.max_retries_per_step = 32
     _config.loop_control.max_ralph_iterations = -1
     _config.loop_control.reserved_context_size = 5_000
-
-
 
 
 def create_session(work_dir: KaosPath = None, skills_dir: KaosPath = None, session_id: str = None):
@@ -86,7 +89,7 @@ def _create_default_session(work_dir: KaosPath = None, skills_dir: KaosPath = No
     global _default_session
     if _default_session:
         return _default_session
-    _default_session = create_session(work_dir, skills_dir)
+    _default_session = create_session(work_dir, skills_dir, "default")
     return _default_session
 
 
@@ -109,7 +112,11 @@ def print_usage(session=None):
 def clear_context():
     global _default_session
     if _default_session:
-
+        if _default_session.status.context_usage < 1e-8:
+            _print_usage(_default_session)
+            return
+        else:
+            _default_session.close()
         _default_session = None
     _create_default_session()
     _print_usage(_default_session)
@@ -120,7 +127,9 @@ def compact_context(session=None):
     if session is None:
         session = _create_default_session()
     last_usage = session.status.context_usage
-
+    if last_usage < 1e-8:
+        _print_usage(_default_session)
+        return
     async def func():
         nonlocal session
         async for message in session.prompt(
