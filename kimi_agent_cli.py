@@ -2,7 +2,7 @@
 from pathlib import Path
 from kaos.path import KaosPath
 import asyncio
-from kimi_utils import print_success, print_error, print_warning, print_info, prompt, clear_context, sync_all,  _create_default_session, print_usage
+from kimi_utils import print_success, print_error, print_warning, print_info, prompt, clear_context, sync_all,  _create_default_session, print_usage, delete_session_dir
 import kimi_utils
 import os
 import sys
@@ -47,6 +47,8 @@ Or enter any prompt to send to the agent.
 
 
 def cli():
+    # Parse command line arguments for clean mode flag
+    CLEAN_MODE = '-c' in sys.argv or '--clean' in sys.argv
     # Read user input from keyboard asynchronously
     global exec_ctx
     special_commands = {
@@ -59,10 +61,10 @@ def cli():
             input_str = input("\n>>>>>>>>> Enter your prompt or command:\n")
         except KeyboardInterrupt as e:
             print_success('bye.')
-            return
+            break
         except EOFError as e:
             print_success('bye.')
-            return
+            break
         try:
             if len(input_str) == 0:
                 continue
@@ -86,7 +88,7 @@ def cli():
                     continue
                 elif task_split[0] == 'exit':
                     print_success('bye!')
-                    return
+                    break
                 elif task_split[0] == 'context':
                     print_usage()
                     continue
@@ -148,6 +150,11 @@ def cli():
         except Exception as e:
             print_error(str(e))
             continue
+    if CLEAN_MODE:
+        if session:
+            asyncio.run(session.close())
+        delete_session_dir()
+        
 
 
 if __name__ == "__main__":

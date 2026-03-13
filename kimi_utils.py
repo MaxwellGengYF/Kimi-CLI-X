@@ -1,4 +1,3 @@
-import kimi_agent_sdk
 from agent_utils import *
 from agent_utils import _run_process_with_error, _percentage_str
 from kaos.path import KaosPath
@@ -21,8 +20,6 @@ if not _check_legal(api_key, 'sk'):
     print_error('API key shoud be setted to KIMI_API_KEY environment var')
     exit(1)
 
-if not _check_legal(os.environ.get("KIMI_BASE_URL"), 'http'):
-    os.environ["KIMI_BASE_URL"] = "https://api.kimi.com/coding/v1"
 _default_model = 'kimi-for-coding'
 _config_model = os.environ.get("KIMI_MODEL_NAME")
 if not _check_legal(_config_model, 'kimi'):
@@ -38,8 +35,8 @@ _config = None
 _default_session = None
 
 agent_file = Path(__file__).parent / 'agent.yaml'
-
 # init
+import kimi_agent_sdk
 
 
 def _init_model():
@@ -58,6 +55,17 @@ def _init_model():
     _config.loop_control.max_retries_per_step = 32
     _config.loop_control.max_ralph_iterations = -1
     _config.loop_control.reserved_context_size = 10_000
+
+def context_path() -> Path:
+    user_home = Path.home()
+    return user_home / '.kimi' / 'sessions'
+
+def delete_session_dir() -> Path:
+    import shutil
+    path = context_path()
+    if path.exists():
+        shutil.rmtree(path)
+        print_success(f'{str(path)} deleted.')
 
 _session_idx = 0
 def create_session(session_id: str = None, work_dir: KaosPath = None, skills_dir: KaosPath = None):
@@ -109,7 +117,7 @@ def print_usage(session=None):
         session = _create_default_session()
     s = _percentage_str(session.status.context_usage)
     print_success(
-        f'Context usage: {s}%'
+        f'Context usage: {s}'
     )
 
 
