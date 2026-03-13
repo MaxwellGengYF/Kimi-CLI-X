@@ -20,6 +20,8 @@ if not _check_legal(api_key, 'sk'):
     print_error('API key shoud be setted to KIMI_API_KEY environment var')
     exit(1)
 
+if not _check_legal(os.environ.get("KIMI_BASE_URL"), 'http'):
+    os.environ["KIMI_BASE_URL"] = "https://api.kimi.com/coding/v1"
 _default_model = 'kimi-for-coding'
 _config_model = os.environ.get("KIMI_MODEL_NAME")
 if not _check_legal(_config_model, 'kimi'):
