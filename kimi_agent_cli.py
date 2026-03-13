@@ -62,7 +62,7 @@ def cli():
         except EOFError as e:
             print_success('bye.')
             return
-        _create_default_session(work_dir=work_dir, skills_dir=skills_dir, session_id='cli_session')
+        _create_default_session(work_dir=work_dir, skills_dir=skills_dir)
         try:
             if len(input_str) == 0:
                 continue

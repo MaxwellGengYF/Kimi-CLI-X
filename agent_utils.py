@@ -201,3 +201,35 @@ def sync_all():
     for thd in _threads:
         thd.join()
     _threads.clear()
+
+
+
+def _run_process_with_log(command: str):
+    import subprocess
+    print_info(f'Shell: {command}')
+    result = subprocess.run(command, shell=True,
+                            capture_output=True, text=True)
+    output = result.stdout
+    if result.stderr:
+        output += "\n" + result.stderr
+    return output, result.returncode
+
+
+def _run_process_with_error(command: str, keycode: tuple, skip_success: bool = True):
+    result, code = _run_process_with_log(command)
+    if skip_success and code == 0:
+        return None
+    lines = result.splitlines()
+    if keycode is None or len(keycode) == 0:
+        return result
+    for idx in range(len(lines)):
+        line = lines[idx]
+        lower_line = line.lower()
+        for c in keycode:
+            if c in lower_line:
+                return '\n'.join(lines[idx:])
+
+    return result
+
+def _percentage_str(num: float) -> str:
+    return f"{num * 100:.1f}%"

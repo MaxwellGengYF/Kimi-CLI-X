@@ -1,4 +1,5 @@
 from agent_utils import *
+from agent_utils import _run_process_with_error, _percentage_str
 from kaos.path import KaosPath
 import sys
 import asyncio
@@ -53,11 +54,10 @@ def _init_model():
     _config.loop_control.reserved_context_size = 5_000
 
 
-_session_idx = 0
 
 
 def create_session(work_dir: KaosPath = None, skills_dir: KaosPath = None, session_id: str = None):
-    global _session_idx, agent_file
+    global agent_file
     from kimi_agent_sdk import Session
     _init_model()
     if work_dir is None:
@@ -68,11 +68,7 @@ def create_session(work_dir: KaosPath = None, skills_dir: KaosPath = None, sessi
         skills_dir = None
 
     async def func():
-        global _session_idx
         nonlocal session_id
-        if session_id is None:
-            session_id = f"auto_session{str(_session_idx)}"
-            _session_idx += 1
         session = await Session.create(
             session_id=session_id,
             work_dir=work_dir,
@@ -86,16 +82,16 @@ def create_session(work_dir: KaosPath = None, skills_dir: KaosPath = None, sessi
     return asyncio.run(func())
 
 
-def _create_default_session(work_dir: KaosPath = None, skills_dir: KaosPath = None, session_id: str = None):
+def _create_default_session(work_dir: KaosPath = None, skills_dir: KaosPath = None):
     global _default_session
     if _default_session:
         return _default_session
-    _default_session = create_session(work_dir, skills_dir, session_id)
+    _default_session = create_session(work_dir, skills_dir)
     return _default_session
 
 
 def _print_usage(session):
-    s = str(session.status.context_usage * 100)
+    s = _percentage_str(session.status.context_usage)
     print_success(
         f'Finished, context usage: {s}%'
     )
@@ -104,7 +100,7 @@ def _print_usage(session):
 def print_usage(session=None):
     if not session:
         session = _create_default_session()
-    s = str(session.status.context_usage * 100)
+    s = _percentage_str(session.status.context_usage)
     print_success(
         f'Context usage: {s}%'
     )
@@ -137,7 +133,7 @@ def compact_context(session=None):
     asyncio.run(func())
     cur_usage = session.status.context_usage
     print_success(
-        f'Context compressed from {str(last_usage * 100)}% to {str(cur_usage * 100)}%'
+        f'Context compressed from {_percentage_str(last_usage)}% to {_percentage_str(cur_usage)}%'
     )
 
 
@@ -233,34 +229,6 @@ def prompt_path(path: Path, split_word: str = None, session=None):
         prompt(s, session=session)
 
 
-def __run_process_with_log(command: str):
-    import subprocess
-    print_info(f'Shell: {command}')
-    result = subprocess.run(command, shell=True,
-                            capture_output=True, text=True)
-    output = result.stdout
-    if result.stderr:
-        output += "\n" + result.stderr
-    return output, result.returncode
-
-
-def __run_process_with_error(command: str, keycode: tuple, skip_success: bool = True):
-    result, code = __run_process_with_log(command)
-    if skip_success and code == 0:
-        return None
-    lines = result.splitlines()
-    if keycode is None or len(keycode) == 0:
-        return result
-    for idx in range(len(lines)):
-        line = lines[idx]
-        lower_line = line.lower()
-        for c in keycode:
-            if c in lower_line:
-                return '\n'.join(lines[idx:])
-
-    return result
-
-
 def fix_error(
         command: str,
         extra_prompt: str = None,
@@ -268,7 +236,7 @@ def fix_error(
         keycode: tuple = ('error'),
         session=None,
         create_session: bool = False):
-    result = __run_process_with_error(
+    result = _run_process_with_error(
         command, keycode, skip_success=skip_success)
     if result is None:
         print_success('No error.')
@@ -311,7 +279,3 @@ def read_file(path: Path, split_word: str = None):
     if split_word:
         return s.split(split_word)
     return s
-
-
-def pause():
-    os.system('pause')
