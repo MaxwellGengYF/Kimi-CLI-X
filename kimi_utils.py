@@ -14,10 +14,9 @@ def _check_legal(value, start_with):
     return value.startswith(start_with)
 
 
-# KIMI_CODE_CONSOLE_API_KEY = ''
 api_key = os.environ.get("KIMI_API_KEY")
 if not _check_legal(api_key, 'sk'):
-    print_error('API key shoud be setted to KIMI_CODE_CONSOLE_API_KEY environment var')
+    print_error('API key shoud be setted to KIMI_API_KEY environment var')
     exit(1)
     
 if not _check_legal(os.environ.get("KIMI_BASE_URL"), 'http'):
