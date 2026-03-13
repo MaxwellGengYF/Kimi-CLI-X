@@ -22,13 +22,12 @@ def _check_command_exists(command: str) -> bool:
     import shutil
     return shutil.which(command) is not None
 # Try to use cmd, should be faster
-_default_pwsh = 'cmd'
-# _default_pwsh = 'powershell'
-# if sys.platform == 'win32':
-#     if not _check_command_exists('pwsh'):
-#         print("PowerShell Core (pwsh) not found. Falling back to Windows PowerShell (powershell).")
-#     else:
-#         _default_pwsh = 'pwsh'
+_default_pwsh = 'powershell'
+if sys.platform == 'win32':
+    if not _check_command_exists('pwsh'):
+        print("PowerShell Core (pwsh) not found. Falling back to Windows PowerShell (powershell).")
+    else:
+        _default_pwsh = 'pwsh'
 
 class Params(BaseModel):
     command: str = Field(description="The bash command to execute.")
@@ -73,20 +72,12 @@ def parse_command(command: str) -> str:
                 in_double_quote = not in_double_quote
         
         # Check for '&&' replacement
-        if _default_pwsh != 'powershell':
-            if not in_single_quote and not in_double_quote and command[i] == ";":
-                result.append('&&')
-                i += 1
-            else:
-                result.append(char)
-                i += 1
+        if not in_single_quote and not in_double_quote and i + 1 < len(command) and command[i:i+2] == "&&":
+            result.append(";")
+            i += 2
         else:
-            if not in_single_quote and not in_double_quote and i + 1 < len(command) and command[i:i+2] == "&&":
-                result.append(";")
-                i += 2
-            else:
-                result.append(char)
-                i += 1
+            result.append(char)
+            i += 1
     
     return "".join(result)
     
@@ -99,7 +90,7 @@ class Shell(CallableTool2[Params]):
         is_powershell = environment.shell_name == "Windows PowerShell"
         super().__init__(
             description=load_desc(
-                Path(__file__).parent / ("cmd.md" if is_powershell else "bash.md"),
+                Path(__file__).parent / ("powershell.md" if is_powershell else "bash.md"),
                 {"SHELL": f"{environment.shell_name} (`{environment.shell_path}`)"},
             )
         )
@@ -191,7 +182,5 @@ class Shell(CallableTool2[Params]):
 
     def _shell_args(self, command: str) -> tuple[str, ...]:
         if self._is_powershell:
-            return (str(self._shell_path), "/c", command)
-            # powershell
-            # return (str(self._shell_path), "-command", command)
+            return (str(self._shell_path), "-command", command)
         return (str(self._shell_path), "-c", command)

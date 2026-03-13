@@ -160,9 +160,8 @@ def print_agent_json(get_message):
             text = item.get("function", "")
             if text:
                 name = text.get("name")
-                args = text.get("arguments", "")
                 if name:
-                    print_info(f"{name}: {args}")
+                    print_info(f"{name}...")
     if js.get("role") == "assistant":
         content = js.get("content", [])
         if type(content) == str:

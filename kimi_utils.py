@@ -116,7 +116,7 @@ def clear_context():
             _print_usage(_default_session)
             return
         else:
-            _default_session.close()
+            asyncio.run(_default_session.close())
         _default_session = None
     _create_default_session()
     _print_usage(_default_session)
