@@ -110,7 +110,7 @@ def _create_default_session(work_dir: KaosPath = None, skills_dir: KaosPath = No
 def _print_usage(session):
     s = _percentage_str(session.status.context_usage)
     print_success(
-        f'Finished, context usage: {s}%'
+        f'Finished, context usage: {s}'
     )
 
 
