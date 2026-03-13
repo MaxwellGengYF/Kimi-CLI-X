@@ -97,7 +97,9 @@ def create_session(session_id: str = None, work_dir: KaosPath = None, skills_dir
         )
         return session
     return asyncio.run(func())
-
+def get_default_session():
+    global _default_session
+    return _default_session
 
 def _create_default_session(work_dir: KaosPath = None, skills_dir: KaosPath = None):
     global _default_session

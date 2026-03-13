@@ -2,7 +2,7 @@
 from pathlib import Path
 from kaos.path import KaosPath
 import asyncio
-from kimi_utils import print_success, print_error, print_warning, print_info, prompt, clear_context, sync_all,  _create_default_session, print_usage, delete_session_dir
+from kimi_utils import print_success, print_error, print_warning, print_info, prompt, clear_context, sync_all,  _create_default_session, print_usage, delete_session_dir, print_debug, get_default_session
 import kimi_utils
 import os
 import sys
@@ -46,16 +46,20 @@ Or enter any prompt to send to the agent.
 # End writen by AGENT
 
 
-def cli():
+CLEAN_MODE = '-c' in sys.argv or '--clean' in sys.argv
+
+
+def _run_cli():
     # Parse command line arguments for clean mode flag
-    CLEAN_MODE = '-c' in sys.argv or '--clean' in sys.argv
+
     # Read user input from keyboard asynchronously
     global exec_ctx
     special_commands = {
         'clear', 'exit', 'help', 'compact', 'context'
     }
     input_str = None
-    session = _create_default_session(work_dir=work_dir, skills_dir=skills_dir)
+    _create_default_session(work_dir=work_dir, skills_dir=skills_dir)
+    assert get_default_session()
     while True:
         try:
             input_str = input("\n>>>>>>>>> Enter your prompt or command:\n")
@@ -84,7 +88,7 @@ def cli():
                     clear_context()
                     continue
                 elif task_split[0] == 'compact':
-                    prompt(f"/compact", session)
+                    prompt(f"/compact", get_default_session())
                     continue
                 elif task_split[0] == 'exit':
                     print_success('bye!')
@@ -96,7 +100,7 @@ def cli():
                     if len(task_split) < 2:
                         print_error('Command must be /skill:xx')
                         continue
-                    prompt(f"/skill:{task_split[1]}", session)
+                    prompt(f"/skill:{task_split[1]}", get_default_session())
                     continue
                 elif task_split[0] == 'file':
                     if len(task_split) != 2:
@@ -144,17 +148,26 @@ def cli():
                 except:
                     try:
                         if (input_str is not None) and len(input_str) > 0:
-                            prompt(prompt_str=input_str, session=session)
+                            prompt(prompt_str=input_str, session=get_default_session())
                     except KeyboardInterrupt as e:
                         print_warning('Keyboard Interrupt.')
         except Exception as e:
             print_error(str(e))
             continue
+
+
+def cli():
     if CLEAN_MODE:
-        if session:
-            asyncio.run(session.close())
-        delete_session_dir()
-        
+        print_debug('Enable clean mode, delete cache file after quit')
+
+    try:
+        _run_cli()
+    except KeyboardInterrupt as e:
+        if CLEAN_MODE:
+            delete_session_dir()
+    finally:
+        if CLEAN_MODE:
+            delete_session_dir()
 
 
 if __name__ == "__main__":

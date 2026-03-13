@@ -162,6 +162,9 @@ def print_agent_json(get_message):
                 name = text.get("name")
                 if name:
                     print_info(f"{name}...")
+                    # if name == 'Shell':
+                    #     args = text.get('arguments')
+                    #     print_info(f"{args}...")
     if js.get("role") == "assistant":
         content = js.get("content", [])
         if type(content) == str:
