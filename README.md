@@ -227,4 +227,4 @@ print(result)  # True if AI confirms
 - Only `.py` files can be executed directly through the `/file` command
 - The CLI maintains conversation context across prompts until `/clear` is used
 - Context usage information is displayed after each AI response
-- Press `Ctrl+C` (Keyboard Interrup) at any time to interrupt the current operation or exit the CLI
+- Press `Ctrl+C` (Keyboard Interrupt) at any time to interrupt the current operation or exit the CLI
