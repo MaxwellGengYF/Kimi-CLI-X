@@ -34,3 +34,4 @@ agent:
     - "my_tools.git:GitFetch"
     - "my_tools.git:GitStash"
     - "my_tools.git:GitShow"
+    - "my_tools.file:FileInfo"
