@@ -36,7 +36,7 @@ if CLEAN_MODE:
     print_debug('Enable clean mode, delete cache file after quit')
 if '-ralph' in sys.argv or '--ralph' in sys.argv:
     kimi_utils._ralph_iterations = -1
-    print_debug('Enable ralph loop, continue work until done.')
+    print_debug('Enable ralph loop, continue work until done(or running OUT of your TOKEN!!!). ')
 
 
 def _run_cli():
