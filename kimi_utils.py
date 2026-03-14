@@ -1,8 +1,6 @@
-import kimi_agent_sdk
 from agent_utils import *
 from agent_utils import _run_process_with_error, _percentage_str
 from kaos.path import KaosPath
-import sys
 import asyncio
 import time
 from pathlib import Path
@@ -32,8 +30,27 @@ elif _config_model != _default_model:
     print_debug(f'Using {_config_model} model.')
 
 default_work_dir = KaosPath(os.curdir)
-default_skill_dir = default_work_dir / ".agents/skills"
+default_skill_dir = None
 
+
+def _get_skill_dir():
+    global default_skill_dir
+    default_skill_dir = Path(os.curdir) / ".agents/skills"
+    if default_skill_dir.exists():
+        return
+    default_skill_dir = Path(os.curdir) / ".opencode/skills"
+    if default_skill_dir.exists():
+        return
+    default_skill_dir = Path(os.curdir) / ".config/.agents/skills"
+    if default_skill_dir.exists():
+        return
+    default_skill_dir = None
+
+
+_get_skill_dir()
+if default_skill_dir:
+    print_info(f'skill dir: {str(default_skill_dir)}')
+    default_skill_dir = KaosPath(default_skill_dir)
 _config = None
 _default_session = None
 
@@ -82,8 +99,6 @@ def create_session(session_id: str = None):
         _session_idx += 1
     from kimi_agent_sdk import Session
     _init_model()
-    if not (asyncio.run(default_skill_dir.exists())):
-        default_skill_dir = None
 
     async def func():
         nonlocal session_id
