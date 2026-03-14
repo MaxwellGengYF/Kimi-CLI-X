@@ -1,3 +1,4 @@
+import kimi_agent_sdk
 from agent_utils import *
 from agent_utils import _run_process_with_error, _percentage_str
 from kaos.path import KaosPath
@@ -38,7 +39,6 @@ _default_session = None
 
 agent_file = Path(__file__).parent / 'agent.yaml'
 # init
-import kimi_agent_sdk
 
 
 def _init_model():
@@ -58,9 +58,11 @@ def _init_model():
     _config.loop_control.max_ralph_iterations = -1
     _config.loop_control.reserved_context_size = 10_000
 
+
 def context_path() -> Path:
     user_home = Path.home()
     return user_home / '.kimi' / 'sessions'
+
 
 def delete_session_dir() -> Path:
     import shutil
@@ -69,7 +71,10 @@ def delete_session_dir() -> Path:
         shutil.rmtree(path)
         print_success(f'{str(path)} deleted.')
 
+
 _session_idx = 0
+
+
 def create_session(session_id: str = None):
     global agent_file, _session_idx, default_skill_dir
     if session_id is None:
@@ -93,9 +98,16 @@ def create_session(session_id: str = None):
         )
         return session
     return asyncio.run(func())
+
+
+def close_session(session):
+    asyncio.run(session.close())
+
+
 def get_default_session():
     global _default_session
     return _default_session
+
 
 def _create_default_session():
     global _default_session
@@ -141,6 +153,7 @@ def prompt(prompt_str: str, session=None):
     if session is None:
         session = create_session()
         _temp_create_session = True
+
     async def func():
         nonlocal session, _temp_create_session
         max_retries = 5
@@ -172,7 +185,6 @@ def prompt(prompt_str: str, session=None):
                     await session.close()
             break
     asyncio.run(func())
-
 
 
 def prompt_path(path: Path, split_word: str = None, session=None):
