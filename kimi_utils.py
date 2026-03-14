@@ -53,6 +53,7 @@ if default_skill_dir:
     default_skill_dir = KaosPath(default_skill_dir)
 _config = None
 _default_session = None
+_ralph_iterations = 0
 
 agent_file = Path(__file__).parent / 'agent.yaml'
 # init
@@ -72,7 +73,8 @@ def _init_model():
     # This is just my favor
     _config.loop_control.max_steps_per_turn = 1000
     _config.loop_control.max_retries_per_step = 32
-    _config.loop_control.max_ralph_iterations = -1
+    # No ralph mode defaultly, manually do validate please
+    _config.loop_control.max_ralph_iterations = _ralph_iterations
     _config.loop_control.reserved_context_size = 10_000
 
 
@@ -200,6 +202,19 @@ def prompt(prompt_str: str, session=None):
                     await session.close()
             break
     asyncio.run(func())
+
+
+def validate(
+    prompt_str: Optional[str], session=None
+):
+    if type(prompt_str) == str and len(prompt_str) > 0:
+        import my_tools.flag as flag
+        flag.reset_flag()
+        prompt_str = prompt_str + '\nIf the condition passes, call SetFlag tool'
+        prompt(prompt_str, session)
+        return flag.check_flag()
+    else:
+        return prompt_str == True
 
 
 def prompt_path(path: Path, split_word: str = None, session=None):

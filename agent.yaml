@@ -35,4 +35,7 @@ agent:
     - "my_tools.git:GitStash"
     - "my_tools.git:GitShow"
     - "my_tools.file:FileInfo"
-    - "my_tools.zip:Compress"
+    - "my_tools.zip:Zip"
+    - "my_tools.zip:Unzip"
+    - "my_tools.flag:SetFlag"
+    - "my_tools.pdf:PdfToMarkdown"

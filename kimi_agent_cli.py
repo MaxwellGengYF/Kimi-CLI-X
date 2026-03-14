@@ -32,6 +32,12 @@ Or enter any prompt to send to the agent.
 
 
 CLEAN_MODE = '-c' in sys.argv or '--clean' in sys.argv
+if CLEAN_MODE:
+    print_debug('Enable clean mode, delete cache file after quit')
+if '-ralph' in sys.argv or '--ralph' in sys.argv:
+    kimi_utils._ralph_iterations = -1
+    print_debug('Enable ralph loop, continue work until done.')
+
 
 def _run_cli():
     # Parse command line arguments for clean mode flag
@@ -141,9 +147,6 @@ def _run_cli():
 
 
 def cli():
-    if CLEAN_MODE:
-        print_debug('Enable clean mode, delete cache file after quit')
-
     try:
         _run_cli()
     except KeyboardInterrupt as e:
