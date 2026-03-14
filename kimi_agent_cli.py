@@ -33,12 +33,11 @@ Or enter any prompt to send to the agent.
 
 CLEAN_MODE = '-c' in sys.argv or '--clean' in sys.argv
 
-
 def _run_cli():
     # Parse command line arguments for clean mode flag
 
     # Read user input from keyboard asynchronously
-    global exec_ctx
+    exec_ctx = None
     special_commands = {
         'clear', 'exit', 'help', 'compact', 'context'
     }

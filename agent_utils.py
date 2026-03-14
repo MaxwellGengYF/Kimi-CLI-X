@@ -185,6 +185,8 @@ def run_thread(function, args: tuple = None):
 
     if args is None:
         args = tuple()
+    elif type(args) is not tuple:
+      args = (args, )  
     thd = threading.Thread(target=function, args=args)
     thd.start()
 
