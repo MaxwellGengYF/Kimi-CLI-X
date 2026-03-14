@@ -70,28 +70,24 @@ def delete_session_dir() -> Path:
         print_success(f'{str(path)} deleted.')
 
 _session_idx = 0
-def create_session(session_id: str = None, work_dir: KaosPath = None, skills_dir: KaosPath = None):
-    global agent_file, _session_idx
+def create_session(session_id: str = None):
+    global agent_file, _session_idx, default_skill_dir
     if session_id is None:
         session_id = str(_session_idx)
         _session_idx += 1
     from kimi_agent_sdk import Session
     _init_model()
-    if work_dir is None:
-        work_dir = default_work_dir
-    if skills_dir is None:
-        skills_dir = work_dir / '.agents/skills'
-    if not (asyncio.run(skills_dir.exists())):
-        skills_dir = None
+    if not (asyncio.run(default_skill_dir.exists())):
+        default_skill_dir = None
 
     async def func():
         nonlocal session_id
         session = await Session.create(
             session_id=session_id,
-            work_dir=work_dir,
+            work_dir=default_work_dir,
             yolo=True,
             thinking=True,
-            skills_dir=skills_dir,
+            skills_dir=default_skill_dir,
             config=_config,
             agent_file=agent_file
         )
@@ -101,11 +97,11 @@ def get_default_session():
     global _default_session
     return _default_session
 
-def _create_default_session(work_dir: KaosPath = None, skills_dir: KaosPath = None):
+def _create_default_session():
     global _default_session
     if _default_session:
         return _default_session
-    _default_session = create_session("default", work_dir, skills_dir)
+    _default_session = create_session("default")
     return _default_session
 
 
@@ -141,9 +137,12 @@ def clear_context():
 def prompt(prompt_str: str, session=None):
     global _default_session
     prompt_str = prompt_str.strip()
-
+    _temp_create_session = False
+    if session is None:
+        session = create_session()
+        _temp_create_session = True
     async def func():
-        nonlocal session
+        nonlocal session, _temp_create_session
         max_retries = 5
         for attempt in range(max_retries):
             if len(prompt_str) > 50:
@@ -151,27 +150,13 @@ def prompt(prompt_str: str, session=None):
             else:
                 print_debug(f'Prompt: {prompt_str}', end='\n\n')
             try:
-                if session:
-                    async for message in session.prompt(
-                        prompt_str,
-                        merge_wire_messages=True,
-                    ):
-                        print_agent_json(lambda: message.model_dump_json())
-                    _print_usage(session)
-                else:
-                    from kimi_agent_sdk import prompt as kimi_prompt
-                    async for message in kimi_prompt(
-                        prompt_str,
-                        work_dir=default_work_dir,
-                        yolo=True,
-                        thinking=True,
-                        skills_dir=default_skill_dir,
-                        config=_config,
-                        agent_file=agent_file
-                    ):
-                        print_agent_json(lambda: message.model_dump_json())
-                    print_success('Finished')
-
+                async for message in session.prompt(
+                    prompt_str,
+                    merge_wire_messages=True,
+                ):
+                    print_agent_json(lambda: message.model_dump_json())
+                _print_usage(session)
+                max_retries = 0
             except Exception as e:
                 import time
                 if "429" in str(e):
@@ -180,9 +165,14 @@ def prompt(prompt_str: str, session=None):
                     time.sleep(wait_time)
                     continue
                 else:
+                    max_retries = 0
                     raise
+            finally:
+                if _temp_create_session:
+                    await session.close()
             break
     asyncio.run(func())
+
 
 
 def prompt_path(path: Path, split_word: str = None, session=None):

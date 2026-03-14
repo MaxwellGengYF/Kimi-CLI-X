@@ -14,21 +14,6 @@ COMMENT = """Always write ' Start writen by AGENT ' comment before code, Always 
 curr_dir = Path(os.curdir)
 if not curr_dir.is_absolute():
     curr_dir = curr_dir.absolute()
-kimi_utils.default_work_dir = KaosPath(curr_dir)
-work_dir = KaosPath(str(curr_dir))
-skills_dir = KaosPath(str(curr_dir)) / '.agents/skills'
-if not (asyncio.run(skills_dir.exists())):
-    skills_dir = None
-
-exec_ctx = None
-
-
-def normalize_path(path: str):
-    p = Path(path)
-    if p.is_absolute():
-        p = p.relative_to(curr_dir)
-    return str(p).replace('\\', '/')
-
 
 # Start writen by AGENT
 HELP_STR = '''Available commands:
@@ -58,7 +43,7 @@ def _run_cli():
         'clear', 'exit', 'help', 'compact', 'context'
     }
     input_str = None
-    _create_default_session(work_dir=work_dir, skills_dir=skills_dir)
+    _create_default_session()
     assert get_default_session()
     while True:
         try:
