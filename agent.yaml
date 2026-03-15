@@ -2,7 +2,6 @@ version: 1
 agent:
   extend: default
   tools:
-    - "kimi_cli.tools.multiagent:CreateSubagent"
     - "kimi_cli.tools.todo:SetTodoList"
     - "my_tools.shell:Shell"
     - "kimi_cli.tools.file:ReadFile"

@@ -22,8 +22,8 @@ python kimi_agent_cli.py
 |--------|-------------|
 | `-c`, `--clean` | Enable clean mode - delete session cache files after quitting |
 | `-ralph`, `--ralph` | Enable ralph loop mode - automatically continues working until task is complete (may consume more tokens) |
-| `-think=false`, `--think=false` | Disable thinking mode |
-| `-yolo=false`, `--yolo=false` | Disable yolo mode |
+| `--think`, `-think` | Enable thinking mode |
+| `--no_yolo`, `-no_yolo` | Disable yolo mode (auto-confirm dangerous operations) |
 
 ### Examples
 
@@ -33,18 +33,22 @@ python kimi_agent_cli.py
 
 # Start with clean mode (deletes cache on exit)
 python kimi_agent_cli.py -c
+python kimi_agent_cli.py --clean
 
 # Start with ralph loop mode
 python kimi_agent_cli.py -ralph
+python kimi_agent_cli.py --ralph
 
-# Disable thinking mode
-python kimi_agent_cli.py -think=false
+# Enable thinking mode
+python kimi_agent_cli.py -think
+python kimi_agent_cli.py --think
 
-# Disable yolo mode
-python kimi_agent_cli.py -yolo=false
+# Disable yolo mode (safer mode, requires confirmation)
+python kimi_agent_cli.py -no_yolo
+python kimi_agent_cli.py --no_yolo
 
 # Combine multiple options
-python kimi_agent_cli.py -c -ralph -think=false
+python kimi_agent_cli.py -c -ralph -think -no_yolo
 ```
 
 ## Interactive Commands

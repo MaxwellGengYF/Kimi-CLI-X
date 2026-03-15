@@ -33,18 +33,30 @@ Or enter any prompt to send to the agent.
 
 CLEAN_MODE = '-c' in sys.argv or '--clean' in sys.argv
 if CLEAN_MODE:
-    print_debug('Enable clean mode, delete cache file after quit')
+    print_debug('Clean mode ON, delete cache file after quit.')
+else:
+    print_debug('Clean mode OFF.')
 if '-ralph' in sys.argv or '--ralph' in sys.argv:
     kimi_utils._ralph_iterations = -1
     print_debug(
-        'Enable ralph loop, continue work until done(or running OUT of your TOKEN!!!). ')
+        'Ralph loop ON, continue work until done(or running OUT of your TOKEN!!!).')
+else:
+    kimi_utils._ralph_iterations = 0
+    print_debug('Ralph loop OFF.')
 
-if '--think=false' in sys.argv or '-think=false' in sys.argv:
+if '--think' in sys.argv or '-think' in sys.argv:
+    kimi_utils._default_thinking = True
+    print_debug('Thinking ON.')
+else:
     kimi_utils._default_thinking = False
-    print_debug('disable thinking')
-if '--yolo=false' in sys.argv or '-yolo=false' in sys.argv:
+    print_debug('Thinking OFF.')
+    
+if '--no_yolo' in sys.argv or '-no_yolo' in sys.argv:
     kimi_utils._default_yolo = False
-    print_debug('disable yolo')
+    print_debug('YOLO OFF.')
+else:
+    kimi_utils._default_yolo = True
+    print_debug('YOLO ON.')
 
 
 def _run_cli():

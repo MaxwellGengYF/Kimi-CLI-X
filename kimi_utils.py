@@ -57,7 +57,7 @@ _ralph_iterations = 0
 _default_max_steps_per_turn = 1000
 _default_max_retries_per_step = 32
 _default_reserved_context_size = 10_000
-_default_thinking = True
+_default_thinking = False
 _default_yolo = True
 
 agent_file = Path(__file__).parent / 'agent.yaml'
@@ -68,8 +68,6 @@ def _create_config():
     from kimi_agent_sdk import Config
     from kimi_cli.config import LoopControl
     cfg = Config()
-    cfg.default_thinking = _default_thinking
-    cfg.default_yolo = _default_yolo
     if not cfg.loop_control:
         cfg.loop_control = LoopControl()
     return cfg
