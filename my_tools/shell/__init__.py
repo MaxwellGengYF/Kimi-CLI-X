@@ -507,15 +507,18 @@ def _check_command_exists(command: str) -> bool:
 
 # Try to use cmd, should be faster
 _default_pwsh = 'powershell'
+_bash_name = 'bash'
 if sys.platform == 'win32':
+    _bash_name = 'powershell'
     if not _check_command_exists('pwsh'):
         print("PowerShell Core (pwsh) not found. Falling back to Windows PowerShell (powershell).")
     else:
         _default_pwsh = 'pwsh'
-
+else:
+    _default_pwsh = 'bash'
 
 class Params(BaseModel):
-    command: str = Field(description="The bash command to execute.")
+    command: str = Field(description=f"The {_bash_name} command to execute.")
     timeout: int = Field(
         description=(
             "The timeout in seconds for the command to execute. "

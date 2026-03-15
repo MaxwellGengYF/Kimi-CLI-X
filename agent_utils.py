@@ -178,7 +178,6 @@ def print_agent_json(get_message):
 
 def run_thread(function, args: tuple = None):
     assert callable(function)
-    assert args is None
     global _threads
     # Enforce process limit before creating new one
     _process_lru()

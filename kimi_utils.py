@@ -54,28 +54,37 @@ if default_skill_dir:
 _config = None
 _default_session = None
 _ralph_iterations = 0
+_default_max_steps_per_turn = 1000
+_default_max_retries_per_step = 32
+_default_reserved_context_size = 10_000
 
 agent_file = Path(__file__).parent / 'agent.yaml'
 # init
+
+
+def _create_config():
+    from kimi_agent_sdk import Config
+    from kimi_cli.config import LoopControl
+    cfg = Config()
+    cfg.default_thinking = True
+    cfg.default_yolo = True
+    if not cfg.loop_control:
+        cfg.loop_control = LoopControl()
+    return cfg
 
 
 def _init_model():
     global _config
     if _config:
         return
-    from kimi_agent_sdk import Config
-    from kimi_cli.config import LoopControl
-    _config = Config()
-    _config.default_thinking = True
-    _config.default_yolo = True
-    if not _config.loop_control:
-        _config.loop_control = LoopControl()
+    _config = _create_config()
+
     # This is just my favor
-    _config.loop_control.max_steps_per_turn = 1000
-    _config.loop_control.max_retries_per_step = 32
+    _config.loop_control.max_steps_per_turn = _default_max_steps_per_turn
+    _config.loop_control.max_retries_per_step = _default_max_retries_per_step
     # No ralph mode defaultly, manually do validate please
     _config.loop_control.max_ralph_iterations = _ralph_iterations
-    _config.loop_control.reserved_context_size = 10_000
+    _config.loop_control.reserved_context_size = _default_reserved_context_size
 
 
 def context_path() -> Path:
@@ -94,13 +103,26 @@ def delete_session_dir() -> Path:
 _session_idx = 0
 
 
-def create_session(session_id: str = None):
+def create_session(
+    session_id: str = None,
+    ralph_loop: Optional[bool] = None
+):
+
     global agent_file, _session_idx, default_skill_dir
     if session_id is None:
         session_id = str(_session_idx)
         _session_idx += 1
     from kimi_agent_sdk import Session
     _init_model()
+    # custom config
+    if ralph_loop is not None and ralph_loop != (_ralph_iterations != 0):
+        cfg = _create_config()
+        cfg.loop_control.max_ralph_iterations = -1 if ralph_loop else 0
+        cfg.loop_control.reserved_context_size = _config.loop_control.reserved_context_size
+        cfg.loop_control.max_steps_per_turn = _config.loop_control.max_steps_per_turn
+        cfg.loop_control.max_retries_per_step = _config.loop_control.max_retries_per_step
+    else:
+        cfg = _config
 
     async def func():
         nonlocal session_id
@@ -110,7 +132,7 @@ def create_session(session_id: str = None):
             yolo=True,
             thinking=True,
             skills_dir=default_skill_dir,
-            config=_config,
+            config=cfg,
             agent_file=agent_file
         )
         return session
@@ -210,7 +232,7 @@ def validate(
     if type(prompt_str) == str and len(prompt_str) > 0:
         import my_tools.flag as flag
         flag.reset_flag()
-        prompt_str = prompt_str + '\nIf the condition passes, call SetFlag tool'
+        prompt_str = prompt_str + '\n\nIf the condition passes, call SetFlag tool'
         prompt(prompt_str, session)
         return flag.check_flag()
     else:
