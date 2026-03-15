@@ -21,6 +21,8 @@ import re
 from typing import List, Tuple, Optional
 command_map = {
     'ls': 'Get-ChildItem',
+    'ver': '$PSVersionTable',
+    'ls -la': 'Get-ChildItem',
     'dir': 'Get-ChildItem',  # bash dir is different, but usually means ls
     'cd': 'Set-Location',
     'pwd': 'Get-Location',
@@ -493,6 +495,50 @@ def convert_command(bash_cmd: str) -> str:
     """Convert a single bash command to appropriate shell syntax."""
     return converter.convert(bash_cmd)
 
+def parse_command(command: str) -> str:
+    """Replace '&&' with ';' only when not inside single or double quotes."""
+    result = []
+    i = 0
+    in_single_quote = False
+    in_double_quote = False
+    cmd = ""
+    while i < len(command):
+        char = command[i]
+        
+        # Handle quote toggling (ignore escaped quotes)
+        if char == "'" and not in_double_quote:
+            # Check if escaped (preceded by odd number of backslashes)
+            backslash_count = 0
+            j = i - 1
+            while j >= 0 and command[j] == "\\":
+                backslash_count += 1
+                j -= 1
+            if backslash_count % 2 == 0:
+                in_single_quote = not in_single_quote
+        elif char == '"' and not in_single_quote:
+            # Check if escaped
+            backslash_count = 0
+            j = i - 1
+            while j >= 0 and command[j] == "\\":
+                backslash_count += 1
+                j -= 1
+            if backslash_count % 2 == 0:
+                in_double_quote = not in_double_quote
+        
+        # Check for '&&' replacement
+        if not in_single_quote and not in_double_quote and i + 1 < len(command) and command[i:i+2] == "&&":
+            if len(result) > 0:
+                cmd += convert_command("".join(result)) + ";"
+                result.clear()
+            else:
+                result.append(";")
+            i += 2
+        else:
+            result.append(char)
+            i += 1
+    if len(result) > 0:
+        cmd += convert_command("".join(result)) 
+    return cmd
 
 MIN_TIMEOUT = 10 * 60
 MAX_TIMEOUT = 15 * 60
@@ -533,6 +579,7 @@ class Params(BaseModel):
 
 class Shell(CallableTool2[Params]):
     name: str = "Shell"
+    description: str = f"{_bash_name}"
     params: type[Params] = Params
 
     def __init__(self, approval: Approval, environment: Environment):
@@ -557,7 +604,7 @@ class Shell(CallableTool2[Params]):
             return builder.error("Command cannot be empty.", brief="Empty command")
 
         if self._is_powershell:
-            command = convert_command(params.command)
+            command = parse_command(params.command)
         else:
             command = params.command
         timeout = max(params.timeout, MIN_TIMEOUT)

@@ -23,3 +23,4 @@ agent:
     - "my_tools.zip:Unzip"
     - "my_tools.flag:SetFlag"
     - "my_tools.pdf:PdfToMarkdown"
+    - "my_tools.img:ImageToText"
