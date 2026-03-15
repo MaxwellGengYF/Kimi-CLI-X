@@ -5,8 +5,6 @@ import asyncio
 import time
 from pathlib import Path
 
-_last_call_time = time.time()
-
 
 def _check_legal(value, start_with):
     if value is None or type(value) != str:
@@ -103,18 +101,16 @@ def delete_session_dir() -> Path:
 _session_idx = 0
 
 
-def create_session(
+async def _create_session_async(
     session_id: str = None,
     ralph_loop: Optional[bool] = None,
     thinking: Optional[bool] = None,
     yolo: Optional[bool] = None,
 ):
-
     global agent_file, _session_idx, default_skill_dir
     if session_id is None:
         session_id = str(_session_idx)
         _session_idx += 1
-    from kimi_agent_sdk import Session
     _init_model()
     # custom config
     if ralph_loop is not None and ralph_loop != (_ralph_iterations != 0):
@@ -125,20 +121,33 @@ def create_session(
         cfg.loop_control.max_retries_per_step = _config.loop_control.max_retries_per_step
     else:
         cfg = _config
+        
+    from kimi_agent_sdk import Session
+    session = await Session.create(
+        session_id=session_id,
+        work_dir=default_work_dir,
+        skills_dir=default_skill_dir,
+        yolo=yolo if yolo is not None else _default_yolo,
+        thinking=thinking if thinking is not None else _default_thinking,
+        config=cfg,
+        agent_file=agent_file
+    )
+    return session
 
-    async def func():
-        nonlocal session_id
-        session = await Session.create(
-            session_id=session_id,
-            work_dir=default_work_dir,
-            yolo=yolo if yolo is not None else _default_yolo,
-            thinking=thinking if thinking is not None else _default_thinking,
-            skills_dir=default_skill_dir,
-            config=cfg,
-            agent_file=agent_file
-        )
-        return session
-    return asyncio.run(func())
+
+def create_session(
+    session_id: str = None,
+    ralph_loop: Optional[bool] = None,
+    thinking: Optional[bool] = None,
+    yolo: Optional[bool] = None,
+):
+
+    return asyncio.run(_create_session_async(
+        session_id,
+        ralph_loop,
+        thinking,
+        yolo
+    ))
 
 
 def close_session(session):

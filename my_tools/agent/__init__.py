@@ -1,6 +1,6 @@
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
-from kimi_utils import create_session, async_prompt
+from kimi_utils import async_prompt, _create_session_async
 
 _sessions = {}
 
@@ -15,8 +15,8 @@ class CreateSessionParams(BaseModel):
     )
 
 
-class CreateSession(CallableTool2):
-    name: str = "CreateSession"
+class CreateAgent(CallableTool2):
+    name: str = "CreateAgent"
     description: str = "Create a new agent session and run a prompt asynchronously."
     params: type[CreateSessionParams] = CreateSessionParams
 
@@ -24,8 +24,8 @@ class CreateSession(CallableTool2):
         global _sessions
         
         try:
+            session = await _create_session_async(session_id=params.session_id)
             # Create a new session
-            session = create_session(session_id=params.session_id)
             
             # Get the session_id (in case it was auto-generated)
             sid = params.session_id if params.session_id else str(len(_sessions))
@@ -59,8 +59,8 @@ class WaitSessionParams(BaseModel):
     )
 
 
-class WaitSession(CallableTool2):
-    name: str = "WaitSession"
+class WaitAgent(CallableTool2):
+    name: str = "WaitAgent"
     description: str = "Wait for a session to finish."
     params: type[WaitSessionParams] = WaitSessionParams
 
@@ -92,8 +92,7 @@ class WaitSession(CallableTool2):
             session_info["finished"] = True
             
             # Close the session
-            from kimi_utils import close_session
-            close_session(session_info["session"])
+            await session_info["session"].close()
             del session_info["process"]
             del session_info["session"]
             
