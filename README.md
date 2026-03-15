@@ -63,7 +63,7 @@ Once the CLI is running, you can use the following commands:
 | `/context` | Display current context usage statistics |
 | `/exit` | Exit the program |
 | `/skill:<name>` | Load a specific skill from the skills directory |
-| `/file:<path>` | Load and execute a Python file line by line |
+| `/file:<path>` | Load and execute a Python file line by line, or read a file as prompt |
 | `<path>` | Directly specify a Python file path to execute |
 
 ### Command Examples
@@ -73,13 +73,15 @@ Once the CLI is running, you can use the following commands:
 >>>>>>>>> Enter your prompt or command:
 Write a hello world program in Python
 
-# Execute a Python file
+# Execute a Python file or a text file
 >>>>>>>>> Enter your prompt or command:
 /file:script.py
+/file:my_prompt.txt
 
 # Or simply provide the path
 >>>>>>>>> Enter your prompt or command:
 script.py
+my_prompt.txt
 
 # Load a skill
 >>>>>>>>> Enter your prompt or command:

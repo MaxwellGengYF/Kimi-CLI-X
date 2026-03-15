@@ -23,3 +23,5 @@ agent:
     - "my_tools.flag:SetFlag"
     - "my_tools.pdf:PdfToMarkdown"
     - "my_tools.img:ImageToText"
+    - "my_tools.agent:CreateSession"
+    - "my_tools.agent:WaitSession"

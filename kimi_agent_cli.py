@@ -148,11 +148,14 @@ def _run_cli():
                             finally:
                                 sync_all()
                         else:
-                            print_warning('File not executable')
+                            print_warning('File not executable, consider as prompt.')
+                            input_str = s
                     except KeyboardInterrupt as e:
                         raise e
                     except Exception as e:
                         print_error(str(e))
+                    if input_str:
+                        raise Exception()
                 except KeyboardInterrupt as e:
                     print_warning('Keyboard Interrupt.')
                 except:
