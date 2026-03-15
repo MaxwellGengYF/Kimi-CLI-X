@@ -57,6 +57,8 @@ _ralph_iterations = 0
 _default_max_steps_per_turn = 1000
 _default_max_retries_per_step = 32
 _default_reserved_context_size = 10_000
+_default_thinking = True
+_default_yolo = True
 
 agent_file = Path(__file__).parent / 'agent.yaml'
 # init
@@ -66,8 +68,8 @@ def _create_config():
     from kimi_agent_sdk import Config
     from kimi_cli.config import LoopControl
     cfg = Config()
-    cfg.default_thinking = True
-    cfg.default_yolo = True
+    cfg.default_thinking = _default_thinking
+    cfg.default_yolo = _default_yolo
     if not cfg.loop_control:
         cfg.loop_control = LoopControl()
     return cfg
@@ -105,7 +107,9 @@ _session_idx = 0
 
 def create_session(
     session_id: str = None,
-    ralph_loop: Optional[bool] = None
+    ralph_loop: Optional[bool] = None,
+    thinking: Optional[bool] = None,
+    yolo: Optional[bool] = None,
 ):
 
     global agent_file, _session_idx, default_skill_dir
@@ -129,8 +133,8 @@ def create_session(
         session = await Session.create(
             session_id=session_id,
             work_dir=default_work_dir,
-            yolo=True,
-            thinking=True,
+            yolo=yolo if yolo is not None else _default_yolo,
+            thinking=thinking if thinking is not None else _default_thinking,
             skills_dir=default_skill_dir,
             config=cfg,
             agent_file=agent_file

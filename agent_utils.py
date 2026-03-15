@@ -144,7 +144,7 @@ def print_agent_json(get_message):
 
     def print_item(item):
         if type(item) == str:
-            if not (item.find('<choise>') and item.find('</choise>')):
+            if not (item.find('<choise>') >= 0 and item.find('</choise>') >= 0):
                 print(item, end='\n')
         elif item.get("type") == "think":
             think_content = item.get("think", "")
@@ -154,7 +154,7 @@ def print_agent_json(get_message):
         elif item.get("type") == "text":
             text_content = item.get("text", "")
             if text_content:
-                if not (text_content.find('<choise>') and text_content.find('</choise>')):
+                if not (text_content.find('<choise>') >= 0 and text_content.find('</choise>') >= 0):
                     print(f"\n{text_content}", end='\n')
         elif item.get("type") == "function":
             text = item.get("function", "")

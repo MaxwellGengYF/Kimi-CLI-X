@@ -36,7 +36,15 @@ if CLEAN_MODE:
     print_debug('Enable clean mode, delete cache file after quit')
 if '-ralph' in sys.argv or '--ralph' in sys.argv:
     kimi_utils._ralph_iterations = -1
-    print_debug('Enable ralph loop, continue work until done(or running OUT of your TOKEN!!!). ')
+    print_debug(
+        'Enable ralph loop, continue work until done(or running OUT of your TOKEN!!!). ')
+
+if '--think=false' in sys.argv or '-think=false' in sys.argv:
+    kimi_utils._default_thinking = False
+    print_debug('disable thinking')
+if '--yolo=false' in sys.argv or '-yolo=false' in sys.argv:
+    kimi_utils._default_yolo = False
+    print_debug('disable yolo')
 
 
 def _run_cli():
@@ -138,7 +146,8 @@ def _run_cli():
                 except:
                     try:
                         if (input_str is not None) and len(input_str) > 0:
-                            prompt(prompt_str=input_str, session=get_default_session())
+                            prompt(prompt_str=input_str,
+                                   session=get_default_session())
                     except KeyboardInterrupt as e:
                         print_warning('Keyboard Interrupt.')
         except Exception as e:
