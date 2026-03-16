@@ -24,7 +24,8 @@ class CreateAgent(CallableTool2):
         global _sessions
         
         try:
-            session = await _create_session_async(session_id=params.session_id)
+            # Sub-agent should disable thinking, ralph, enable yolo
+            session = await _create_session_async(session_id=params.session_id, ralph_loop=False, thinking=False, yolo=True)
             # Create a new session
             
             # Get the session_id (in case it was auto-generated)
@@ -103,3 +104,5 @@ class WaitAgent(CallableTool2):
                 message=str(exc),
                 brief=f"Failed to wait for session",
             )
+
+from .compact import *

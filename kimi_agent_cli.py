@@ -2,7 +2,7 @@
 from pathlib import Path
 from kaos.path import KaosPath
 import asyncio
-from kimi_utils import print_success, print_error, print_warning, print_info, prompt, clear_context, sync_all,  _create_default_session, print_usage, delete_session_dir, print_debug, get_default_session
+from kimi_utils import print_success, print_error, print_warning, print_info, prompt, clear_context, sync_all,  _create_default_session, print_usage, delete_session_dir, print_debug, get_default_session, compact_session
 import kimi_utils
 import os
 import sys
@@ -98,7 +98,7 @@ def _run_cli():
                     clear_context()
                     continue
                 elif task_split[0] == 'compact':
-                    prompt(f"/compact", get_default_session())
+                    compact_session()
                     continue
                 elif task_split[0] == 'exit':
                     print_success('bye!')

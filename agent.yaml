@@ -25,3 +25,5 @@ agent:
     - "my_tools.img:ImageToText"
     - "my_tools.agent:CreateAgent"
     - "my_tools.agent:WaitAgent"
+    - "my_tools.agent:LoadSession"
+    - "my_tools.agent:SaveSession"

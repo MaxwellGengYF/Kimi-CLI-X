@@ -121,7 +121,7 @@ async def _create_session_async(
         cfg.loop_control.max_retries_per_step = _config.loop_control.max_retries_per_step
     else:
         cfg = _config
-        
+
     from kimi_agent_sdk import Session
     session = await Session.create(
         session_id=session_id,
@@ -166,8 +166,12 @@ def _create_default_session():
     _default_session = create_session("default")
     return _default_session
 
+_should_print_usage = threading.local()
+_should_print_usage.value = True
 
 def _print_usage(session):
+    if not getattr(_should_print_usage, 'value', False):
+        return
     s = _percentage_str(session.status.context_usage)
     print_success(
         f'Finished, context usage: {s}'
@@ -314,3 +318,88 @@ def read_file(path: Path, split_word: str = None):
     if split_word:
         return s.split(split_word)
     return s
+
+
+def _set_compact_key(session, callback):
+    assert session
+    assert callable(callback)
+
+    import my_tools.agent.compact as compact
+    if not session:
+        compact._current_key.key = 'default'
+    else:
+        compact._current_key.key = str(session.id)
+    try:
+        callback()
+    except:
+        raise
+    finally:
+        compact._current_key.key = 'default'
+
+
+def save_session(session):
+    assert session is not None
+    summary_prompt = '''
+Compact the current session's context and export it to a file.
+
+Please:
+1. **Summarize the work completed** - List all files created, modified, or analyzed with brief descriptions of what was done  
+2. **Capture key decisions** - Document important architectural choices, design patterns, or configurations established       
+3. **Record current state** - Note any pending tasks, TODOs, or incomplete work
+4. **Include relevant code snippets** - For critical or complex implementations, include the key code sections (not everything)
+5. **Document lessons learned** - Capture any important insights, gotchas, or solutions to problems encountered
+
+Output: run tool:SaveSession with a clear structure including:
+- Session timestamp
+- Original request/purpose
+- Summary of actions taken
+- Files affected (with before/after states if relevant)
+- Key decisions & rationale
+- Current status & next steps (if any)
+- Code references (optional, for critical parts)
+'''
+
+    def summary():
+        prompt(summary_prompt, session=session)
+    # summary
+    _set_compact_key(session, summary)
+    return session
+
+
+def load_session(session):
+    def load():
+        import my_tools.agent.compact as compact
+        value = compact.LoadSession.load()
+        if not value:
+            print_warning('Session context not found.')
+            return
+        if len(value) == 0:
+            print_warning('Session context is empty.')
+            return
+        load_prompt = f'''
+Read this:
+```
+{value}
+```
+'''
+        prompt(load_prompt, session=session)
+    # summary
+    _set_compact_key(session, load)
+
+
+def compact_session():
+    global _should_print_usage
+    _should_print_usage.value = False
+    s = get_default_session()
+    usage = s.status.context_usage
+    save_session(s)
+    clear_context(False)
+    s = get_default_session()
+    load_session(s)
+    new_usage = s.status.context_usage
+    usage = _percentage_str(usage)
+    new_usage = _percentage_str(new_usage)
+    _should_print_usage.value = True
+    print_success(
+        f'Finished, context usage compact from {usage} to {new_usage}'
+    )
