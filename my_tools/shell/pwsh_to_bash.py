@@ -497,47 +497,78 @@ def convert_command(bash_cmd: str) -> str:
     return converter.convert(bash_cmd)
 
 
-def parse_command(command: str) -> str:
-    """Replace '&&' with ';' only when not inside single or double quotes."""
+def multiple_split(text, *delimiters, maxsplit=-1):
+    """
+    Split a string using multiple delimiters.
+
+    Args:
+        text: The string to split.
+        *delimiters: One or more delimiter strings to split on.
+        maxsplit: Maximum number of splits to do. -1 means no limit.
+
+    Returns:
+        A list of strings after splitting.
+
+    Examples:
+        >>> multiple_split("a,b;c", ",", ";")
+        ['a', 'b', 'c']
+        >>> multiple_split("a::b||c", "::", "||")
+        ['a', 'b', 'c']
+    """
+    if not delimiters:
+        return [text] if text else []
+
+    if not text:
+        return []
+
+    # Sort delimiters by length (longest first) to avoid partial matches
+    sorted_delims = sorted(delimiters, key=len, reverse=True)
+
     result = []
-    i = 0
-    in_single_quote = False
-    in_double_quote = False
-    cmd = ""
-    while i < len(command):
-        char = command[i]
+    current = text
+    split_count = 0
 
-        # Handle quote toggling (ignore escaped quotes)
-        if char == "'" and not in_double_quote:
-            # Check if escaped (preceded by odd number of backslashes)
-            backslash_count = 0
-            j = i - 1
-            while j >= 0 and command[j] == "\\":
-                backslash_count += 1
-                j -= 1
-            if backslash_count % 2 == 0:
-                in_single_quote = not in_single_quote
-        elif char == '"' and not in_single_quote:
-            # Check if escaped
-            backslash_count = 0
-            j = i - 1
-            while j >= 0 and command[j] == "\\":
-                backslash_count += 1
-                j -= 1
-            if backslash_count % 2 == 0:
-                in_double_quote = not in_double_quote
+    while current:
+        if maxsplit >= 0 and split_count >= maxsplit:
+            result.append(current)
+            break
 
-        # Check for '&&' replacement
-        if not in_single_quote and not in_double_quote and i + 1 < len(command) and command[i:i+2] == "&&":
-            if len(result) > 0:
-                cmd += convert_command("".join(result)) + ";"
-                result.clear()
-            else:
-                result.append(";")
-            i += 2
+        # Find the earliest delimiter
+        earliest_pos = -1
+        earliest_delim = None
+
+        for delim in sorted_delims:
+            pos = current.find(delim)
+            if pos != -1:
+                if earliest_pos == -1 or pos < earliest_pos:
+                    earliest_pos = pos
+                    earliest_delim = delim
+
+        if earliest_pos == -1:
+            # No more delimiters found
+            result.append(current)
+            break
+
+        # Add the part before the delimiter
+        if earliest_pos > 0 or result:  # Keep empty parts if not at start
+            result.append(current[:earliest_pos])
+            result.append(earliest_delim)
+
+        # Move past the delimiter
+        current = current[earliest_pos + len(earliest_delim):]
+        split_count += 1
+
+    return result
+
+
+def parse_command(command: str) -> str:
+    commands = multiple_split(command, '|', '&&', ';', '||')
+    for i in range(len(commands)):
+        cmd = commands[i]
+        if cmd == '&&':
+            commands[i] = ';'
         else:
-            result.append(char)
-            i += 1
-    if len(result) > 0:
-        cmd += convert_command("".join(result))
-    return cmd
+            if len(cmd) > 1:
+                commands[i] = convert_command(cmd)
+                
+    return ' '.join(commands)

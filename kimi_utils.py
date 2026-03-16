@@ -54,7 +54,7 @@ _default_session = None
 _ralph_iterations = 0
 _default_max_steps_per_turn = 1000
 _default_max_retries_per_step = 32
-_default_reserved_context_size = 10_000
+_default_reserved_context_size = 20_000
 _default_thinking = False
 _default_yolo = True
 
