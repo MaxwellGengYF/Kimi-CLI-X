@@ -385,11 +385,13 @@ class BashToPowerShellConverter:
 
         # Parse flags (e.g., -la, -a, -lh, -lat)
         flags = set()
+        final_cmd = []
         for part in parts[1:]:
             if part.startswith('-'):
                 for char in part[1:]:
                     flags.add(char)
-
+            else:
+                final_cmd.append(part)
         # Build PowerShell command
         base_cmd = 'Get-ChildItem'
         if 'a' in flags:
@@ -397,10 +399,10 @@ class BashToPowerShellConverter:
 
         # Determine if we need sorting (-t) or formatting (-l, -h)
         need_sort = 't' in flags
-        need_format = 'l' in flags or 'h' in flags
+        need_format = ('l' in flags or 'h' in flags) and len(final_cmd) == 0
 
         if not need_sort and not need_format:
-            return base_cmd
+            return base_cmd + " " + "".join(final_cmd)
 
         result = base_cmd
 
@@ -417,7 +419,7 @@ class BashToPowerShellConverter:
                 # Standard detailed listing
                 result += ' | Select-Object Mode, LastWriteTime, Length, Name | Format-Table -AutoSize'
 
-        return result
+        return result + " " + "".join(final_cmd)
 
     def _convert_command(self, line: str) -> Optional[str]:
         """Convert bash commands (handles pipes by calling _convert_piped_command)."""
