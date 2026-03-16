@@ -52,9 +52,7 @@ if default_skill_dir:
 _config = None
 _default_session = None
 _ralph_iterations = 0
-_default_max_steps_per_turn = 1000
-_default_max_retries_per_step = 32
-_default_reserved_context_size = 20_000
+_default_reserved_context_size = 32_000 # 1/4 reserve
 _default_thinking = False
 _default_yolo = True
 
@@ -77,9 +75,6 @@ def _init_model():
         return
     _config = _create_config()
 
-    # This is just my favor
-    _config.loop_control.max_steps_per_turn = _default_max_steps_per_turn
-    _config.loop_control.max_retries_per_step = _default_max_retries_per_step
     # No ralph mode defaultly, manually do validate please
     _config.loop_control.max_ralph_iterations = _ralph_iterations
     _config.loop_control.reserved_context_size = _default_reserved_context_size
