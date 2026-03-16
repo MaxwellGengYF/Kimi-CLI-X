@@ -562,7 +562,7 @@ def multiple_split(text, *delimiters, maxsplit=-1):
 
 
 def parse_command(command: str) -> str:
-    commands = multiple_split(command, '|', '&&', ';', '||')
+    commands = multiple_split(command, '|', '&', '&&', ';', '||')
     for i in range(len(commands)):
         cmd = commands[i]
         if cmd == '&&':
