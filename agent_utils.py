@@ -168,7 +168,8 @@ def print_agent_json(get_message):
     if js.get("role") == "assistant":
         content = js.get("content", [])
         if type(content) == str:
-            print(content, end='\n')
+            if not (content.find('<choise>') >= 0 and content.find('</choise>') >= 0):
+                print(content, end='\n')
             return
         for item in content:
             print_item(item)
