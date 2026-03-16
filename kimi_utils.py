@@ -393,7 +393,7 @@ def compact_session():
     s = get_default_session()
     usage = s.status.context_usage
     save_session(s)
-    clear_context(False)
+    clear_context()
     s = get_default_session()
     load_session(s)
     new_usage = s.status.context_usage
