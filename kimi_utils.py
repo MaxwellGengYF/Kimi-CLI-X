@@ -311,7 +311,7 @@ def fix_error(
         command: str,
         extra_prompt: str = None,
         skip_success: bool = True,
-        keycode: tuple = ('error'),
+        keycode: tuple = ('error', ),
         session=None,
         max_loop=4):
     for i in range(max_loop):
