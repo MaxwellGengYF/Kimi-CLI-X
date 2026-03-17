@@ -4,15 +4,7 @@ from pydantic import BaseModel, Field
 
 class Params(BaseModel):
     code: str = Field(
-        description="The Python code to execute.",
-    )
-    globals_dict: dict = Field(
-        default={},
-        description="Global variables to provide to the exec context.",
-    )
-    locals_dict: dict = Field(
-        default={},
-        description="Local variables to provide to the exec context.",
+        description="The Python code to execute. ",
     )
 
 
@@ -20,10 +12,12 @@ class Python(CallableTool2):
     name: str = "Python"
     description: str = "Execute Python code using exec function."
     params: type[Params] = Params
+    globals_dict = dict()
+    locals_dict = dict()
 
     async def __call__(self, params: Params) -> ToolReturnValue:
         try:
-            exec(params.code, params.globals_dict, params.locals_dict)
+            exec(params.code, self.globals_dict, self.locals_dict)
             return ToolOk(output="Code executed successfully.")
         except Exception as exc:
             return ToolError(

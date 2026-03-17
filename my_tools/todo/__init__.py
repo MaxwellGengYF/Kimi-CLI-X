@@ -36,7 +36,7 @@ def _deser_params(s: str) -> Params:
     return Params.model_validate_json(s)
 
 
-def get_todo_list(id):
+def get_todo_list(id) -> Params:
     import dbm
     try:
         with dbm.open(DEFAULT_DB_PATH, 'c') as db:
@@ -48,7 +48,7 @@ def get_todo_list(id):
     return None
 
 
-def clear_todo_list(id):
+def clear_todo_list(id) -> None:
     import dbm
     try:
         with dbm.open(DEFAULT_DB_PATH, 'c') as db:
@@ -56,10 +56,9 @@ def clear_todo_list(id):
             del db[key]
     except Exception:
         pass
-    return None
 
 
-def set_todo_list(id, params: Params):
+def set_todo_list(id, params: Params) -> None:
     import dbm
     try:
         with dbm.open(DEFAULT_DB_PATH, 'c') as db:

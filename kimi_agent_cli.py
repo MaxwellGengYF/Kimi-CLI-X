@@ -70,7 +70,7 @@ def _run_cli():
     # Read user input from keyboard asynchronously
     exec_ctx = None
     special_commands = {
-        'clear', 'exit', 'help', 'compact', 'context', 'fix'
+        'clear', 'exit', 'help', 'compact', 'context', 'fix', 'plan'
     }
     input_str = None
     _create_default_session()
@@ -131,12 +131,29 @@ def _run_cli():
                     continue
                 elif task_split[0] == 'plan':
                     if len(task_split) < 2:
-                        print_error('Command must be /plan:prompt')
+                        print_error('Command must be /plan:plan_script.py')
                         continue
-                    if not kimi_utils.make_todo(task_split[1], get_default_session()):
-                        print_error('Make todo-list failed.')
+                    script_dst_dir = Path(task_split[1])
+                    if script_dst_dir.suffix != '.py':
+                        print_error(f'Invalid file extension: {script_dst_dir.suffix}. Expected .py')
+                        continue
+                    plan_str = input(">>>> Enter your plan:\n").strip()
+                    import my_tools.todo as todo
+                    todo.clear_todo_list('default')
+                    if len(plan_str) > 0:
+                        prompt(f'''
+Run tool:SetTodoList to set a todo-list of (do NOT implement, ONLY make list):
+{plan_str}
+''')
+                    todo_list =  todo.get_todo_list('default')
+                    if todo_list is None:
+                        print_error('Make plan failed.')
                     else:
-                        print_success(f'Make todo-list success.')
+                        data = 'from kimi_utils import prompt\n'
+                        for i in todo_list.todos:
+                            data += f'prompt({repr(i.title)})\n'
+                        script_dst_dir.write_text(data, encoding='utf-8')
+                        print_success(f'Make plan success. write to {str(script_dst_dir)}')
                     continue
                 elif task_split[0] == 'todo':
                     # Parse subcommand and arguments
@@ -164,7 +181,14 @@ def _run_cli():
                         kimi_utils.clear_todo(get_default_session())
                         print_success('Todo list cleared.')
                         continue
-                    
+                    elif subcommand.startswith('make ') or subcommand == 'make':
+                        subcommand = subcommand[4:]
+                        if not kimi_utils.make_todo(subcommand.strip(), get_default_session()):
+                            print_error('Make todo-list failed.')
+                        else:
+                            print_success(f'Make todo-list success.')
+                        continue
+                        
                     elif subcommand.startswith('done ') or subcommand == 'done':
                         # Mark item(s) as done
                         kimi_utils.update_todo_status(get_default_session(), subcommand[5:].strip() if subcommand.startswith('done ') else '', 'done')
@@ -184,6 +208,7 @@ def _run_cli():
                         print_info('''Todo commands:
   /todo           - Show current todo list
   /todo:list      - Show current todo list
+  /todo:make      - Make a new todo list
   /todo:clear     - Clear all todo items
   /todo:done <n>  - Mark item(s) as done (e.g., /todo:done 1,2 or /todo:done 1-3)
   /todo:in_progress <n> - Mark item(s) as in_progress

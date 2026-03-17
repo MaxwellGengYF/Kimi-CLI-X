@@ -199,14 +199,16 @@ def clear_context():
 
 def prompt(prompt_str: str, session=None):
     import my_tools.todo as todo
-    todo.set_current_id(str(session.id) if session is not None else 'default')
+    if session is None:
+        session = get_default_session()
+    elif not session:
+        session = create_session()
+        _temp_create_session = True
+    todo.set_current_id(str(session.id))
 
     global _default_session
     prompt_str = prompt_str.strip()
     _temp_create_session = False
-    if session is None:
-        session = create_session()
-        _temp_create_session = True
 
     async def func():
         nonlocal session, _temp_create_session
@@ -285,7 +287,7 @@ def update_todo_status(
     status: str = 'done'
 ):
     """Update the status of todo items by indices.
-    
+
     Args:
         session: The session object
         indices_str: Comma-separated indices or range (e.g., '1,2,3' or '1-3')
@@ -293,17 +295,18 @@ def update_todo_status(
     """
     import my_tools.todo as todo
     from agent_utils import print_success, print_error, print_info
-    
-    result = todo.get_todo_list(str(session.id) if session is not None else 'default')
+
+    result = todo.get_todo_list(
+        str(session.id) if session is not None else 'default')
     if not result:
         print_info('No todo items found.')
         return
-    
+
     todos = result.todos if hasattr(result, 'todos') else []
     if not todos:
         print_info('No todo items found.')
         return
-    
+
     # Parse indices
     indices = set()
     if not indices_str:
@@ -334,11 +337,11 @@ def update_todo_status(
                 except ValueError:
                     print_error(f'Invalid index: {part}')
                     return
-    
+
     if not indices:
         print_info('No valid indices specified.')
         return
-    
+
     # Update the status of specified items
     updated_count = 0
     for idx in sorted(indices):
@@ -350,12 +353,14 @@ def update_todo_status(
             old_status = todo_item.get('status', 'pending')
             todo_item['status'] = status
         updated_count += 1
-        title = todo_item.title if hasattr(todo_item, 'title') else todo_item.get('title', 'Unknown')
+        title = todo_item.title if hasattr(
+            todo_item, 'title') else todo_item.get('title', 'Unknown')
         print_success(f'Updated: "{title}" [{old_status} -> {status}]')
-    
+
     # Save the updated todo list
-    todo.set_todo_list(session.id if session is not None else 'default', result)
-    
+    todo.set_todo_list(
+        session.id if session is not None else 'default', result)
+
     print_success(f'Updated {updated_count} item(s) to "{status}".')
 
 
@@ -414,7 +419,7 @@ def fix_error(
     return False
 
 
-def async_prompt(prompt_str: str, session=None):
+def async_prompt(prompt_str: str, session=False):  # make session false, default stateless
     return run_thread(prompt, (prompt_str, session))
 
 
@@ -423,7 +428,7 @@ def async_fix_error(
     extra_prompt: str = None,
     skip_success: bool = True,
     keycode: tuple = ('error',),
-    session=None
+    session=False
 ):
     return run_thread(fix_error, (command, extra_prompt, skip_success, keycode, session))
 
