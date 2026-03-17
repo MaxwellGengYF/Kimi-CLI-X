@@ -27,7 +27,7 @@ class SaveSession(CallableTool2):
             with dbm.open(DEFAULT_DB_PATH, 'c') as db:
                 db[key.encode('utf-8')] = params.value.encode('utf-8')
 
-            return ToolOk(output=f"Done")
+            return ToolOk(output='')
         except Exception as exc:
             return ToolError(
                 output="",

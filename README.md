@@ -24,6 +24,7 @@ python kimi_agent_cli.py
 | `-ralph`, `--ralph` | Enable ralph loop mode - automatically continues working until task is complete (may consume more tokens) |
 | `--think`, `-think` | Enable thinking mode |
 | `--no_yolo`, `-no_yolo` | Disable yolo mode (auto-confirm dangerous operations) |
+| `--full`, `-full` | Use agent_full.yaml with extended tools (Zip, Unzip, PDF, Image processing, Sub-agents, etc.) |
 
 ### Examples
 
@@ -47,6 +48,10 @@ python kimi_agent_cli.py --think
 python kimi_agent_cli.py -no_yolo
 python kimi_agent_cli.py --no_yolo
 
+# Use full agent mode with extended tools
+python kimi_agent_cli.py --full
+python kimi_agent_cli.py -full
+
 # Combine multiple options
 python kimi_agent_cli.py -c -ralph -think -no_yolo
 ```
@@ -65,6 +70,7 @@ Once the CLI is running, you can use the following commands:
 | `/skill:<name>` | Load a specific skill from the skills directory |
 | `/file:<path>` | Load and execute a Python file line by line, or read a file as prompt |
 | `<path>` | Directly specify a Python file path to execute |
+| `/todo` | Show the current todo list |
 
 ### Command Examples
 
@@ -98,13 +104,21 @@ my_prompt.txt
 # Exit the CLI
 >>>>>>>>> Enter your prompt or command:
 /exit
+
+# Show current todo list
+>>>>>>>>> Enter your prompt or command:
+/todo
 ```
 
 ## Agent Tools
 
-The agent has access to various tools for file operations, code execution, web search, and more. These tools are defined in `agent.yaml`.
+The agent has access to various tools for file operations, code execution, web search, and more. Tools are defined in `agent_base.yaml` (basic tools) or `agent_full.yaml` (extended tools).
 
-### File Operations
+### Base + Full Tools (Available in all modes)
+
+These tools are available in both basic mode and full mode (`--full` flag):
+
+#### File Operations
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
@@ -112,53 +126,60 @@ The agent has access to various tools for file operations, code execution, web s
 | `WriteFile` | Write content to a file | `path` (str): File path; `content` (str): Content to write; `mode` (str): "overwrite" or "append" |
 | `StrReplaceFile` | Replace strings in a file | `path` (str): File path; `edit` (dict/list): Replacement specification |
 | `Glob` | Find files using glob patterns | `pattern` (str): Glob pattern; `directory` (str): Search directory; `include_dirs` (bool): Include directories |
-| `Grep` | Search file contents using regex | `pattern` (str): Regex pattern; `path` (str): File/directory to search; `output_mode` (str): Output format |
-| `Ls` | List files in a directory | `directory` (str): Directory path (default: current directory) |
-| `FileInfo` | Get file information (size, SHA256, timestamps) | `path` (str): File path |
+| `Grep` | Search file contents using regex | `pattern` (str): Regex pattern; `path` (str): File/directory to search; `output_mode` (str): Output format; `-n` (bool): Show line numbers; `-i` (bool): Case insensitive; `-C` (int): Context lines |
+| `Ls` | List files in a directory | `directory` (str): Directory path; `long_format` (bool): Show detailed info; `recursive` (bool): List recursively |
 
-### Directory Operations
-
-| Tool | Description | Parameters |
-|------|-------------|------------|
-| `Mkdir` | Create a directory | `path` (str): Directory path; `parents` (bool): Create parent directories if needed |
-| `Move` | Move a file or directory | `source` (str): Source path; `destination` (str): Destination path |
-| `Remove` | Remove a file or directory | `path` (str): Path to remove; `recursive` (bool): Remove directories recursively |
-
-### Code Execution
+#### Code Execution
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
-| `Shell` | Execute shell commands (PowerShell on Windows) | `command` (str): Command to execute; `timeout` (int): Timeout in seconds (1-900) |
+| `Shell` | Execute shell commands (PowerShell on Windows, bash on Linux/macOS) | `command` (str): Command to execute; `timeout` (int): Timeout in seconds (1-900, default 60) |
 | `Python` | Execute Python code using exec() | `code` (str): Python code; `globals_dict` (dict): Global variables; `locals_dict` (dict): Local variables |
-| `CppSyntaxCheck` | Check C++ file syntax using clangd | `file_path` (str): C++ file path; `project_root` (str): Project root; `clangd_path` (str): Path to clangd |
+| `CppSyntaxCheck` | Check C++ file syntax using clangd LSP | `file_path` (str): C++ file path; `project_root` (str): Project root; `clangd_path` (str): Path to clangd |
 
-### Archive Operations
-
-| Tool | Description | Parameters |
-|------|-------------|------------|
-| `Zip` | Create a 7z archive | `source` (str): File/directory to compress; `destination` (str): Output path; `password` (str): Optional password |
-| `Unzip` | Extract archives (7z/zip/rar/tar/gz) | `source` (str): Archive path; `destination` (str): Output directory; `password` (str): Optional password |
-
-### Web Tools
+#### Web Tools
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
 | `SearchWeb` | Search the web | Query parameters for web search |
 | `FetchURL` | Fetch and extract content from a URL | `url` (str): URL to fetch |
 
-### Document Processing
+#### Task Management
+
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `SetTodoList` | Update the todo list for task tracking | `todos` (list): List of todo items with `title` and `status` ("pending", "in_progress", "done") |
+| `GetTodoList` | Retrieve the current todo list | No parameters |
+| `SetFlag` | Set a flag (used for validation/confirmation) | No parameters |
+
+---
+
+### Full Only Tools (Requires `--full` flag)
+
+These tools are only available when running with the `--full` flag:
+
+#### Archive Operations
+
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `Zip` | Create a 7z archive | `source` (str): File/directory to compress; `destination` (str): Output path; `password` (str): Optional password |
+| `Unzip` | Extract archives (7z/zip/rar/tar/gz) | `source` (str): Archive path; `destination` (str): Output directory; `password` (str): Optional password |
+
+#### Document Processing
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
 | `PdfToMarkdown` | Convert PDF documents to Markdown | `pdf_path` (str): PDF file path; `output_path` (str): Output file path; `extract_images` (bool): Extract images; `ocr` (bool): Run OCR on images; `extract_tables` (bool): Extract tables; `page_range` (str): Page range (e.g., "0-5") |
+| `ImageToText` | Extract text from images using OCR | `image_path` (str): Image file path; `output_path` (str): Output text file; `language` (str): OCR language code; `preprocess` (bool): Apply image preprocessing |
 
-### Agent Management
+#### Agent Management
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
-| `CreateSubagent` | Create a custom subagent with specific system prompt | `name` (str): Agent name; `system_prompt` (str): System prompt defining role and capabilities |
-| `SetTodoList` | Update the todo list for task tracking | `todos` (list): List of todo items with `title` and `status` |
-| `SetFlag` | Set a flag (used for validation/confirmation) | No parameters |
+| `CreateAgent` | Create a subagent and run prompt asynchronously | `prompt` (str): Prompt to send; `session_id` (str): Optional session ID |
+| `WaitAgent` | Wait for a subagent session to finish | `session_id` (str): Session ID to wait for; `timeout` (float): Timeout in seconds |
+| `SaveSession` | Save session context to database | `value` (str): Context value to save |
+| `LoadSession` | Load session context from database | `key` (str): Context key to load |
 
 ## Python API Usage
 
@@ -245,3 +266,4 @@ print(result)  # True if AI confirms
 - The CLI maintains conversation context across prompts until `/clear` is used
 - Context usage information is displayed after each AI response
 - Press `Ctrl+C` (Keyboard Interrupt) at any time to interrupt the current operation or exit the CLI
+- Use `--full` flag to enable extended tools (Zip, Unzip, PDF conversion, Image OCR, Sub-agents)

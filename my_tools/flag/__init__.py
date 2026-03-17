@@ -32,4 +32,4 @@ class SetFlag(CallableTool2):
     async def __call__(self,  params: FlagParams) -> ToolReturnValue:
         global _flag
         _flag.flag = True
-        return ToolOk(output=f"ok")
+        return ToolOk(output=f"")

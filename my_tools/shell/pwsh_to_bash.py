@@ -18,8 +18,6 @@ _command_map = {
     'touch': 'New-Item -ItemType File',
     'which': 'Get-Command',
     'wc': 'Measure-Object',
-    'curl': 'Invoke-WebRequest',
-    'wget': 'Invoke-WebRequest',
     'man': 'Get-Help',
     'find': 'Get-ChildItem -Recurse',
     'head': 'Select-Object -First',
@@ -205,6 +203,18 @@ class BashToPowerShellConverter:
         if stripped.startswith('ls '):
             return self._convert_ls(stripped)
 
+        # Handle rm with various flags (-r, -f, -rf)
+        if stripped.startswith('rm '):
+            return self._convert_rm(stripped)
+
+        # Handle cp with various flags (-r, -f)
+        if stripped.startswith('cp '):
+            return self._convert_cp(stripped)
+
+        # Handle mv with various flags (-f)
+        if stripped.startswith('mv '):
+            return self._convert_mv(stripped)
+
         # Default: return with variable conversion
         # Handle basic commands (with pipe detection)
         cmd_result = self._convert_command(stripped)
@@ -234,112 +244,6 @@ class BashToPowerShellConverter:
 
         return None
 
-    def _convert_compound_command(self, line: str) -> Optional[str]:
-        """Convert compound commands with && for Windows."""
-        # Handle set VAR=value && echo %VAR% pattern
-        # In cmd.exe, %VAR% is expanded at parse time, not at execution time
-        # We need to enable delayed expansion and use !VAR!
-        if line.startswith('set ') and ' && ' in line:
-            parts = line.split(' && ', 1)
-            first_cmd = parts[0].strip()
-            second_cmd = parts[1].strip()
-
-            # Parse set command: set VAR=value
-            match = re.match(
-                r'^set\s+([a-zA-Z_][a-zA-Z0-9_]*)=(.+)$', first_cmd)
-            if match:
-                var_name = match.group(1)
-                value = match.group(2)
-
-                # Convert second command, replacing %VAR% with !VAR! for delayed expansion
-                second_cmd_converted = second_cmd.replace(
-                    f'%{var_name}%', f'!{var_name}!')
-                # Also handle any other %VAR% patterns
-                second_cmd_converted = re.sub(
-                    r'%([a-zA-Z_][a-zA-Z0-9_]*)%', r'!\1!', second_cmd_converted)
-
-                # Use cmd /V:ON to enable delayed expansion
-                return f'cmd /V:ON /C "{first_cmd} && {second_cmd_converted}"'
-
-        # Handle TEST_VAR=test_value && echo $TEST_VAR (bash style on Windows)
-        match = re.match(r'^([a-zA-Z_][a-zA-Z0-9_]*)=(.+?)\s+&&\s+(.+)$', line)
-        if match:
-            var_name = match.group(1)
-            value = match.group(2)
-            second_cmd = match.group(3)
-
-            # Replace $VAR or ${VAR} with !VAR! for delayed expansion
-            second_cmd_converted = re.sub(
-                r'\$\{([^}]+)\}', r'!\1!', second_cmd)
-            second_cmd_converted = re.sub(
-                r'\$(\w+)', r'!\1!', second_cmd_converted)
-
-            return f'cmd /V:ON /C "set {var_name}={value} && {second_cmd_converted}"'
-
-        return None
-
-    def _convert_test_condition(self, condition: str) -> str:
-        """Convert bash test condition [ ] to PowerShell."""
-        condition = condition.strip()
-
-        # File tests
-        if re.match(r'^-f\s+', condition):
-            file_path = condition[2:].strip().strip('"\'')
-            return f'Test-Path "{file_path}" -PathType Leaf'
-        if re.match(r'^-d\s+', condition):
-            dir_path = condition[2:].strip().strip('"\'')
-            return f'Test-Path "{dir_path}" -PathType Container'
-        if re.match(r'^-e\s+', condition):
-            path = condition[2:].strip().strip('"\'')
-            return f'Test-Path "{path}"'
-        if re.match(r'^-z\s+', condition):
-            var = condition[2:].strip()
-            var = self._convert_variables(var)
-            return f'[string]::IsNullOrEmpty({var})'
-        if re.match(r'^-n\s+', condition):
-            var = condition[2:].strip()
-            var = self._convert_variables(var)
-            return f'(-not [string]::IsNullOrEmpty({var}))'
-
-        # String comparisons
-        match = re.match(r'^"?\$(\w+)"?\s*=\s*"?(.+?)?$', condition)
-        if match:
-            var = f'${match.group(1)}'
-            val = match.group(2)
-            return f'{var} -eq "{val}"'
-
-        match = re.match(r'^"?\$(\w+)"?\s*!=\s*"?(.+?)?$', condition)
-        if match:
-            var = f'${match.group(1)}'
-            val = match.group(2)
-            return f'{var} -ne "{val}"'
-
-        # Numeric comparisons
-        match = re.match(r'^(.+?)\s+-eq\s+(.+)$', condition)
-        if match:
-            left = self._convert_variables(match.group(1).strip())
-            right = match.group(2).strip()
-            return f'{left} -eq {right}'
-
-        match = re.match(r'^(.+?)\s+-ne\s+(.+)$', condition)
-        if match:
-            left = self._convert_variables(match.group(1).strip())
-            right = match.group(2).strip()
-            return f'{left} -ne {right}'
-
-        match = re.match(r'^(.+?)\s+-lt\s+(.+)$', condition)
-        if match:
-            left = self._convert_variables(match.group(1).strip())
-            right = match.group(2).strip()
-            return f'{left} -lt {right}'
-
-        match = re.match(r'^(.+?)\s+-gt\s+(.+)$', condition)
-        if match:
-            left = self._convert_variables(match.group(1).strip())
-            right = match.group(2).strip()
-            return f'{left} -gt {right}'
-
-        return self._convert_variables(condition)
 
     def _convert_echo_command(self, line: str) -> str:
         """Convert echo command with redirection and pipe support."""
@@ -376,6 +280,114 @@ class BashToPowerShellConverter:
             content = content[3:].strip()
 
         return f'Write-Output {content}'
+    
+    def _convert_rm(self, cmd: str) -> str:
+        """Convert rm command with flags to PowerShell equivalent."""
+        parts = cmd.split()
+        if len(parts) < 2:
+            return 'Remove-Item'
+
+        # Parse flags
+        flags = set()
+        args = []
+        for part in parts[1:]:
+            if part.startswith('-'):
+                for char in part[1:]:
+                    flags.add(char)
+            else:
+                args.append(part)
+
+        # Build PowerShell command
+        base_cmd = 'Remove-Item'
+        ps_flags = []
+
+        # -r or -R for recursive
+        if 'r' in flags or 'R' in flags:
+            ps_flags.append('-Recurse')
+
+        # -f for force
+        if 'f' in flags:
+            ps_flags.append('-Force')
+
+        # Add remaining arguments (file paths)
+        args_str = ' '.join(args)
+        if ps_flags:
+            return f"{base_cmd} {args_str} {' '.join(ps_flags)}"
+        return f'{base_cmd} {args_str}'
+
+    def _convert_cp(self, cmd: str) -> str:
+        """Convert cp command with flags to PowerShell equivalent."""
+        parts = cmd.split()
+        if len(parts) < 3:
+            return 'Copy-Item'
+
+        # Parse flags
+        flags = set()
+        args = []
+        for part in parts[1:]:
+            if part.startswith('-'):
+                for char in part[1:]:
+                    flags.add(char)
+            else:
+                args.append(part)
+
+        # Build PowerShell command
+        base_cmd = 'Copy-Item'
+        ps_flags = []
+
+        # -r or -R for recursive (directories)
+        if 'r' in flags or 'R' in flags:
+            ps_flags.append('-Recurse')
+
+        # -f for force (overwrite)
+        if 'f' in flags:
+            ps_flags.append('-Force')
+
+        # Handle source and destination
+        if len(args) >= 2:
+            source = args[0]
+            dest = args[1]
+            if ps_flags:
+                return f"{base_cmd} {source} {dest} {' '.join(ps_flags)}"
+            return f'{base_cmd} {source} {dest}'
+        elif len(args) == 1:
+            return f'{base_cmd} {args[0]}'
+        return base_cmd
+
+    def _convert_mv(self, cmd: str) -> str:
+        """Convert mv command with flags to PowerShell equivalent."""
+        parts = cmd.split()
+        if len(parts) < 3:
+            return 'Move-Item'
+
+        # Parse flags
+        flags = set()
+        args = []
+        for part in parts[1:]:
+            if part.startswith('-'):
+                for char in part[1:]:
+                    flags.add(char)
+            else:
+                args.append(part)
+
+        # Build PowerShell command
+        base_cmd = 'Move-Item'
+        ps_flags = []
+
+        # -f for force (overwrite)
+        if 'f' in flags:
+            ps_flags.append('-Force')
+
+        # Handle source and destination
+        if len(args) >= 2:
+            source = args[0]
+            dest = args[1]
+            if ps_flags:
+                return f"{base_cmd} {source} {dest} {' '.join(ps_flags)}"
+            return f'{base_cmd} {source} {dest}'
+        elif len(args) == 1:
+            return f'{base_cmd} {args[0]}'
+        return base_cmd
 
     def _convert_ls(self, cmd: str) -> str:
         """Convert ls command with flags to PowerShell equivalent."""

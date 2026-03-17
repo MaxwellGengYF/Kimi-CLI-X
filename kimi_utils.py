@@ -52,11 +52,11 @@ if default_skill_dir:
 _config = None
 _default_session = None
 _ralph_iterations = 0
-_default_reserved_context_size = 32_000 # 1/4 reserve
+_default_reserved_context_size = 48_000
 _default_thinking = False
 _default_yolo = True
 
-agent_file = Path(__file__).parent / 'agent.yaml'
+agent_file = Path(__file__).parent / 'agent_base.yaml'
 # init
 
 
@@ -161,8 +161,10 @@ def _create_default_session():
     _default_session = create_session("default")
     return _default_session
 
+
 _should_print_usage = threading.local()
 _should_print_usage.value = True
+
 
 def _print_usage(session):
     if not getattr(_should_print_usage, 'value', False):
@@ -196,6 +198,9 @@ def clear_context():
 
 
 def prompt(prompt_str: str, session=None):
+    import my_tools.todo as todo
+    todo.set_current_id(str(session.id) if session is not None else 'default')
+    
     global _default_session
     prompt_str = prompt_str.strip()
     _temp_create_session = False
@@ -242,11 +247,29 @@ def validate(
     if type(prompt_str) == str and len(prompt_str) > 0:
         import my_tools.flag as flag
         flag.reset_flag()
-        prompt_str = prompt_str + '\n\nIf the condition passes, call SetFlag tool'
+        prompt_str = prompt_str + \
+            '\n\nIf the condition is true, call tool:SetFlag.'
         prompt(prompt_str, session)
         return flag.check_flag()
     else:
         return prompt_str == True
+
+
+def make_todo(
+    prompt_str: Optional[str], session=None
+):
+    import my_tools.todo as todo
+    todo._todo_called = False
+    prompt_str = prompt_str + '\n\ncall tool:SetTodoList, to make a todo.'
+    prompt(prompt_str, session)
+    return todo._todo_called
+
+
+def get_todo(
+    session=None
+):
+    import my_tools.todo as todo
+    return todo.get_todo_list(str(session.id) if session is not None else 'default')
 
 
 def prompt_path(path: Path, split_word: str = None, session=None):

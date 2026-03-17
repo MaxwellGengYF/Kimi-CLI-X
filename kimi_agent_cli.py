@@ -25,6 +25,9 @@ HELP_STR = '''Available commands:
   /skill          - Load skills
   /help           - Show this help message
   /context        - Print context usage
+  /validate       - Test if a condition is true
+  /plan           - Make a plan 
+  /todo           - Show or manage todo list
 
 Or enter any prompt to send to the agent.
 '''
@@ -50,13 +53,18 @@ if '--think' in sys.argv or '-think' in sys.argv:
 else:
     kimi_utils._default_thinking = False
     print_debug('Thinking OFF.')
-    
+
 if '--no_yolo' in sys.argv or '-no_yolo' in sys.argv:
     kimi_utils._default_yolo = False
     print_debug('YOLO OFF.')
 else:
     kimi_utils._default_yolo = True
     print_debug('YOLO ON.')
+
+# Handle --full flag to use agent_full.yaml with extended tools
+if '--full' in sys.argv or '-full' in sys.argv:
+    kimi_utils.agent_file = Path(__file__).parent / 'agent_full.yaml'
+    print_debug('Using agent_full.yaml with extended tools.')
 
 
 def _run_cli():
@@ -106,6 +114,30 @@ def _run_cli():
                 elif task_split[0] == 'context':
                     print_usage()
                     continue
+                elif task_split[0] == 'validate':
+                    if len(task_split) < 2:
+                        print_error('Command must be /validate:prompt')
+                        continue
+                    result = kimi_utils.validate(
+                        task_split[1], get_default_session())
+                    print_info(f'Validate result: {result}')
+                    continue
+                elif task_split[0] == 'plan':
+                    if len(task_split) < 2:
+                        print_error('Command must be /plan:prompt')
+                        continue
+                    if not kimi_utils.make_todo(task_split[1], get_default_session()):
+                        print_error('Make todo-list failed.')
+                    else:
+                        print_success(f'Make todo-list success.')
+                    continue
+                elif task_split[0] == 'todo':
+                    result = kimi_utils.get_todo(get_default_session())
+                    if not result:
+                        print_info('No todo items found.')
+                    else:
+                        print_success(f'Todo list: {result}')
+                    continue
                 elif task_split[0] == 'skill':
                     if len(task_split) < 2:
                         print_error('Command must be /skill:xx')
@@ -115,7 +147,7 @@ def _run_cli():
                 elif task_split[0] == 'file':
                     if len(task_split) != 2:
                         print_error(
-                            f'command format error, should be /file:path')
+                            f'command format error, must be /file:path')
                         continue
                     input_str = task_split[1]
                 else:
@@ -148,7 +180,8 @@ def _run_cli():
                             finally:
                                 sync_all()
                         else:
-                            print_warning('File not executable, consider as prompt.')
+                            print_warning(
+                                'File not executable, consider as prompt.')
                             input_str = s
                     except KeyboardInterrupt as e:
                         raise e
