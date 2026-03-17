@@ -26,8 +26,10 @@ HELP_STR = '''Available commands:
   /help           - Show this help message
   /context        - Print context usage
   /validate       - Test if a condition is true
+  /fix:<command>  - Run a command and fix errors if any
   /plan           - Make a plan 
-  /todo           - Show or manage todo list
+  /todo           - Show todo list
+  /todo:help      - Show todo commands help
 
 Or enter any prompt to send to the agent.
 '''
@@ -68,7 +70,7 @@ def _run_cli():
     # Read user input from keyboard asynchronously
     exec_ctx = None
     special_commands = {
-        'clear', 'exit', 'help', 'compact', 'context'
+        'clear', 'exit', 'help', 'compact', 'context', 'fix'
     }
     input_str = None
     _create_default_session()
@@ -109,6 +111,16 @@ def _run_cli():
                 elif task_split[0] == 'context':
                     print_usage()
                     continue
+                elif task_split[0] == 'fix':
+                    if len(task_split) < 2:
+                        print_error('Command must be /fix:<command>')
+                        continue
+                    command_to_fix = task_split[1].strip()
+                    if not command_to_fix:
+                        print_error('Command must be /fix:<command>')
+                        continue
+                    kimi_utils.fix_error(command_to_fix, session=get_default_session())
+                    continue
                 elif task_split[0] == 'validate':
                     if len(task_split) < 2:
                         print_error('Command must be /validate:prompt')
@@ -127,12 +139,61 @@ def _run_cli():
                         print_success(f'Make todo-list success.')
                     continue
                 elif task_split[0] == 'todo':
-                    result = kimi_utils.get_todo(get_default_session())
-                    if not result:
-                        print_info('No todo items found.')
+                    # Parse subcommand and arguments
+                    subcommand = task_split[1].strip() if len(task_split) > 1 else ''
+                    
+                    if not subcommand or subcommand == 'list':
+                        # Show current todo list
+                        result = kimi_utils.get_todo(get_default_session())
+                        if not result:
+                            print_info('No todo items found.')
+                        else:
+                            todos = result.todos if hasattr(result, 'todos') else []
+                            if not todos:
+                                print_info('No todo items found.')
+                            else:
+                                print_success('Todo list:')
+                                for i, todo in enumerate(todos, 1):
+                                    status = todo.status if hasattr(todo, 'status') else todo.get('status', 'pending')
+                                    title = todo.title if hasattr(todo, 'title') else todo.get('title', 'Unknown')
+                                    status_icon = {'pending': '⏳', 'in_progress': '🔄', 'done': '✅'}.get(status, '⏳')
+                                    print_info(f'  {i}. [{status_icon}] {title}')
+                        continue
+                    
+                    elif subcommand == 'clear':
+                        kimi_utils.clear_todo(get_default_session())
+                        print_success('Todo list cleared.')
+                        continue
+                    
+                    elif subcommand.startswith('done ') or subcommand == 'done':
+                        # Mark item(s) as done
+                        kimi_utils.update_todo_status(get_default_session(), subcommand[5:].strip() if subcommand.startswith('done ') else '', 'done')
+                        continue
+                    
+                    elif subcommand.startswith('in_progress ') or subcommand == 'in_progress':
+                        # Mark item(s) as in_progress
+                        kimi_utils.update_todo_status(get_default_session(), subcommand[12:].strip() if subcommand.startswith('in_progress ') else '', 'in_progress')
+                        continue
+                    
+                    elif subcommand.startswith('pending ') or subcommand == 'pending':
+                        # Mark item(s) as pending
+                        kimi_utils.update_todo_status(get_default_session(), subcommand[8:].strip() if subcommand.startswith('pending ') else '', 'pending')
+                        continue
+                    
+                    elif subcommand == 'help':
+                        print_info('''Todo commands:
+  /todo           - Show current todo list
+  /todo:list      - Show current todo list
+  /todo:clear     - Clear all todo items
+  /todo:done <n>  - Mark item(s) as done (e.g., /todo:done 1,2 or /todo:done 1-3)
+  /todo:in_progress <n> - Mark item(s) as in_progress
+  /todo:pending <n>     - Mark item(s) as pending
+  /todo:help      - Show this help message''')
+                        continue
+                    
                     else:
-                        print_success(f'Todo list: {result}')
-                    continue
+                        print_warning(f'Unknown todo command: {subcommand}. Use /todo:help for usage.')
+                        continue
                 elif task_split[0] == 'skill':
                     if len(task_split) < 2:
                         print_error('Command must be /skill:xx')

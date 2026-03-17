@@ -59,6 +59,16 @@ def clear_todo_list(id):
     return None
 
 
+def set_todo_list(id, params: Params):
+    import dbm
+    try:
+        with dbm.open(DEFAULT_DB_PATH, 'c') as db:
+            key = str(id).encode('utf-8')
+            db[key] = _ser_params(params).encode('utf-8')
+    except Exception:
+        pass
+
+
 _todo_called = False
 
 

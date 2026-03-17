@@ -279,6 +279,86 @@ def clear_todo(
     return todo.clear_todo_list(str(session.id) if session is not None else 'default')
 
 
+def update_todo_status(
+    session=None,
+    indices_str: str = '',
+    status: str = 'done'
+):
+    """Update the status of todo items by indices.
+    
+    Args:
+        session: The session object
+        indices_str: Comma-separated indices or range (e.g., '1,2,3' or '1-3')
+        status: The new status ('pending', 'in_progress', or 'done')
+    """
+    import my_tools.todo as todo
+    from agent_utils import print_success, print_error, print_info
+    
+    result = todo.get_todo_list(str(session.id) if session is not None else 'default')
+    if not result:
+        print_info('No todo items found.')
+        return
+    
+    todos = result.todos if hasattr(result, 'todos') else []
+    if not todos:
+        print_info('No todo items found.')
+        return
+    
+    # Parse indices
+    indices = set()
+    if not indices_str:
+        # If no indices specified, update all items
+        indices = set(range(len(todos)))
+    else:
+        parts = indices_str.split(',')
+        for part in parts:
+            part = part.strip()
+            if '-' in part:
+                # Range like '1-3'
+                try:
+                    start, end = part.split('-', 1)
+                    start_idx = int(start.strip()) - 1  # Convert to 0-based
+                    end_idx = int(end.strip()) - 1
+                    for i in range(start_idx, end_idx + 1):
+                        if 0 <= i < len(todos):
+                            indices.add(i)
+                except ValueError:
+                    print_error(f'Invalid range: {part}')
+                    return
+            else:
+                # Single index
+                try:
+                    idx = int(part) - 1  # Convert to 0-based
+                    if 0 <= idx < len(todos):
+                        indices.add(idx)
+                except ValueError:
+                    print_error(f'Invalid index: {part}')
+                    return
+    
+    if not indices:
+        print_info('No valid indices specified.')
+        return
+    
+    # Update the status of specified items
+    updated_count = 0
+    for idx in sorted(indices):
+        todo_item = todos[idx]
+        if hasattr(todo_item, 'status'):
+            old_status = todo_item.status
+            todo_item.status = status
+        else:
+            old_status = todo_item.get('status', 'pending')
+            todo_item['status'] = status
+        updated_count += 1
+        title = todo_item.title if hasattr(todo_item, 'title') else todo_item.get('title', 'Unknown')
+        print_success(f'Updated: "{title}" [{old_status} -> {status}]')
+    
+    # Save the updated todo list
+    todo.set_todo_list(session.id if session is not None else 'default', result)
+    
+    print_success(f'Updated {updated_count} item(s) to "{status}".')
+
+
 def prompt_path(path: Path, split_word: str = None, session=None, after_prompt_coro=None):
     f = open(path, 'r', encoding='utf-8')
     if not f:

@@ -69,6 +69,7 @@ Once the CLI is running, you can use the following commands:
 | `/todo` | Show or manage the todo list |
 | `/plan:<prompt>` | Make a plan based on the prompt (creates todo list) |
 | `/validate:<prompt>` | Test if a condition is true |
+| `/fix:<command>` | Run a command and automatically fix errors if any |
 
 ### Command Examples
 
@@ -114,6 +115,10 @@ my_prompt.txt
 # Validate a condition
 >>>>>>>>> Enter your prompt or command:
 /validate:Is Python an interpreted language?
+
+# Run a command and fix errors automatically
+>>>>>>>>> Enter your prompt or command:
+/fix:python my_script.py
 ```
 
 ## Agent Tools
