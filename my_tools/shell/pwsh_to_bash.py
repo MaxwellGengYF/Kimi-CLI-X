@@ -244,7 +244,6 @@ class BashToPowerShellConverter:
 
         return None
 
-
     def _convert_echo_command(self, line: str) -> str:
         """Convert echo command with redirection and pipe support."""
         # Check for pipes first
@@ -280,7 +279,7 @@ class BashToPowerShellConverter:
             content = content[3:].strip()
 
         return f'Write-Output {content}'
-    
+
     def _convert_rm(self, cmd: str) -> str:
         """Convert rm command with flags to PowerShell equivalent."""
         parts = cmd.split()
@@ -509,7 +508,7 @@ def convert_command(bash_cmd: str) -> str:
     return converter.convert(bash_cmd)
 
 
-def multiple_split(text, *delimiters, maxsplit=-1):
+def multiple_split(text, delimiters, maxsplit=-1):
     """
     Split a string using multiple delimiters.
 
@@ -535,7 +534,6 @@ def multiple_split(text, *delimiters, maxsplit=-1):
 
     # Sort delimiters by length (longest first) to avoid partial matches
     sorted_delims = sorted(delimiters, key=len, reverse=True)
-
     result = []
     current = text
     split_count = 0
@@ -574,13 +572,16 @@ def multiple_split(text, *delimiters, maxsplit=-1):
 
 
 def parse_command(command: str) -> str:
-    commands = multiple_split(command, '|', '&', '&&', ';', '||')
+    lists = ['||', '&&', ';', '|', '& ']
+    set = {i for i in lists}
+    commands = multiple_split(command, lists)
+
     for i in range(len(commands)):
         cmd = commands[i]
         if cmd == '&&':
             commands[i] = ';'
         else:
-            if len(cmd) > 1:
+            if not cmd in set:
                 commands[i] = convert_command(cmd)
-                
+
     return ' '.join(commands)

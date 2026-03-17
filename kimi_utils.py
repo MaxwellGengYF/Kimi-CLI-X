@@ -272,19 +272,32 @@ def get_todo(
     return todo.get_todo_list(str(session.id) if session is not None else 'default')
 
 
-def prompt_path(path: Path, split_word: str = None, session=None):
+def prompt_path(path: Path, split_word: str = None, session=None, after_prompt_coro = None):
     f = open(path, 'r', encoding='utf-8')
     if not f:
         print_error(f'File {str(path)} not found.')
         return
     s = f.read()
     f.close()
+    coro = None
+    if after_prompt_coro is not None:
+        coro = after_prompt_coro()
     if split_word:
         words = s.strip().split(split_word)
         for i in words:
             prompt(i, session=session)
+            if coro is not None:
+                try:
+                    coro.next()
+                except StopIteration as e:
+                    coro = None
     else:
         prompt(s, session=session)
+        if coro is not None:
+            try:
+                coro.next()
+            except StopIteration as e:
+                coro = None
 
 
 def fix_error(
