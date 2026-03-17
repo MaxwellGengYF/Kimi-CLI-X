@@ -24,7 +24,6 @@ python kimi_agent_cli.py
 | `-ralph`, `--ralph` | Enable ralph loop mode - automatically continues working until task is complete (may consume more tokens) |
 | `--think`, `-think` | Enable thinking mode |
 | `--no_yolo`, `-no_yolo` | Disable yolo mode (auto-confirm dangerous operations) |
-| `--full`, `-full` | Use agent_full.yaml with extended tools (Zip, Unzip, PDF, Image processing, Sub-agents, etc.) |
 
 ### Examples
 
@@ -269,4 +268,3 @@ print(result)  # True if AI confirms
 - The CLI maintains conversation context across prompts until `/clear` is used
 - Context usage information is displayed after each AI response
 - Press `Ctrl+C` (Keyboard Interrupt) at any time to interrupt the current operation or exit the CLI
-- Use `--full` flag to enable extended tools (Zip, Unzip, PDF conversion, Image OCR, Sub-agents)
