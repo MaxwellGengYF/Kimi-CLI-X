@@ -61,11 +61,6 @@ else:
     kimi_utils._default_yolo = True
     print_debug('YOLO ON.')
 
-# Handle --full flag to use agent_full.yaml with extended tools
-if '--full' in sys.argv or '-full' in sys.argv:
-    kimi_utils.agent_file = Path(__file__).parent / 'agent_full.yaml'
-    print_debug('Using agent_full.yaml with extended tools.')
-
 
 def _run_cli():
     # Parse command line arguments for clean mode flag

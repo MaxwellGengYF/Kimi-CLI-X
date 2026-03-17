@@ -48,6 +48,17 @@ def get_todo_list(id):
     return None
 
 
+def clear_todo_list(id):
+    import dbm
+    try:
+        with dbm.open(DEFAULT_DB_PATH, 'c') as db:
+            key = str(id).encode('utf-8')
+            del db[key]
+    except Exception:
+        pass
+    return None
+
+
 _todo_called = False
 
 

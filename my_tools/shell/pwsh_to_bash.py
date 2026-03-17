@@ -572,13 +572,13 @@ def multiple_split(text, delimiters, maxsplit=-1):
 
 
 def parse_command(command: str) -> str:
-    lists = ['||', '&&', ';', '|', '& ']
+    lists = ['||', '&&', ';', '|', '& ', ' & ']
     set = {i for i in lists}
     commands = multiple_split(command, lists)
 
     for i in range(len(commands)):
         cmd = commands[i]
-        if cmd == '&&':
+        if cmd == '&&' or cmd.strip() == '&':
             commands[i] = ';'
         else:
             if not cmd in set:

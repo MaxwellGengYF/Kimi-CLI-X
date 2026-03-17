@@ -24,3 +24,4 @@ agent:
     - "my_tools.agent:WaitAgent"
     - "my_tools.agent:LoadSession"
     - "my_tools.agent:SaveSession"
+    - "my_tools.office:DocxToMarkdown"

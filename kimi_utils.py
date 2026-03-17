@@ -56,7 +56,7 @@ _default_reserved_context_size = 48_000
 _default_thinking = False
 _default_yolo = True
 
-agent_file = Path(__file__).parent / 'agent_base.yaml'
+agent_file = Path(__file__).parent / 'agent.yaml'
 # init
 
 
@@ -200,7 +200,7 @@ def clear_context():
 def prompt(prompt_str: str, session=None):
     import my_tools.todo as todo
     todo.set_current_id(str(session.id) if session is not None else 'default')
-    
+
     global _default_session
     prompt_str = prompt_str.strip()
     _temp_create_session = False
@@ -272,7 +272,14 @@ def get_todo(
     return todo.get_todo_list(str(session.id) if session is not None else 'default')
 
 
-def prompt_path(path: Path, split_word: str = None, session=None, after_prompt_coro = None):
+def clear_todo(
+    session=None
+):
+    import my_tools.todo as todo
+    return todo.clear_todo_list(str(session.id) if session is not None else 'default')
+
+
+def prompt_path(path: Path, split_word: str = None, session=None, after_prompt_coro=None):
     f = open(path, 'r', encoding='utf-8')
     if not f:
         print_error(f'File {str(path)} not found.')
@@ -305,23 +312,25 @@ def fix_error(
         extra_prompt: str = None,
         skip_success: bool = True,
         keycode: tuple = ('error'),
-        session=None):
-    result = _run_process_with_error(
-        command, keycode, skip_success=skip_success)
-    if result is None:
-        print_success('No error.')
-        return True
-    error_keyword = None
-    for i in keycode:
-        if error_keyword:
-            error_keyword += ', ' + i
-        else:
-            error_keyword = i
-    prompt_str = f'Fix "{error_keyword}" from command {command}:\n{result}\n'
-    if extra_prompt is not None:
-        prompt_str = f'{extra_prompt}, {prompt_str}'
+        session=None,
+        max_loop=4):
+    for i in range(max_loop):
+        result = _run_process_with_error(
+            command, keycode, skip_success=skip_success)
+        if result is None:
+            print_success('No error.')
+            return True
+        error_keyword = None
+        for i in keycode:
+            if error_keyword:
+                error_keyword += ', ' + i
+            else:
+                error_keyword = i
+        prompt_str = f'Fix "{error_keyword}" from command {command}:\n{result}\n'
+        if extra_prompt is not None:
+            prompt_str = f'{extra_prompt}, {prompt_str}'
 
-    prompt(prompt_str, session)
+        prompt(prompt_str, session)
     return False
 
 

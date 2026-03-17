@@ -48,10 +48,6 @@ python kimi_agent_cli.py --think
 python kimi_agent_cli.py -no_yolo
 python kimi_agent_cli.py --no_yolo
 
-# Use full agent mode with extended tools
-python kimi_agent_cli.py --full
-python kimi_agent_cli.py -full
-
 # Combine multiple options
 python kimi_agent_cli.py -c -ralph -think -no_yolo
 ```
@@ -70,7 +66,9 @@ Once the CLI is running, you can use the following commands:
 | `/skill:<name>` | Load a specific skill from the skills directory |
 | `/file:<path>` | Load and execute a Python file line by line, or read a file as prompt |
 | `<path>` | Directly specify a Python file path to execute |
-| `/todo` | Show the current todo list |
+| `/todo` | Show or manage the todo list |
+| `/plan:<prompt>` | Make a plan based on the prompt (creates todo list) |
+| `/validate:<prompt>` | Test if a condition is true |
 
 ### Command Examples
 
@@ -108,17 +106,22 @@ my_prompt.txt
 # Show current todo list
 >>>>>>>>> Enter your prompt or command:
 /todo
+
+# Create a plan (generates todo list)
+>>>>>>>>> Enter your prompt or command:
+/plan:Implement a REST API with user authentication
+
+# Validate a condition
+>>>>>>>>> Enter your prompt or command:
+/validate:Is Python an interpreted language?
 ```
 
 ## Agent Tools
 
 The agent has access to various tools for file operations, code execution, web search, and more. Tools are defined in `agent_base.yaml` (basic tools) or `agent_full.yaml` (extended tools).
 
-### Base + Full Tools (Available in all modes)
 
-These tools are available in both basic mode and full mode (`--full` flag):
-
-#### File Operations
+### File Operations
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
@@ -129,7 +132,7 @@ These tools are available in both basic mode and full mode (`--full` flag):
 | `Grep` | Search file contents using regex | `pattern` (str): Regex pattern; `path` (str): File/directory to search; `output_mode` (str): Output format; `-n` (bool): Show line numbers; `-i` (bool): Case insensitive; `-C` (int): Context lines |
 | `Ls` | List files in a directory | `directory` (str): Directory path; `long_format` (bool): Show detailed info; `recursive` (bool): List recursively |
 
-#### Code Execution
+### Code Execution
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
@@ -137,14 +140,14 @@ These tools are available in both basic mode and full mode (`--full` flag):
 | `Python` | Execute Python code using exec() | `code` (str): Python code; `globals_dict` (dict): Global variables; `locals_dict` (dict): Local variables |
 | `CppSyntaxCheck` | Check C++ file syntax using clangd LSP | `file_path` (str): C++ file path; `project_root` (str): Project root; `clangd_path` (str): Path to clangd |
 
-#### Web Tools
+### Web Tools
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
 | `SearchWeb` | Search the web | Query parameters for web search |
 | `FetchURL` | Fetch and extract content from a URL | `url` (str): URL to fetch |
 
-#### Task Management
+### Task Management
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
@@ -152,27 +155,22 @@ These tools are available in both basic mode and full mode (`--full` flag):
 | `GetTodoList` | Retrieve the current todo list | No parameters |
 | `SetFlag` | Set a flag (used for validation/confirmation) | No parameters |
 
----
 
-### Full Only Tools (Requires `--full` flag)
-
-These tools are only available when running with the `--full` flag:
-
-#### Archive Operations
+### Archive Operations
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
 | `Zip` | Create a 7z archive | `source` (str): File/directory to compress; `destination` (str): Output path; `password` (str): Optional password |
 | `Unzip` | Extract archives (7z/zip/rar/tar/gz) | `source` (str): Archive path; `destination` (str): Output directory; `password` (str): Optional password |
 
-#### Document Processing
+### Document Processing
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
 | `PdfToMarkdown` | Convert PDF documents to Markdown | `pdf_path` (str): PDF file path; `output_path` (str): Output file path; `extract_images` (bool): Extract images; `ocr` (bool): Run OCR on images; `extract_tables` (bool): Extract tables; `page_range` (str): Page range (e.g., "0-5") |
 | `ImageToText` | Extract text from images using OCR | `image_path` (str): Image file path; `output_path` (str): Output text file; `language` (str): OCR language code; `preprocess` (bool): Apply image preprocessing |
 
-#### Agent Management
+### Agent Management
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
