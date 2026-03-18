@@ -77,6 +77,8 @@ def _init_model():
 
     # No ralph mode defaultly, manually do validate please
     _config.loop_control.max_ralph_iterations = _ralph_iterations
+    if _ralph_iterations != 0:
+        _config.loop_control.max_steps_per_turn = 10000        
     _config.loop_control.reserved_context_size = _default_reserved_context_size
 
 
