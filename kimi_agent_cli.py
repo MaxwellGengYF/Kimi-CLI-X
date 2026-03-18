@@ -195,10 +195,8 @@ Run tool:SetTodoList to set a todo-list of (do NOT implement, ONLY make list):
                         if s.strip() == '/end':
                             break
                         text += s + '\n'
-                    print(text)
                     for i in _split_text(text):
                         text_arr.append(i)
-                    print(text_arr)
                     continue
                 elif task_split[0] == 'todo':
                     # Parse subcommand and arguments
