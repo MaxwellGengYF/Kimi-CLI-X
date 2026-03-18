@@ -512,19 +512,5 @@ Read this:
     _set_compact_key(session, load)
 
 
-def compact_session():
-    global _should_print_usage
-    _should_print_usage.value = False
-    s = get_default_session()
-    usage = s.status.context_usage
-    save_session(s)
-    clear_context()
-    s = get_default_session()
-    load_session(s)
-    new_usage = s.status.context_usage
-    usage = _percentage_str(usage)
-    new_usage = _percentage_str(new_usage)
-    _should_print_usage.value = True
-    print_success(
-        f'Finished, context usage compact from {usage} to {new_usage}'
-    )
+def compact_session(session=None):
+    prompt('/compact', session=session)
