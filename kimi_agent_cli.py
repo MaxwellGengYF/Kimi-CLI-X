@@ -71,10 +71,10 @@ def _input(text: str, text_arr: list) -> str:
     return text_arr.pop()
 
 
-def _split_text(txt: list):
+def _split_text(txt: str):
     text_arr = []
     current_text = []
-    for line in txt:
+    for line in txt.splitlines():
         strip_line = line.strip()
         if len(strip_line) == 0:
             continue
@@ -188,16 +188,17 @@ Run tool:SetTodoList to set a todo-list of (do NOT implement, ONLY make list):
                             f'Make plan success. write to {str(script_dst_dir)}')
                     continue
                 elif task_split[0] == 'txt':
-                    text = []
                     print('\n>>>> Start input multiple-lines, end with /end')
+                    text = ''
                     while True:
                         s = _input('', text_arr)
                         if s.strip() == '/end':
                             break
-                        text.append(s)
+                        text += s + '\n'
+                    print(text)
                     for i in _split_text(text):
                         text_arr.append(i)
-                    
+                    print(text_arr)
                     continue
                 elif task_split[0] == 'todo':
                     # Parse subcommand and arguments
