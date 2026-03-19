@@ -15,7 +15,7 @@ from kimi_cli.tools.utils import ToolRejectedError, ToolResultBuilder, load_desc
 from kimi_cli.utils.environment import Environment
 from kimi_cli.utils.subprocess_env import get_clean_env
 import sys
-from .pwsh_to_bash import parse_command
+from .bash_toi_pwsh import parse_command
 
 
 MIN_TIMEOUT = 10 * 60
