@@ -22,8 +22,8 @@ python kimi_agent_cli.py
 |--------|-------------|
 | `-c`, `--clean` | Enable clean mode - delete session cache files after quitting |
 | `-ralph`, `--ralph` | Enable ralph loop mode - automatically continues working until task is complete (may consume more tokens) |
-| `--think`, `-think` | Enable thinking mode |
-| `--no_yolo`, `-no_yolo` | Disable yolo mode (auto-confirm dangerous operations) |
+| `--no_think`, `-no_think` | Disable thinking mode (thinking is ON by default) |
+| `--no_yolo`, `-no_yolo` | Disable yolo mode (auto-confirm dangerous operations; yolo is ON by default) |
 
 ### Examples
 
@@ -39,16 +39,16 @@ python kimi_agent_cli.py --clean
 python kimi_agent_cli.py -ralph
 python kimi_agent_cli.py --ralph
 
-# Enable thinking mode
-python kimi_agent_cli.py -think
-python kimi_agent_cli.py --think
+# Disable thinking mode (thinking is ON by default)
+python kimi_agent_cli.py -no_think
+python kimi_agent_cli.py --no_think
 
 # Disable yolo mode (safer mode, requires confirmation)
 python kimi_agent_cli.py -no_yolo
 python kimi_agent_cli.py --no_yolo
 
 # Combine multiple options
-python kimi_agent_cli.py -c -ralph -think -no_yolo
+python kimi_agent_cli.py -c -ralph -no_think -no_yolo
 ```
 
 ## Interactive Commands
@@ -65,8 +65,9 @@ Once the CLI is running, you can use the following commands:
 | `/skill:<name>` | Load a specific skill from the skills directory |
 | `/file:<path>` | Load and execute a Python file line by line, or read a file as prompt |
 | `<path>` | Directly specify a Python file path to execute |
+| `/txt` | Input multiple lines of text (end with `/end`) |
 | `/todo` | Show or manage the todo list |
-| `/plan:<prompt>` | Make a plan based on the prompt (creates todo list) |
+| `/plan:<script.py>` | Make a plan and save as executable Python script |
 | `/validate:<prompt>` | Test if a condition is true |
 | `/fix:<command>` | Run a command and automatically fix errors if any |
 
@@ -118,6 +119,21 @@ my_prompt.txt
 # Run a command and fix errors automatically
 >>>>>>>>> Enter your prompt or command:
 /fix:python my_script.py
+
+# Input multiple lines of text
+>>>>>>>>> Enter your prompt or command:
+/txt
+>>>> Start input multiple-lines, end with /end
+This is line 1
+This is line 2
+/end
+
+# Todo list commands
+>>>>>>>>> Enter your prompt or command:
+/todo:make Create a REST API with auth
+/todo:done 1
+/todo:in_progress 2
+/todo:pending 3
 ```
 
 ## Agent Tools
@@ -261,6 +277,18 @@ from kimi_utils import validate
 result = validate("Is Python an interpreted language?")
 print(result)  # True if AI confirms
 ```
+
+### Todo Commands
+
+| Command | Description |
+|---------|-------------|
+| `/todo` or `/todo:list` | Show current todo list |
+| `/todo:make <prompt>` | Create a new todo list based on the prompt |
+| `/todo:clear` | Clear all todo items |
+| `/todo:done <n>` | Mark item(s) as done (e.g., `/todo:done 1,2` or `/todo:done 1-3`) |
+| `/todo:in_progress <n>` | Mark item(s) as in_progress |
+| `/todo:pending <n>` | Mark item(s) as pending |
+| `/todo:help` | Show todo commands help |
 
 ## Notes
 

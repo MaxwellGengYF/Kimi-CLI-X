@@ -50,12 +50,12 @@ else:
     kimi_utils._ralph_iterations = 0
     print_debug('Ralph loop OFF.')
 
-if '--think' in sys.argv or '-think' in sys.argv:
-    kimi_utils._default_thinking = True
-    print_debug('Thinking ON.')
-else:
+if '--no_think' in sys.argv or '-no_think' in sys.argv:
     kimi_utils._default_thinking = False
     print_debug('Thinking OFF.')
+else:
+    kimi_utils._default_thinking = True
+    print_debug('Thinking ON.')
 
 if '--no_yolo' in sys.argv or '-no_yolo' in sys.argv:
     kimi_utils._default_yolo = False
