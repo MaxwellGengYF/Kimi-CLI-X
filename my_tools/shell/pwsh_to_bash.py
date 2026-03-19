@@ -190,6 +190,14 @@ class BashToPowerShellConverter:
                 return f'ForEach-Object {{ $_ -replace "{old}", "{new}" }}'
             return stripped
 
+        # Handle head
+        if stripped.startswith('head'):
+            return self._convert_head(stripped)
+
+        # Handle tail
+        if stripped.startswith('tail'):
+            return self._convert_tail(stripped)
+
         # Handle awk {print $n}
         if stripped.startswith('awk '):
             match = re.match(
@@ -215,6 +223,10 @@ class BashToPowerShellConverter:
         if stripped.startswith('mv '):
             return self._convert_mv(stripped)
 
+        # Handle find with various options
+        if stripped.startswith('find '):
+            return self._convert_find(stripped)
+
         # Default: return with variable conversion
         # Handle basic commands (with pipe detection)
         cmd_result = self._convert_command(stripped)
@@ -222,6 +234,246 @@ class BashToPowerShellConverter:
             return indent_str + cmd_result
 
         return indent_str + self._convert_variables(stripped)
+
+    def _convert_find(self, cmd: str) -> str:
+        """Convert find command to PowerShell equivalent using Get-ChildItem."""
+        parts = cmd.split()
+        if len(parts) < 2:
+            return 'Get-ChildItem -Recurse'
+
+        # Parse arguments
+        path = '.'
+        name_pattern = None
+        file_type = None
+        max_depth = None
+        min_depth = None
+        mtime = None
+        size = None
+        exec_cmd = None
+        delete = False
+        empty = False
+        i = 1
+
+        while i < len(parts):
+            part = parts[i]
+            if part.startswith('/'):
+                part = '-' + part[1:]
+            if part == '-name' or part == '-iname':
+                if i + 1 < len(parts):
+                    name_pattern = parts[i + 1].strip('"\'')
+                    i += 1
+            elif part == '-type':
+                if i + 1 < len(parts):
+                    file_type = parts[i + 1]
+                    i += 1
+            elif part == '-maxdepth':
+                if i + 1 < len(parts):
+                    max_depth = int(parts[i + 1])
+                    i += 1
+            elif part == '-mindepth':
+                if i + 1 < len(parts):
+                    min_depth = int(parts[i + 1])
+                    i += 1
+            elif part == '-mtime':
+                if i + 1 < len(parts):
+                    mtime = parts[i + 1]
+                    i += 1
+            elif part == '-size':
+                if i + 1 < len(parts):
+                    size = parts[i + 1]
+                    i += 1
+            elif part == '-exec':
+                # Collect exec command until \;
+                exec_parts = []
+                i += 1
+                while i < len(parts) and parts[i] != ';' and parts[i] != '+':
+                    if parts[i] == '{}':
+                        exec_parts.append('$_')
+                    elif parts[i] == '{}':
+                        exec_parts.append('$_')
+                    else:
+                        exec_parts.append(parts[i])
+                    i += 1
+                exec_cmd = ' '.join(exec_parts)
+            elif part == '-delete':
+                delete = True
+            elif part == '-empty':
+                empty = True
+            elif part == '-o' or part == '-or':
+                # OR operator - complex case, return as-is with warning
+                pass
+            elif not part.startswith('-') and i == 1:
+                # First non-option argument is the path
+                path = part
+            i += 1
+
+        # Build PowerShell command
+        # Start with Get-ChildItem
+        ps_cmd_parts = ['Get-ChildItem']
+
+        # Add path
+        if path != '.':
+            ps_cmd_parts.append(path)
+
+        # Add recursion (find is recursive by default)
+        if max_depth is not None:
+            ps_cmd_parts.append(f'-Depth {max_depth}')
+        else:
+            ps_cmd_parts.append('-Recurse')
+
+        # Build Where-Object filters
+        filters = []
+
+        # Name filter
+        if name_pattern:
+            # Convert glob patterns to wildcard patterns
+            wildcard = name_pattern.replace('*', '*').replace('?', '?')
+            filters.append(f"$_.Name -like '{wildcard}'")
+
+        # Type filter
+        if file_type == 'f':
+            filters.append('$_.PSIsContainer -eq $false')
+        elif file_type == 'd':
+            filters.append('$_.PSIsContainer -eq $true')
+
+        # Min depth filter
+        if min_depth is not None:
+            filters.append(f"$_.FullName.Split([System.IO.Path]::DirectorySeparatorChar).Length - {path.count('/') + 1} -ge {min_depth}")
+
+        # Modification time filter
+        if mtime:
+            if mtime.startswith('+'):
+                days = int(mtime[1:])
+                date = f"(Get-Date).AddDays(-{days})"
+                filters.append(f"$_.LastWriteTime -lt {date}")
+            elif mtime.startswith('-'):
+                days = int(mtime[1:])
+                date = f"(Get-Date).AddDays(-{days})"
+                filters.append(f"$_.LastWriteTime -gt {date}")
+            else:
+                days = int(mtime)
+                date_before = f"(Get-Date).AddDays(-{days - 1})"
+                date_after = f"(Get-Date).AddDays(-{days + 1})"
+                filters.append(f"$_.LastWriteTime -lt {date_before} -and $_.LastWriteTime -gt {date_after}")
+
+        # Size filter
+        if size:
+            if size.startswith('+'):
+                size_bytes = self._parse_size(size[1:])
+                filters.append(f"$_.Length -gt {size_bytes}")
+            elif size.startswith('-'):
+                size_bytes = self._parse_size(size[1:])
+                filters.append(f"$_.Length -lt {size_bytes}")
+            else:
+                size_bytes = self._parse_size(size)
+                filters.append(f"$_.Length -eq {size_bytes}")
+
+        # Empty filter
+        if empty:
+            filters.append('($_.PSIsContainer -and (Get-ChildItem $_.FullName).Count -eq 0) -or (-not $_.PSIsContainer -and $_.Length -eq 0)')
+
+        # Combine filters with Where-Object
+        if filters:
+            filter_str = ' -and '.join(filters)
+            ps_cmd_parts.append(f"| Where-Object {{ {filter_str} }}")
+
+        # Add exec command or delete action
+        if delete:
+            ps_cmd_parts.append('| Remove-Item')
+        elif exec_cmd:
+            ps_cmd_parts.append(f"| ForEach-Object {{ {exec_cmd} }}")
+        else:
+            # Default: output full path like find does
+            ps_cmd_parts.append('| Select-Object -ExpandProperty FullName')
+
+        return ' '.join(ps_cmd_parts)
+
+    def _parse_size(self, size_str: str) -> int:
+        """Parse size string (like 1M, 1G) to bytes."""
+        size_str = size_str.upper()
+        multipliers = {
+            'B': 1,
+            'K': 1024,
+            'KB': 1024,
+            'M': 1024 ** 2,
+            'MB': 1024 ** 2,
+            'G': 1024 ** 3,
+            'GB': 1024 ** 3,
+            'T': 1024 ** 4,
+            'TB': 1024 ** 4,
+        }
+        for suffix, mult in sorted(multipliers.items(), key=lambda x: -len(x[0])):
+            if size_str.endswith(suffix):
+                return int(float(size_str[:-len(suffix)]) * mult)
+        return int(size_str)
+
+    def _convert_head(self, cmd: str) -> str:
+        """Convert head command to PowerShell equivalent."""
+        parts = cmd.split()
+        
+        # Parse flags and arguments
+        num_lines = 10  # default
+        file_path = None
+        
+        i = 1
+        while i < len(parts):
+            part = parts[i]
+            if part.startswith('-n'):
+                if len(part) > 2:
+                    # -n5 format
+                    num_lines = int(part[2:])
+                elif i + 1 < len(parts):
+                    # -n 5 format
+                    num_lines = int(parts[i + 1])
+                    i += 1
+            elif part.startswith('-') and part[1:].isdigit():
+                # -5 format
+                num_lines = int(part[1:])
+            elif not part.startswith('-'):
+                file_path = part
+            i += 1
+        
+        if file_path:
+            return f'Get-Content {file_path} | Select-Object -First {num_lines}'
+        else:
+            return f'Select-Object -First {num_lines}'
+
+    def _convert_tail(self, cmd: str) -> str:
+        """Convert tail command to PowerShell equivalent."""
+        parts = cmd.split()
+        
+        # Parse flags and arguments
+        num_lines = 10  # default
+        file_path = None
+        follow_mode = False
+        
+        i = 1
+        while i < len(parts):
+            part = parts[i]
+            if part == '-f':
+                follow_mode = True
+            elif part.startswith('-n'):
+                if len(part) > 2:
+                    # -n5 format
+                    num_lines = int(part[2:])
+                elif i + 1 < len(parts):
+                    # -n 5 format
+                    num_lines = int(parts[i + 1])
+                    i += 1
+            elif part.startswith('-') and part[1:].isdigit():
+                # -5 format
+                num_lines = int(part[1:])
+            elif not part.startswith('-'):
+                file_path = part
+            i += 1
+        
+        if file_path:
+            if follow_mode:
+                return f'Get-Content {file_path} -Tail {num_lines} -Wait'
+            else:
+                return f'Get-Content {file_path} -Tail {num_lines}'
+        else:
+            return f'Select-Object -Last {num_lines}'
 
     def _convert_variable_assignment(self, line: str) -> Optional[str]:
         """Convert bash variable assignment."""
