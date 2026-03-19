@@ -16,7 +16,14 @@ if not curr_dir.is_absolute():
     curr_dir = curr_dir.absolute()
 
 # Start writen by AGENT
-HELP_STR = '''Available commands:
+HELP_STR = '''Command line options:
+  -c, --clean         - Delete cache file after quit
+  --ralph             - Continue work until done (auto-loop)
+  --no_think          - Disable thinking mode
+  --no_yolo           - Disable YOLO mode
+  -s, --skill-dir     - Specify custom skill directory
+
+Available commands:
   /file:<path>    - Load a file and execute its content line by line
   <path>          - Same as /file:<path>
   /clear          - Clear the conversation context
@@ -35,35 +42,64 @@ HELP_STR = '''Available commands:
 Or enter any prompt to send to the agent.
 '''
 # End writen by AGENT
+CLEAN_MODE = None
+def set_arg():
+    global CLEAN_MODE
+    import argparse
+    parser = argparse.ArgumentParser(description='Kimi Agent CLI')
+    parser.add_argument('-c', '--clean', action='store_true',
+                        help='Delete cache file after quit')
+    parser.add_argument('--ralph', action='store_true',
+                        help='Continue work until done (auto-loop)')
+    parser.add_argument('--no_think', action='store_true',
+                        help='Disable thinking mode')
+    parser.add_argument('--no_yolo', action='store_true',
+                        help='Disable YOLO mode')
+    parser.add_argument('-s', '--skill-dir', type=str, default=None,
+                        help='Specify custom skill directory')
+    args = parser.parse_args()
 
+    CLEAN_MODE = args.clean
+    if CLEAN_MODE:
+        print_debug('Clean mode ON, delete cache file after quit.')
+    else:
+        print_debug('Clean mode OFF.')
 
-CLEAN_MODE = '-c' in sys.argv or '--clean' in sys.argv
-if CLEAN_MODE:
-    print_debug('Clean mode ON, delete cache file after quit.')
-else:
-    print_debug('Clean mode OFF.')
-if '-ralph' in sys.argv or '--ralph' in sys.argv:
-    kimi_utils._ralph_iterations = -1
-    print_debug(
-        'Ralph loop ON, continue work until done(or running OUT of your TOKEN!!!).')
-else:
-    kimi_utils._ralph_iterations = 0
-    print_debug('Ralph loop OFF.')
+    if args.ralph:
+        kimi_utils._ralph_iterations = -1
+        print_debug(
+            'Ralph loop ON, continue work until done(or running OUT of your TOKEN!!!).')
+    else:
+        kimi_utils._ralph_iterations = 0
+        print_debug('Ralph loop OFF.')
 
-if '--no_think' in sys.argv or '-no_think' in sys.argv:
-    kimi_utils._default_thinking = False
-    print_debug('Thinking OFF.')
-else:
-    kimi_utils._default_thinking = True
-    print_debug('Thinking ON.')
+    if args.no_think:
+        kimi_utils._default_thinking = False
+        print_debug('Thinking OFF.')
+    else:
+        kimi_utils._default_thinking = True
+        print_debug('Thinking ON.')
 
-if '--no_yolo' in sys.argv or '-no_yolo' in sys.argv:
-    kimi_utils._default_yolo = False
-    print_debug('YOLO OFF.')
-else:
-    kimi_utils._default_yolo = True
-    print_debug('YOLO ON.')
+    if args.no_yolo:
+        kimi_utils._default_yolo = False
+        print_debug('YOLO OFF.')
+    else:
+        kimi_utils._default_yolo = True
+        print_debug('YOLO ON.')
 
+    # Handle --skill-dir argument
+    kimi_utils.default_skill_dir = None
+    if args.skill_dir:
+        skill_dir_path = Path(args.skill_dir)
+        if not skill_dir_path.is_absolute():
+            skill_dir_path = curr_dir / skill_dir_path
+        # Normalize the path (resolve ., .., and symlinks)
+        skill_dir_path = skill_dir_path.resolve()
+        if skill_dir_path.exists() and skill_dir_path.is_dir():
+            kimi_utils.default_skill_dir = KaosPath(skill_dir_path)
+            print_debug(f'Skill dir set to: {str(skill_dir_path)}')
+        else:
+            print_warning(f'Skill dir not found: {str(skill_dir_path)}')
 
 def _input(text: str, text_arr: list) -> str:
     if text_arr is None or len(text_arr) == 0:
@@ -91,6 +127,7 @@ def _split_text(txt: str):
 
 
 def _run_cli():
+    set_arg()
     # Parse command line arguments for clean mode flag
 
     # Read user input from keyboard asynchronously

@@ -21,9 +21,10 @@ python kimi_agent_cli.py
 | Option | Description |
 |--------|-------------|
 | `-c`, `--clean` | Enable clean mode - delete session cache files after quitting |
-| `-ralph`, `--ralph` | Enable ralph loop mode - automatically continues working until task is complete (may consume more tokens) |
-| `--no_think`, `-no_think` | Disable thinking mode (thinking is ON by default) |
-| `--no_yolo`, `-no_yolo` | Disable yolo mode (auto-confirm dangerous operations; yolo is ON by default) |
+| `--ralph` | Enable ralph loop mode - automatically continues working until task is complete (may consume more tokens) |
+| `--no_think` | Disable thinking mode (thinking is ON by default) |
+| `--no_yolo` | Disable yolo mode (auto-confirm dangerous operations; yolo is ON by default) |
+| `-s`, `--skill-dir` | Specify custom skill directory |
 
 ### Examples
 
@@ -36,19 +37,20 @@ python kimi_agent_cli.py -c
 python kimi_agent_cli.py --clean
 
 # Start with ralph loop mode
-python kimi_agent_cli.py -ralph
 python kimi_agent_cli.py --ralph
 
 # Disable thinking mode (thinking is ON by default)
-python kimi_agent_cli.py -no_think
 python kimi_agent_cli.py --no_think
 
 # Disable yolo mode (safer mode, requires confirmation)
-python kimi_agent_cli.py -no_yolo
 python kimi_agent_cli.py --no_yolo
 
+# Specify custom skill directory
+python kimi_agent_cli.py -s /path/to/skills
+python kimi_agent_cli.py --skill-dir ./my_skills
+
 # Combine multiple options
-python kimi_agent_cli.py -c -ralph -no_think -no_yolo
+python kimi_agent_cli.py -c --ralph --no_think --no_yolo
 ```
 
 ## Interactive Commands

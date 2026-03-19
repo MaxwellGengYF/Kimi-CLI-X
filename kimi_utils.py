@@ -203,7 +203,7 @@ def prompt(prompt_str: str, session=None):
     import my_tools.todo as todo
     if session is None:
         session = get_default_session()
-    elif not session:
+    elif session == False:
         session = create_session()
         _temp_create_session = True
     todo.set_current_id(str(session.id))
