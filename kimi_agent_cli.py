@@ -49,11 +49,11 @@ def set_arg():
     parser = argparse.ArgumentParser(description='Kimi Agent CLI')
     parser.add_argument('-c', '--clean', action='store_true',
                         help='Delete cache file after quit')
-    parser.add_argument('--ralph', action='store_true',
+    parser.add_argument('-ralph', '--ralph', action='store_true',
                         help='Continue work until done (auto-loop)')
-    parser.add_argument('--no_think', action='store_true',
+    parser.add_argument('-no_think', '--no_think', action='store_true',
                         help='Disable thinking mode')
-    parser.add_argument('--no_yolo', action='store_true',
+    parser.add_argument('-no_yolo', '--no_yolo', action='store_true',
                         help='Disable YOLO mode')
     parser.add_argument('-s', '--skill-dir', type=str, default=None,
                         help='Specify custom skill directory')

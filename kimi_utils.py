@@ -201,6 +201,7 @@ def clear_context():
 
 def prompt(prompt_str: str, session=None):
     import my_tools.todo as todo
+    _temp_create_session = False
     if session is None:
         session = get_default_session()
     elif session == False:
@@ -210,7 +211,6 @@ def prompt(prompt_str: str, session=None):
 
     global _default_session
     prompt_str = prompt_str.strip()
-    _temp_create_session = False
 
     async def func():
         nonlocal session, _temp_create_session
