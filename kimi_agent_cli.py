@@ -107,10 +107,10 @@ def _run_cli():
             input_str = _input(
                 "\n>>>>>>>>> Enter your prompt or command:\n", text_arr)
         except KeyboardInterrupt as e:
-            print_success('bye.')
+            print_success('\nbye.')
             break
         except EOFError as e:
-            print_success('bye.')
+            print_success('\nbye.')
             break
         try:
             if len(input_str) == 0:

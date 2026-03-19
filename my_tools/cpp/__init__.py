@@ -289,7 +289,35 @@ class CppSyntaxCheck(CallableTool2):
             compile_commands_dir = load_compile_commands(params.project_root)
         except FileNotFoundError:
             compile_commands_dir = params.project_root
-
+        else:
+            # Check if file_path is in compile_commands.json
+            compile_commands_path = Path(compile_commands_dir) / "compile_commands.json"
+            if compile_commands_path.exists():
+                try:
+                    with open(compile_commands_path, "r", encoding="utf-8") as f:
+                        compile_commands = json.load(f)
+                    file_paths_in_db = {entry.get("file", "").replace('\\', '/').replace('//', '/') for entry in compile_commands}
+                    # Check if params.file_path matches any entry
+                    rel_path = str(file_path.relative_to(Path(params.project_root).resolve()))
+                    file_path_str = str(rel_path).replace('\\', '/').replace('//', '/')
+                    if file_path_str not in file_paths_in_db:
+                        # Try with relative path
+                        try:
+                            if rel_path not in file_paths_in_db:
+                                return ToolError(
+                                    output="",
+                                    message=f"File not found in compile_commands.json: {params.file_path}",
+                                    brief=f"File not in compile_commands.json. Please ensure the file is included in the build system.",
+                                )
+                        except ValueError:
+                            return ToolError(
+                                output="",
+                                message=f"File not found in compile_commands.json: {params.file_path}",
+                                brief=f"File not in compile_commands.json. Please ensure the file is included in the build system.",
+                            )
+                except (json.JSONDecodeError, IOError):
+                    pass  # Ignore errors and continue
+        
         # Find clangd
         clangd_path = find_clangd(params.clangd_path, params.project_root)
         if not Path(clangd_path).exists():

@@ -52,7 +52,6 @@ if default_skill_dir:
 _config = None
 _default_session = None
 _ralph_iterations = 0
-_default_reserved_context_size = 48_000
 _default_thinking = False
 _default_yolo = True
 
@@ -79,8 +78,9 @@ def _init_model():
     _config.loop_control.max_ralph_iterations = _ralph_iterations
     if _ralph_iterations != 0:
         _config.loop_control.max_steps_per_turn = 10000        
-    _config.loop_control.reserved_context_size = _default_reserved_context_size
-
+        _config.loop_control.reserved_context_size = 48_000
+    else:
+        _config.loop_control.reserved_context_size = 32_000
 
 def context_path() -> Path:
     user_home = Path.home()
