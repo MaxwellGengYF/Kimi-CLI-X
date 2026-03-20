@@ -141,7 +141,22 @@ def _process_lru():
 def print_agent_json(get_message):
     json_str = get_message()
     js = json.loads(json_str)
-
+    _commands = {
+        'Shell': 'command',
+        'Python': 'code',
+        'FileInfo': 'path',
+        'Run': ('path', 'args'),
+        'Rm': 'path',
+        'Cp': ('src', 'dest'),
+        'Mv': ('src', 'dest'),
+        'Mkdir': 'path',
+        'Ls': 'directory',
+        'Glob': ('pattern'),
+        'Grep': ('pattern', 'path'),
+        'ReadFile': ('path', 'line_offset', 'n_lines'),
+        'WriteFile': 'path',
+        'StrReplaceFile': 'path',
+    }
     def print_item(item):
         if type(item) == str:
             if not (item.find('<choice>') >= 0 and item.find('</choice>') >= 0):
@@ -157,19 +172,37 @@ def print_agent_json(get_message):
                 if not (text_content.find('<choice>') >= 0 and text_content.find('</choice>') >= 0):
                     print(f"\n{text_content}", end='\n')
         elif item.get("type") == "function":
-            text = item.get("function", "")
+            def to_str(s):
+                if isinstance(s, str):
+                    return s
+                try:
+                    return ' '.join(str(x) for x in s)
+                except TypeError:
+                    return str(s)
+            text = item.get("function", None)
             if text:
                 name = text.get("name")
-                if name == 'Shell':
+                if name is not None:
+                    args = text.get('arguments', '')
                     try:
-                        args = json.loads(text.get('arguments'))
-                        cmd = args.get('command')
-                        if cmd:
-                            print_info(f"Shell: {cmd}")
-                    except:
-                        print_info("Shell...")
-                else:
-                    print_info(f"{name}...")
+                        args = json.loads(args)
+                    except json.JSONDecodeError:
+                        args = {}  # or handle it appropriately
+                    cmd_args = _commands.get(name)
+                    print_arg = ''
+                    if cmd_args is not None:
+                        if type(cmd_args) is tuple:
+                            print_args = []
+                            for i in cmd_args:
+                                v = args.get(i)
+                                if v is not None:
+                                    print_args.append(to_str(v))
+                            print_arg = ' '.join(print_args)
+                        else:
+                            v = args.get(cmd_args)
+                            if v is not None:
+                                print_arg = to_str(v)
+                    print_info(f"{name}: {print_arg}")
     if js.get("role") == "assistant":
         content = js.get("content", [])
         if type(content) == str:

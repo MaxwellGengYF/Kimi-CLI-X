@@ -2,6 +2,31 @@ from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 
 
+class MkdirParams(BaseModel):
+    path: str = Field(
+        description="The directory path to create.",
+    )
+
+
+class Mkdir(CallableTool2):
+    name: str = "Mkdir"
+    description: str = "Create a directory at the specified path. Supports recursive creation. If the directory already exists, it is considered successful."
+    params: type[MkdirParams] = MkdirParams
+
+    async def __call__(self, params: MkdirParams) -> ToolReturnValue:
+        import os
+
+        try:
+            os.makedirs(params.path, exist_ok=True)
+            return ToolOk(output=f"Directory created: {params.path}")
+        except Exception as exc:
+            return ToolError(
+                output="",
+                message=str(exc),
+                brief="Failed to create directory",
+            )
+
+
 class LsParams(BaseModel):
     directory: str = Field(
         default=".",
@@ -74,4 +99,252 @@ class Ls(CallableTool2):
                 output="",
                 message=str(exc),
                 brief="Failed to list files",
+            )
+
+
+class MvParams(BaseModel):
+    src: str = Field(
+        description="The source file or directory path to move.",
+    )
+    dest: str = Field(
+        description="The destination path to move to.",
+    )
+
+
+class Mv(CallableTool2):
+    name: str = "Mv"
+    description: str = "Move a file or directory from src to dest. Supports moving directories recursively."
+    params: type[MvParams] = MvParams
+
+    async def __call__(self, params: MvParams) -> ToolReturnValue:
+        import shutil
+
+        try:
+            shutil.move(params.src, params.dest)
+            return ToolOk(output=f"Moved '{params.src}' to '{params.dest}'")
+        except Exception as exc:
+            return ToolError(
+                output="",
+                message=str(exc),
+                brief="Failed to move file or directory",
+            )
+
+
+class CpParams(BaseModel):
+    src: str = Field(
+        description="The source file or directory path to copy.",
+    )
+    dest: str = Field(
+        description="The destination path to copy to.",
+    )
+
+
+class Cp(CallableTool2):
+    name: str = "Cp"
+    description: str = "Copy a file or directory from src to dest. Supports copying directories recursively."
+    params: type[CpParams] = CpParams
+
+    async def __call__(self, params: CpParams) -> ToolReturnValue:
+        import shutil
+        import os
+
+        try:
+            if os.path.isdir(params.src):
+                shutil.copytree(params.src, params.dest, dirs_exist_ok=True)
+            else:
+                shutil.copy2(params.src, params.dest)
+            return ToolOk(output=f"Copied '{params.src}' to '{params.dest}'")
+        except Exception as exc:
+            return ToolError(
+                output="",
+                message=str(exc),
+                brief="Failed to copy file or directory",
+            )
+
+
+class RmParams(BaseModel):
+    path: str = Field(
+        description="The file or directory path to delete.",
+    )
+
+
+class Rm(CallableTool2):
+    name: str = "Rm"
+    description: str = "Delete a file or directory at the specified path. Supports recursive deletion of directories."
+    params: type[RmParams] = RmParams
+
+    async def __call__(self, params: RmParams) -> ToolReturnValue:
+        import shutil
+        import os
+
+        try:
+            if os.path.isdir(params.path):
+                shutil.rmtree(params.path)
+            else:
+                os.remove(params.path)
+            return ToolOk(output=f"Deleted: {params.path}")
+        except Exception as exc:
+            return ToolError(
+                output="",
+                message=str(exc),
+                brief="Failed to delete file or directory",
+            )
+
+
+class FileInfoParams(BaseModel):
+    path: str = Field(
+        description="The file or directory path to get information about.",
+    )
+
+
+class FileInfo(CallableTool2):
+    name: str = "FileInfo"
+    description: str = "Get detailed information about a file or directory, including size, permissions, timestamps, and hash."
+    params: type[FileInfoParams] = FileInfoParams
+
+    async def __call__(self, params: FileInfoParams) -> ToolReturnValue:
+        import os
+        import hashlib
+        from datetime import datetime
+
+        def compute_hash(file_path: str, algorithm: str = "sha256") -> str:
+            """Compute the hash of a file."""
+            hash_obj = hashlib.new(algorithm)
+            with open(file_path, "rb") as f:
+                for chunk in iter(lambda: f.read(8192), b""):
+                    hash_obj.update(chunk)
+            return hash_obj.hexdigest()
+
+        def format_size(size: int) -> str:
+            """Format size in human-readable format."""
+            for unit in ["B", "KB", "MB", "GB", "TB"]:
+                if size < 1024:
+                    return f"{size:.2f} {unit}"
+                size /= 1024
+            return f"{size:.2f} PB"
+
+        try:
+            if not os.path.exists(params.path):
+                return ToolError(
+                    output="",
+                    message=f"Path does not exist: {params.path}",
+                    brief="Path not found",
+                )
+
+            stat = os.stat(params.path)
+            is_dir = os.path.isdir(params.path)
+            is_file = os.path.isfile(params.path)
+            is_link = os.path.islink(params.path)
+
+            info_lines = [
+                f"Path: {params.path}",
+                f"Type: {'Directory' if is_dir else 'Symbolic Link' if is_link else 'File'}",
+                f"Size: {format_size(stat.st_size)} ({stat.st_size} bytes)",
+                f"Permissions: {oct(stat.st_mode)[-3:]}",
+                f"Owner UID: {stat.st_uid}",
+                f"Group GID: {stat.st_gid}",
+                f"Last Access Time: {datetime.fromtimestamp(stat.st_atime).strftime('%Y-%m-%d %H:%M:%S')}",
+                f"Last Modify Time: {datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S')}",
+                f"Creation Time: {datetime.fromtimestamp(stat.st_ctime).strftime('%Y-%m-%d %H:%M:%S')}",
+                f"Inode: {stat.st_ino}",
+                f"Device: {stat.st_dev}",
+                f"Hard Links: {stat.st_nlink}",
+            ]
+
+            if is_file and not is_link:
+                try:
+                    file_hash = compute_hash(params.path)
+                    info_lines.append(f"SHA256: {file_hash}")
+                except Exception:
+                    info_lines.append("SHA256: (unable to compute)")
+
+            if is_dir:
+                try:
+                    item_count = len(os.listdir(params.path))
+                    info_lines.append(f"Items in directory: {item_count}")
+                except Exception:
+                    info_lines.append("Items in directory: (unable to count)")
+
+            if is_link:
+                try:
+                    target = os.readlink(params.path)
+                    info_lines.append(f"Link Target: {target}")
+                except Exception:
+                    info_lines.append("Link Target: (unable to read)")
+
+            return ToolOk(output="\n".join(info_lines))
+        except Exception as exc:
+            return ToolError(
+                output="",
+                message=str(exc),
+                brief="Failed to get file information",
+            )
+
+
+class RunParams(BaseModel):
+    path: str = Field(
+        description="The path to the executable to run.",
+    )
+    args: list[str] = Field(
+        default_factory=list,
+        description="List of arguments to pass to the executable.",
+    )
+    cwd: str | None = Field(
+        default=None,
+        description="Working directory to run the process in. If not specified, uses the current directory.",
+    )
+    timeout: int | None = Field(
+        default=None,
+        description="Timeout in seconds. If not specified, no timeout is applied.",
+    )
+
+
+class Run(CallableTool2):
+    name: str = "Run"
+    description: str = "Run a process from a path."
+    params: type[RunParams] = RunParams
+
+    async def __call__(self, params: RunParams) -> ToolReturnValue:
+        import subprocess
+        import os
+
+        try:
+            # Run the process
+            result = subprocess.run(
+                [params.path] + params.args,
+                cwd=params.cwd,
+                capture_output=True,
+                text=True,
+                timeout=params.timeout,
+            )
+
+            output_lines = [
+                f"Return Code: {result.returncode}",
+            ]
+
+            if result.stdout:
+                output_lines.append(f"\n--- STDOUT ---\n{result.stdout}")
+
+            if result.stderr:
+                output_lines.append(f"\n--- STDERR ---\n{result.stderr}")
+
+            if result.returncode != 0:
+                return ToolError(
+                    output="\n".join(output_lines),
+                    message=f"Process exited with non-zero return code: {result.returncode}",
+                    brief="Process failed",
+                )
+
+            return ToolOk(output="\n".join(output_lines))
+        except subprocess.TimeoutExpired:
+            return ToolError(
+                output="",
+                message=f"Process timed out after {params.timeout} seconds",
+                brief="Process timed out",
+            )
+        except Exception as exc:
+            return ToolError(
+                output="",
+                message=str(exc),
+                brief="Failed to run process",
             )

@@ -33,6 +33,8 @@ default_skill_dir = None
 
 def _get_skill_dir():
     global default_skill_dir
+    if default_skill_dir is not None:
+        return
     default_skill_dir = Path(os.curdir) / ".agents/skills"
     if default_skill_dir.exists():
         return

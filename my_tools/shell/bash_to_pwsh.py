@@ -234,7 +234,7 @@ def multiple_split(text, delimiters, maxsplit=-1):
 
 
 def parse_command(command: str) -> str:
-    lists = ['||', '&&', ';', '|', '& ', ' & ']
+    lists = ['||', '&&', ';', '& ', ' & ']
     set = {i for i in lists}
     commands = multiple_split(command, lists)
 

@@ -19,7 +19,7 @@ if not curr_dir.is_absolute():
 HELP_STR = '''Command line options:
   -c, --clean         - Delete cache file after quit
   --ralph             - Continue work until done (auto-loop)
-  --no_think          - Disable thinking mode
+  --think          - Disable thinking mode
   --no_yolo           - Disable YOLO mode
   -s, --skill-dir     - Specify custom skill directory
 
@@ -38,6 +38,8 @@ Available commands:
   /todo           - Show todo list
   /todo:help      - Show todo commands help
   /txt            - input multiple line text
+  /think:on       - Enable thinking mode
+  /think:off      - Disable thinking mode
 
 Or enter any prompt to send to the agent.
 '''
@@ -51,7 +53,7 @@ def set_arg():
                         help='Delete cache file after quit')
     parser.add_argument('-ralph', '--ralph', action='store_true',
                         help='Continue work until done (auto-loop)')
-    parser.add_argument('-no_think', '--no_think', action='store_true',
+    parser.add_argument('-think', '--think', action='store_true',
                         help='Disable thinking mode')
     parser.add_argument('-no_yolo', '--no_yolo', action='store_true',
                         help='Disable YOLO mode')
@@ -73,12 +75,12 @@ def set_arg():
         kimi_utils._ralph_iterations = 0
         print_debug('Ralph loop OFF.')
 
-    if args.no_think:
-        kimi_utils._default_thinking = False
-        print_debug('Thinking OFF.')
-    else:
+    if args.think:
         kimi_utils._default_thinking = True
         print_debug('Thinking ON.')
+    else:
+        kimi_utils._default_thinking = False
+        print_debug('Thinking OFF.')
 
     if args.no_yolo:
         kimi_utils._default_yolo = False
@@ -88,7 +90,6 @@ def set_arg():
         print_debug('YOLO ON.')
 
     # Handle --skill-dir argument
-    kimi_utils.default_skill_dir = None
     if args.skill_dir:
         skill_dir_path = Path(args.skill_dir)
         if not skill_dir_path.is_absolute():
@@ -104,7 +105,8 @@ def set_arg():
 def _input(text: str, text_arr: list) -> str:
     if text_arr is None or len(text_arr) == 0:
         return input(text)
-    return text_arr.pop()
+    v = text_arr.pop(0)
+    return v
 
 
 def _split_text(txt: str):
@@ -118,7 +120,8 @@ def _split_text(txt: str):
             if current_text:
                 text_arr.append('\n'.join(current_text))
                 current_text = []
-            text_arr.append(strip_line)
+            if len(strip_line) > 1:
+                text_arr.append(strip_line)
         else:
             current_text.append(line)
     if current_text:
@@ -194,6 +197,22 @@ def _run_cli():
                     result = kimi_utils.validate(
                         task_split[1], get_default_session())
                     print_info(f'Validate result: {result}')
+                    continue
+                elif task_split[0] == 'think':
+                    if len(task_split) < 2:
+                        print_error('Command must be /think:on or /think:off')
+                        continue
+                    value = task_split[1].strip().lower()
+                    if value == 'on':
+                        kimi_utils._default_thinking = True
+                        print_success('Thinking mode enabled.')
+                    elif value == 'off':
+                        kimi_utils._default_thinking = False
+                        print_success('Thinking mode disabled.')
+                    else:
+                        print_error('Command must be /think:on or /think:off')
+                        continue
+                    clear_context()
                     continue
                 elif task_split[0] == 'plan':
                     if len(task_split) < 2:
