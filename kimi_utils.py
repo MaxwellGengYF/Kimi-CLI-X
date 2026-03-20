@@ -188,13 +188,13 @@ def print_usage(session=None):
     )
 
 
-def clear_context():
+def clear_context(force_create: bool = False):
     global _default_session
     if _default_session:
-        if _default_session.status.context_usage < 1e-8:
+        if not force_create and _default_session.status.context_usage < 1e-8 :
             _print_usage(_default_session)
             return
-        else:
+        elif _default_session is not None:
             asyncio.run(_default_session.close())
         _default_session = None
     _create_default_session()

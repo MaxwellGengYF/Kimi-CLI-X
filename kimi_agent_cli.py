@@ -212,7 +212,7 @@ def _run_cli():
                     else:
                         print_error('Command must be /think:on or /think:off')
                         continue
-                    clear_context()
+                    clear_context(True)
                     continue
                 elif task_split[0] == 'plan':
                     if len(task_split) < 2:
