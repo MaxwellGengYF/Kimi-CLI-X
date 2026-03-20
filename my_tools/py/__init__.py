@@ -1,15 +1,18 @@
 import sys
 from io import StringIO
-
+from my_tools.common import _maybe_export_output
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
+
+# Token limit threshold - if output exceeds this, export to temp file
+# Using 8000 as a conservative threshold to stay well below typical model limits
+OUTPUT_TOKEN_LIMIT = 8000
 
 
 class Params(BaseModel):
     code: str = Field(
         description="The Python code to execute. ",
     )
-
 
 class Python(CallableTool2):
     name: str = "Python"
@@ -22,8 +25,7 @@ class Python(CallableTool2):
         if self.globals_dict is None:
             self.globals_dict = dict()
             self.locals_dict = dict()
-            exec('''
-import os
+            exec('''import os
 import sys
 import subprocess
 import pathlib
@@ -39,11 +41,11 @@ from pathlib import Path
         try:
             exec(params.code, self.globals_dict, self.locals_dict)
             output = captured_output.getvalue()
-            return ToolOk(output=output if output else "Code executed successfully.")
+            return ToolOk(output=_maybe_export_output(output if output else "Done"))
         except Exception as exc:
             output = captured_output.getvalue()
             return ToolError(
-                output=output,
+                output=_maybe_export_output(output if output else ""),
                 message=str(exc),
                 brief="Failed to execute Python code",
             )

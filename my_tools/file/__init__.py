@@ -1,6 +1,7 @@
+
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
-
+from my_tools.common import _maybe_export_output
 
 class MkdirParams(BaseModel):
     path: str = Field(
@@ -18,7 +19,7 @@ class Mkdir(CallableTool2):
 
         try:
             os.makedirs(params.path, exist_ok=True)
-            return ToolOk(output=f"Directory created: {params.path}")
+            return ToolOk(output=_maybe_export_output(f"Directory created: {params.path}"))
         except Exception as exc:
             return ToolError(
                 output="",
@@ -93,7 +94,7 @@ class Ls(CallableTool2):
 
         try:
             lines = list_directory(params.directory)
-            return ToolOk(output="\n".join(lines) if lines else "(empty directory)")
+            return ToolOk(output=_maybe_export_output("\n".join(lines) if lines else "(empty directory)"))
         except Exception as exc:
             return ToolError(
                 output="",
@@ -121,7 +122,7 @@ class Mv(CallableTool2):
 
         try:
             shutil.move(params.src, params.dest)
-            return ToolOk(output=f"Moved '{params.src}' to '{params.dest}'")
+            return ToolOk(output=_maybe_export_output(f"Moved '{params.src}' to '{params.dest}'"))
         except Exception as exc:
             return ToolError(
                 output="",
@@ -153,7 +154,7 @@ class Cp(CallableTool2):
                 shutil.copytree(params.src, params.dest, dirs_exist_ok=True)
             else:
                 shutil.copy2(params.src, params.dest)
-            return ToolOk(output=f"Copied '{params.src}' to '{params.dest}'")
+            return ToolOk(output=_maybe_export_output(f"Copied '{params.src}' to '{params.dest}'"))
         except Exception as exc:
             return ToolError(
                 output="",
@@ -182,7 +183,7 @@ class Rm(CallableTool2):
                 shutil.rmtree(params.path)
             else:
                 os.remove(params.path)
-            return ToolOk(output=f"Deleted: {params.path}")
+            return ToolOk(output=_maybe_export_output(f"Deleted: {params.path}"))
         except Exception as exc:
             return ToolError(
                 output="",
@@ -272,7 +273,7 @@ class FileInfo(CallableTool2):
                 except Exception:
                     info_lines.append("Link Target: (unable to read)")
 
-            return ToolOk(output="\n".join(info_lines))
+            return ToolOk(output=_maybe_export_output("\n".join(info_lines)))
         except Exception as exc:
             return ToolError(
                 output="",
@@ -330,12 +331,12 @@ class Run(CallableTool2):
 
             if result.returncode != 0:
                 return ToolError(
-                    output="\n".join(output_lines),
+                    output=_maybe_export_output("\n".join(output_lines)),
                     message=f"Process exited with non-zero return code: {result.returncode}",
                     brief="Process failed",
                 )
 
-            return ToolOk(output="\n".join(output_lines))
+            return ToolOk(output=_maybe_export_output("\n".join(output_lines)))
         except subprocess.TimeoutExpired:
             return ToolError(
                 output="",
