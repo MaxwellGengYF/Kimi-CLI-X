@@ -20,34 +20,46 @@ class Python(CallableTool2):
     params: type[Params] = Params
     globals_dict = None
     locals_dict = None
-    
+
     async def __call__(self, params: Params) -> ToolReturnValue:
         if self.globals_dict is None:
             self.globals_dict = dict()
             self.locals_dict = dict()
-            exec('''import os
+            exec('''
+import os
 import sys
 import subprocess
 import pathlib
 import json
 from pathlib import Path
 '''.strip(), self.globals_dict, self.locals_dict)
-        
+
         # Capture stdout during exec
         old_stdout = sys.stdout
         captured_output = StringIO()
         sys.stdout = captured_output
-        
+
         try:
             exec(params.code, self.globals_dict, self.locals_dict)
             output = captured_output.getvalue()
-            return ToolOk(output=_maybe_export_output(output if output else "Done"))
+            if not output:
+                result = output
+                return ToolOk(output='')
+            return ToolOk(output=_maybe_export_output(result))
         except Exception as exc:
             output = captured_output.getvalue()
+            if not output:
+                return ToolError(
+                    output='',
+                    message=str(exc),
+                    brief="Failed to execute Python code",
+                )
+            result = output
             return ToolError(
-                output=_maybe_export_output(output if output else ""),
+                output=_maybe_export_output(result),
                 message=str(exc),
                 brief="Failed to execute Python code",
             )
+
         finally:
             sys.stdout = old_stdout

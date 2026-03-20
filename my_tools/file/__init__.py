@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from my_tools.common import _maybe_export_output
 from my_tools.file.find_str import FindStr
 
+
 class MkdirParams(BaseModel):
     path: str = Field(
         description="The directory path to create.",
@@ -295,8 +296,12 @@ class RunParams(BaseModel):
         default=None,
         description="Working directory to run the process in. If not specified, uses the current directory.",
     )
-    timeout: int | None = Field(
+    dest: str | None = Field(
         default=None,
+        description="The destination path to save the output. If provided, output will be saved to this file.",
+    )
+    timeout: int | None = Field(
+        default=15 * 60,
         description="Timeout in seconds. If not specified, no timeout is applied.",
     )
 
@@ -308,8 +313,6 @@ class Run(CallableTool2):
 
     async def __call__(self, params: RunParams) -> ToolReturnValue:
         import subprocess
-        import os
-
         try:
             # Run the process
             result = subprocess.run(
@@ -325,19 +328,26 @@ class Run(CallableTool2):
             ]
 
             if result.stdout:
-                output_lines.append(f"\n--- STDOUT ---\n{result.stdout}")
+                output_lines.append(result.stdout)
 
             if result.stderr:
-                output_lines.append(f"\n--- STDERR ---\n{result.stderr}")
+                output_lines.append(result.stderr)
+
+            output_text = "\n".join(output_lines)
+
+            if params.dest:
+                with open(params.dest, 'w', encoding='utf-8') as f:
+                    f.write(output_text)
+                output_text = f"Output saved to {params.dest}"
 
             if result.returncode != 0:
                 return ToolError(
-                    output=_maybe_export_output("\n".join(output_lines)),
+                    output=_maybe_export_output(output_text),
                     message=f"Process exited with non-zero return code: {result.returncode}",
                     brief="Process failed",
                 )
 
-            return ToolOk(output=_maybe_export_output("\n".join(output_lines)))
+            return ToolOk(output=_maybe_export_output(output_text))
         except subprocess.TimeoutExpired:
             return ToolError(
                 output="",

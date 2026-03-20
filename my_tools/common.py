@@ -1,7 +1,7 @@
 # Token limit threshold - if output exceeds this, export to a temp file
 # Using 8000 as a conservative threshold to stay well below typical model limits
 import tempfile
-OUTPUT_TOKEN_LIMIT = 8000
+OUTPUT_TOKEN_LIMIT = 1024
 
 
 def _estimate_tokens(text: str) -> int:
