@@ -2,6 +2,7 @@
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 from my_tools.common import _maybe_export_output
+from my_tools.file.find_str import FindStr
 
 class MkdirParams(BaseModel):
     path: str = Field(

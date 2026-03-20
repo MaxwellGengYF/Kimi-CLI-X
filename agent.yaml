@@ -10,6 +10,7 @@ agent:
     - "my_tools.file:Cp"
     - "my_tools.file:Rm"
     - "my_tools.file:FileInfo"
+    - "my_tools.file:FindStr"
     - "my_tools.flag:SetFlag"
     - "my_tools.todo:SetTodoList"
     - "my_tools.todo:GetTodoList"
