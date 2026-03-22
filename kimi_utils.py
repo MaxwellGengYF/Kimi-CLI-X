@@ -94,12 +94,13 @@ _session_idx = 0
 
 async def _create_session_async(
     session_id: str = None,
-    work_dir: Optional[bool] = None,
+    work_dir: Optional[KaosPath] = None,
     skills_dir: Optional[bool] = None,
     ralph_loop: Optional[bool] = None,
     thinking: Optional[bool] = None,
     yolo: Optional[bool] = None,
     agent_file: Optional[bool] = None,
+    resume=False
 ):
     global _session_idx
     if session_id is None:
@@ -119,26 +120,41 @@ async def _create_session_async(
         cfg.loop_control.max_ralph_iterations = -1 if ralph_loop else 0
 
     from kimi_agent_sdk import Session
-    session = await Session.create(
-        session_id=session_id,
-        work_dir=work_dir if work_dir is not None else _default_work_dir,
-        skills_dir=skills_dir if skills_dir is not None else _get_skill_dir(),
-        yolo=yolo if yolo is not None else _default_yolo,
-        thinking=thinking if thinking is not None else _default_thinking,
-        config=cfg,
-        agent_file=agent_file if agent_file is not None else _default_agent_file
-    )
+    session = None
+    if resume:
+        session = await Session.resume(
+            session_id=session_id,
+            work_dir=work_dir if work_dir is not None else _default_work_dir,
+            skills_dir=skills_dir if skills_dir is not None else _get_skill_dir(),
+            yolo=yolo if yolo is not None else _default_yolo,
+            thinking=thinking if thinking is not None else _default_thinking,
+            config=cfg,
+            agent_file=agent_file if agent_file is not None else _default_agent_file
+        )
+        if not session:
+            print_warning(f'Session {session_id} not found.')
+    if not session:
+        session = await Session.create(
+            session_id=session_id,
+            work_dir=work_dir if work_dir is not None else _default_work_dir,
+            skills_dir=skills_dir if skills_dir is not None else _get_skill_dir(),
+            yolo=yolo if yolo is not None else _default_yolo,
+            thinking=thinking if thinking is not None else _default_thinking,
+            config=cfg,
+            agent_file=agent_file if agent_file is not None else _default_agent_file
+        )
     return session
 
 
 def create_session(
     session_id: str = None,
-    work_dir: Optional[bool] = None,
+    work_dir: Optional[KaosPath] = None,
     skills_dir: Optional[bool] = None,
     ralph_loop: Optional[bool] = None,
     thinking: Optional[bool] = None,
     yolo: Optional[bool] = None,
     agent_file: Optional[bool] = None,
+    resume=False
 ):
 
     return asyncio.run(_create_session_async(
@@ -148,7 +164,8 @@ def create_session(
         ralph_loop,
         thinking,
         yolo,
-        agent_file
+        agent_file,
+        resume
     ))
 
 
@@ -161,11 +178,11 @@ def get_default_session():
     return _default_session
 
 
-def _create_default_session():
+def _create_default_session(resume: bool = True):
     global _default_session
     if _default_session:
         return _default_session
-    _default_session = create_session("default")
+    _default_session = create_session("default", resume=resume)
     return _default_session
 
 
@@ -200,8 +217,10 @@ def clear_context(force_create: bool = False):
         elif _default_session is not None:
             asyncio.run(_default_session.close())
         _default_session = None
-    _create_default_session()
+    _create_default_session(False)
     _print_usage(_default_session)
+
+
 
 
 def prompt(prompt_str: str, session=None):
@@ -234,6 +253,7 @@ def prompt(prompt_str: str, session=None):
                 _print_usage(session)
                 max_retries = 0
             except Exception as e:
+                print_error(str(e))
                 import time
                 if "429" in str(e):
                     wait_time = 4 ** attempt  # 1, 4, 16, 64, 128 秒

@@ -61,6 +61,7 @@ class Style(Enum):
 
 
 _colorful_print = True
+_print_func = None
 def colorful_print(
     text: str,
     fg: Optional[Color] = None,
@@ -69,7 +70,10 @@ def colorful_print(
     end: str = "\n"
 ) -> None:
     if not _colorful_print:
-        print(text, end=end)
+        if _print_func:
+            _print_func(text, end)
+        else:
+            print(text, end=end)
         return
     """
     Print text with optional colors and styles.
@@ -92,17 +96,22 @@ def colorful_print(
 
     if codes:
         text = f"\033[{';'.join(map(str, codes))}m{text}\033[0m"
+    if _print_func:
+        _print_func(text, end)
+    else:
+        print(text, end=end)
 
-    print(text, end=end)
-
-
+_quiet = False
 def print_success(text: str, end: str = "\n") -> None:
     """Print success message in green."""
     colorful_print(text, fg=Color.BRIGHT_GREEN, styles=[Style.BOLD], end=end)
 
 
 def print_string(text: str, end: str = "\n") -> None:
-    print(text, end=end)
+    if _print_func:
+        _print_func(text, end)
+    else:
+        print(text, end=end)
 
 
 def print_error(text: str, end: str = "\n") -> None:
@@ -121,6 +130,8 @@ def print_info(text: str, end: str = "\n") -> None:
 
 
 def print_debug(text: str, end: str = "\n") -> None:
+    if _quiet:
+        return
     """Print debug message in cyan."""
     colorful_print(text, fg=Color.BRIGHT_CYAN, end=end)
 
@@ -143,7 +154,12 @@ def _process_lru():
 
 
 def print_agent_json(get_message):
-    json_str = get_message()
+    json_str = None
+    try:
+        json_str = get_message()
+    except Exception as e:
+        print_debug('JSON error (possibly because streaming)...')
+        return
     js = json.loads(json_str)
     _commands = {
         'Shell': 'command',
@@ -163,10 +179,14 @@ def print_agent_json(get_message):
     }
 
     def print_item(item):
+        import agent_utils
         if type(item) == str:
             if not (item.find('<choice>') >= 0 and item.find('</choice>') >= 0):
-                print(item, end='\n')
-        elif item.get("type") == "think":
+                if _print_func:
+                    _print_func(text, '\n')
+                else:
+                    print(item, end='\n')
+        elif item.get("type") == "think" and not agent_utils._quiet:
             think_content = item.get("think", "")
             if think_content:
                 colorful_print(f"[Think] {think_content}",
@@ -175,7 +195,10 @@ def print_agent_json(get_message):
             text_content = item.get("text", "")
             if text_content:
                 if not (text_content.find('<choice>') >= 0 and text_content.find('</choice>') >= 0):
-                    print(f"\n{text_content}", end='\n')
+                    if _print_func:
+                        _print_func(f"\n{text_content}", '\n')
+                    else:
+                        print(f"\n{text_content}", end='\n')
         elif item.get("type") == "function":
             def to_str(s):
                 if isinstance(s, str):
@@ -212,7 +235,10 @@ def print_agent_json(get_message):
         content = js.get("content", [])
         if type(content) == str:
             if not (content.find('<choice>') >= 0 and content.find('</choice>') >= 0):
-                print(content, end='\n')
+                if _print_func:
+                    _print_func(content, '\n')
+                else:
+                    print(content, end='\n')
             return
         for item in content:
             print_item(item)
