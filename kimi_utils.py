@@ -5,63 +5,69 @@ import asyncio
 import time
 from pathlib import Path
 
-
-def _check_legal(value, start_with):
-    if value is None or type(value) != str:
-        return False
-    return value.startswith(start_with)
-
-
-api_key = os.environ.get("KIMI_API_KEY")
-if not _check_legal(api_key, 'sk'):
-    print_error('API key shoud be setted to KIMI_API_KEY environment var')
-    exit(1)
-
-if not _check_legal(os.environ.get("KIMI_BASE_URL"), 'http'):
-    os.environ["KIMI_BASE_URL"] = "https://api.kimi.com/coding/v1"
-_default_model = 'kimi-for-coding'
-_config_model = os.environ.get("KIMI_MODEL_NAME")
-if not _check_legal(_config_model, 'kimi'):
-    os.environ['KIMI_MODEL_NAME'] = _default_model
-elif _config_model != _default_model:
-    _default_model = _config_model
-    print_debug(f'Using {_config_model} model.')
-
-default_work_dir = KaosPath(os.curdir)
-default_skill_dir = None
-
-
-def _get_skill_dir():
-    global default_skill_dir
-    if default_skill_dir is not None:
-        return
-    default_skill_dir = Path(os.curdir) / ".agents/skills"
-    if default_skill_dir.exists():
-        return
-    default_skill_dir = Path(os.curdir) / ".opencode/skills"
-    if default_skill_dir.exists():
-        return
-    default_skill_dir = Path(os.curdir) / ".config/.agents/skills"
-    if default_skill_dir.exists():
-        return
-    default_skill_dir = None
-
-
-_get_skill_dir()
-if default_skill_dir:
-    print_info(f'skill dir: {str(default_skill_dir)}')
-    default_skill_dir = KaosPath(default_skill_dir)
-_config = None
 _default_session = None
 _ralph_iterations = 0
 _default_thinking = False
 _default_yolo = True
+_agent_file = Path(__file__).parent / 'agent.yaml'
+_default_work_dir = KaosPath(os.curdir)
+_default_skill_dir = None
+__env_initialized = False
 
-agent_file = Path(__file__).parent / 'agent.yaml'
-# init
+
+def _init_model():
+    def _check_legal(value, start_with):
+        if value is None or type(value) != str:
+            return False
+        return value.startswith(start_with)
+
+    global __env_initialized
+    if __env_initialized:
+        return
+    __env_initialized = True
+    api_key = os.environ.get("KIMI_API_KEY")
+    if not _check_legal(api_key, 'sk'):
+        print_error('API key shoud be setted to KIMI_API_KEY environment var')
+        exit(1)
+
+    if not _check_legal(os.environ.get("KIMI_BASE_URL"), 'http'):
+        os.environ["KIMI_BASE_URL"] = "https://api.kimi.com/coding/v1"
+    default_model = 'kimi-for-coding'
+    config_model = os.environ.get("KIMI_MODEL_NAME")
+    if not _check_legal(config_model, 'kimi'):
+        os.environ['KIMI_MODEL_NAME'] = default_model
+    elif config_model != default_model:
+        default_model = config_model
+        print_debug(f'Using {config_model} model.')
+
+
+def _get_skill_dir():
+    global _default_skill_dir
+
+    def _gen():
+        d = _default_skill_dir
+        if d is not None:
+            return d
+        d = Path(os.curdir) / ".agents/skills"
+        if d.exists():
+            return d
+        d = Path(os.curdir) / ".opencode/skills"
+        if d.exists():
+            return d
+        d = Path(os.curdir) / ".config/.agents/skills"
+        if d.exists():
+            return d
+        return None
+    _default_skill_dir = _gen()
+    if _default_skill_dir:
+        print_info(f'skill dir: {str(_default_skill_dir)}')
+        _default_skill_dir = KaosPath(_default_skill_dir)
+        return _default_skill_dir
+    return None
 
 
 def _create_config():
+    _init_model()
     from kimi_agent_sdk import Config
     from kimi_cli.config import LoopControl
     cfg = Config()
@@ -69,20 +75,6 @@ def _create_config():
         cfg.loop_control = LoopControl()
     return cfg
 
-
-def _init_model():
-    global _config
-    if _config:
-        return
-    _config = _create_config()
-
-    # No ralph mode defaultly, manually do validate please
-    _config.loop_control.max_ralph_iterations = _ralph_iterations
-    if _ralph_iterations != 0:
-        _config.loop_control.max_steps_per_turn = 10000        
-        _config.loop_control.reserved_context_size = 48_000
-    else:
-        _config.loop_control.reserved_context_size = 32_000
 
 def context_path() -> Path:
     user_home = Path.home()
@@ -106,30 +98,32 @@ async def _create_session_async(
     thinking: Optional[bool] = None,
     yolo: Optional[bool] = None,
 ):
-    global agent_file, _session_idx, default_skill_dir
+    global _session_idx
     if session_id is None:
         session_id = str(_session_idx)
         _session_idx += 1
-    _init_model()
+    cfg = _create_config()
+
+    # No ralph mode defaultly, manually do validate please
+    cfg.loop_control.max_ralph_iterations = _ralph_iterations
+    if _ralph_iterations != 0:
+        cfg.loop_control.max_steps_per_turn = 10000
+        cfg.loop_control.reserved_context_size = 48_000
+    else:
+        cfg.loop_control.reserved_context_size = 32_000
     # custom config
     if ralph_loop is not None and ralph_loop != (_ralph_iterations != 0):
-        cfg = _create_config()
         cfg.loop_control.max_ralph_iterations = -1 if ralph_loop else 0
-        cfg.loop_control.reserved_context_size = _config.loop_control.reserved_context_size
-        cfg.loop_control.max_steps_per_turn = _config.loop_control.max_steps_per_turn
-        cfg.loop_control.max_retries_per_step = _config.loop_control.max_retries_per_step
-    else:
-        cfg = _config
 
     from kimi_agent_sdk import Session
     session = await Session.create(
         session_id=session_id,
-        work_dir=default_work_dir,
-        skills_dir=default_skill_dir,
+        work_dir=_default_work_dir,
+        skills_dir=_get_skill_dir(),
         yolo=yolo if yolo is not None else _default_yolo,
         thinking=thinking if thinking is not None else _default_thinking,
         config=cfg,
-        agent_file=agent_file
+        agent_file=_agent_file
     )
     return session
 
@@ -191,7 +185,7 @@ def print_usage(session=None):
 def clear_context(force_create: bool = False):
     global _default_session
     if _default_session:
-        if not force_create and _default_session.status.context_usage < 1e-8 :
+        if not force_create and _default_session.status.context_usage < 1e-8:
             _print_usage(_default_session)
             return
         elif _default_session is not None:
@@ -237,9 +231,10 @@ def prompt(prompt_str: str, session=None):
                     print_warning(f"Rate limited. Waiting {wait_time}s...")
                     time.sleep(wait_time)
                     continue
-                else:
-                    max_retries = 0
+                elif attempt == max_retries - 1:
                     raise
+                else:
+                    time.sleep(1)
             finally:
                 if _temp_create_session:
                     await session.close()

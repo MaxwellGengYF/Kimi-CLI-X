@@ -1,8 +1,9 @@
 # API credentials for Kimi Code Console
+import agent_utils
 from pathlib import Path
 from kaos.path import KaosPath
 import asyncio
-from kimi_utils import print_success, print_error, print_warning, print_info, prompt, clear_context, sync_all,  _create_default_session, print_usage, delete_session_dir, print_debug, get_default_session, compact_session
+from kimi_utils import print_success, print_error, print_warning, print_info, prompt, clear_context, sync_all,  _create_default_session, print_usage, delete_session_dir, print_debug, get_default_session, fix_error, validate, get_todo, clear_todo, make_todo, update_todo_status
 import kimi_utils
 import os
 import sys
@@ -27,7 +28,6 @@ Available commands:
   /file:<path>    - Load a file and execute its content line by line
   <path>          - Same as /file:<path>
   /clear          - Clear the conversation context
-  /compact        - Compact context
   /exit           - Exit the program
   /skill          - Load skills
   /help           - Show this help message
@@ -45,12 +45,16 @@ Or enter any prompt to send to the agent.
 '''
 # End writen by AGENT
 CLEAN_MODE = None
+
+
 def set_arg():
     global CLEAN_MODE
     import argparse
     parser = argparse.ArgumentParser(description='Kimi Agent CLI')
     parser.add_argument('-c', '--clean', action='store_true',
                         help='Delete cache file after quit')
+    parser.add_argument('-no_color', '--no_color', action='store_true',
+                        help='Disable colorful print')
     parser.add_argument('-ralph', '--ralph', action='store_true',
                         help='Continue work until done (auto-loop)')
     parser.add_argument('-think', '--think', action='store_true',
@@ -60,6 +64,8 @@ def set_arg():
     parser.add_argument('-s', '--skill-dir', type=str, default=None,
                         help='Specify custom skill directory')
     args = parser.parse_args()
+    if args.no_color:
+        agent_utils._colorful_print = False
 
     CLEAN_MODE = args.clean
     if CLEAN_MODE:
@@ -97,10 +103,11 @@ def set_arg():
         # Normalize the path (resolve ., .., and symlinks)
         skill_dir_path = skill_dir_path.resolve()
         if skill_dir_path.exists() and skill_dir_path.is_dir():
-            kimi_utils.default_skill_dir = KaosPath(skill_dir_path)
+            kimi_utils._default_skill_dir = KaosPath(skill_dir_path)
             print_debug(f'Skill dir set to: {str(skill_dir_path)}')
         else:
             print_warning(f'Skill dir not found: {str(skill_dir_path)}')
+
 
 def _input(text: str, text_arr: list) -> str:
     if text_arr is None or len(text_arr) == 0:
@@ -136,7 +143,7 @@ def _run_cli():
     # Read user input from keyboard asynchronously
     exec_ctx = None
     special_commands = {
-        'clear', 'exit', 'help', 'compact', 'context', 'fix', 'plan', 'txt'
+        'clear', 'exit', 'help', 'context', 'fix', 'plan', 'txt'
     }
     input_str = None
     _create_default_session()
@@ -170,9 +177,6 @@ def _run_cli():
                 elif task_split[0] == 'clear':
                     clear_context()
                     continue
-                elif task_split[0] == 'compact':
-                    compact_session(get_default_session())
-                    continue
                 elif task_split[0] == 'exit':
                     print_success('bye!')
                     break
@@ -187,14 +191,14 @@ def _run_cli():
                     if not command_to_fix:
                         print_error('Command must be /fix:<command>')
                         continue
-                    kimi_utils.fix_error(
+                    fix_error(
                         command_to_fix, session=get_default_session())
                     continue
                 elif task_split[0] == 'validate':
                     if len(task_split) < 2:
                         print_error('Command must be /validate:prompt')
                         continue
-                    result = kimi_utils.validate(
+                    result = validate(
                         task_split[1], get_default_session())
                     print_info(f'Validate result: {result}')
                     continue
@@ -261,7 +265,7 @@ Run tool:SetTodoList to set a todo-list of (do NOT implement, ONLY make list):
 
                     if not subcommand or subcommand == 'list':
                         # Show current todo list
-                        result = kimi_utils.get_todo(get_default_session())
+                        result = get_todo(get_default_session())
                         if not result:
                             print_info('No todo items found.')
                         else:
@@ -281,14 +285,13 @@ Run tool:SetTodoList to set a todo-list of (do NOT implement, ONLY make list):
                                     print_info(
                                         f'  {i}. [{status_icon}] {title}')
                         continue
-
                     elif subcommand == 'clear':
-                        kimi_utils.clear_todo(get_default_session())
+                        clear_todo(get_default_session())
                         print_success('Todo list cleared.')
                         continue
                     elif subcommand.startswith('make ') or subcommand == 'make':
                         subcommand = subcommand[4:]
-                        if not kimi_utils.make_todo(subcommand.strip(), get_default_session()):
+                        if not make_todo(subcommand.strip(), get_default_session()):
                             print_error('Make todo-list failed.')
                         else:
                             print_success(f'Make todo-list success.')
@@ -296,19 +299,19 @@ Run tool:SetTodoList to set a todo-list of (do NOT implement, ONLY make list):
 
                     elif subcommand.startswith('done ') or subcommand == 'done':
                         # Mark item(s) as done
-                        kimi_utils.update_todo_status(get_default_session(), subcommand[5:].strip(
+                        update_todo_status(get_default_session(), subcommand[5:].strip(
                         ) if subcommand.startswith('done ') else '', 'done')
                         continue
 
                     elif subcommand.startswith('in_progress ') or subcommand == 'in_progress':
                         # Mark item(s) as in_progress
-                        kimi_utils.update_todo_status(get_default_session(), subcommand[12:].strip(
+                        update_todo_status(get_default_session(), subcommand[12:].strip(
                         ) if subcommand.startswith('in_progress ') else '', 'in_progress')
                         continue
 
                     elif subcommand.startswith('pending ') or subcommand == 'pending':
                         # Mark item(s) as pending
-                        kimi_utils.update_todo_status(get_default_session(), subcommand[8:].strip(
+                        update_todo_status(get_default_session(), subcommand[8:].strip(
                         ) if subcommand.startswith('pending ') else '', 'pending')
                         continue
 

@@ -60,6 +60,7 @@ class Style(Enum):
     STRIKETHROUGH = 9
 
 
+_colorful_print = True
 def colorful_print(
     text: str,
     fg: Optional[Color] = None,
@@ -67,6 +68,9 @@ def colorful_print(
     styles: Optional[list[Style]] = None,
     end: str = "\n"
 ) -> None:
+    if not _colorful_print:
+        print(text, end=end)
+        return
     """
     Print text with optional colors and styles.
 
@@ -157,6 +161,7 @@ def print_agent_json(get_message):
         'WriteFile': 'path',
         'StrReplaceFile': 'path',
     }
+
     def print_item(item):
         if type(item) == str:
             if not (item.find('<choice>') >= 0 and item.find('</choice>') >= 0):
@@ -224,7 +229,7 @@ def run_thread(function, args: tuple = None):
     if args is None:
         args = tuple()
     elif type(args) is not tuple:
-      args = (args, )  
+        args = (args, )
     thd = threading.Thread(target=function, args=args)
     thd.start()
 
@@ -243,7 +248,6 @@ def sync_all():
     for thd in _threads:
         thd.join()
     _threads.clear()
-
 
 
 def _run_process_with_log(command: str):
@@ -272,6 +276,7 @@ def _run_process_with_error(command: str, keycode: tuple, skip_success: bool = T
                 return '\n'.join(lines[idx:])
 
     return result
+
 
 def _percentage_str(num: float) -> str:
     return f"{num * 100:.1f}%"

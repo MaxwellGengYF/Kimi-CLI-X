@@ -13,6 +13,10 @@ class Params(BaseModel):
     code: str = Field(
         description="The Python code to execute. ",
     )
+    dest: str | None = Field(
+        default=None,
+        description="The destination path to save the output. If provided, output will be saved to this file.",
+    )
 
 class Python(CallableTool2):
     name: str = "Python"
@@ -42,12 +46,24 @@ from pathlib import Path
         try:
             exec(params.code, self.globals_dict, self.locals_dict)
             output = captured_output.getvalue()
+            if params.dest:
+                with open(params.dest, 'w', encoding='utf-8') as f:
+                    f.write(output)
+                return ToolOk(output=f"Output saved to {params.dest}")
             if not output:
                 result = output
                 return ToolOk(output='')
             return ToolOk(output=_maybe_export_output(result))
         except Exception as exc:
             output = captured_output.getvalue()
+            if params.dest:
+                with open(params.dest, 'w', encoding='utf-8') as f:
+                    f.write(output)
+                return ToolError(
+                    output=f"Output saved to {params.dest}",
+                    message=str(exc),
+                    brief="Failed to execute Python code",
+                )
             if not output:
                 return ToolError(
                     output='',
