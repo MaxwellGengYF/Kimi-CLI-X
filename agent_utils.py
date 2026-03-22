@@ -186,7 +186,7 @@ def print_agent_json(get_message):
                     _print_func(text, '\n')
                 else:
                     print(item, end='\n')
-        elif item.get("type") == "think" and not agent_utils._quiet:
+        elif item.get("type") == "think":
             think_content = item.get("think", "")
             if think_content:
                 colorful_print(f"[Think] {think_content}",
