@@ -63,7 +63,7 @@ def _get_skill_dir():
         return None
     _default_skill_dir = _gen()
     if _default_skill_dir:
-        print_info(f'skill dir: {str(_default_skill_dir)}')
+        print_debug(f'skill dir: {str(_default_skill_dir)}')
         if type(_default_skill_dir) is not KaosPath:
             _default_skill_dir = KaosPath(_default_skill_dir)
         return _default_skill_dir
@@ -125,6 +125,7 @@ async def _create_session_async(
 
     from kimi_agent_sdk import Session
     session = None
+    resumed = False
     if resume:
         session = await Session.resume(
             session_id=session_id,
@@ -136,7 +137,9 @@ async def _create_session_async(
             agent_file=agent_file if agent_file is not None else _default_agent_file
         )
         if not session:
-            print_warning(f'Session {session_id} not found.')
+            print_debug(f'Session {session_id} not found.')
+        else:
+            resumed = True
     if not session:
         session = await Session.create(
             session_id=session_id,
@@ -147,7 +150,7 @@ async def _create_session_async(
             config=cfg,
             agent_file=agent_file if agent_file is not None else _default_agent_file
         )
-    return session
+    return session, resumed
 
 
 def create_session(
@@ -186,8 +189,8 @@ def _create_default_session(resume: bool = True):
     global _default_session
     if _default_session:
         return _default_session
-    _default_session = create_session("default", resume=resume)
-    return _default_session
+    _default_session, resumed = create_session("default", resume=resume)
+    return _default_session, resumed
 
 
 _should_print_usage = threading.local()
