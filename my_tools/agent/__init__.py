@@ -104,5 +104,3 @@ class WaitAgent(CallableTool2):
                 message=str(exc),
                 brief=f"Failed to wait for session",
             )
-
-from .compact import *

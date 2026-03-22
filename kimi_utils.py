@@ -9,7 +9,7 @@ _default_session = None
 _ralph_iterations = 0
 _default_thinking = False
 _default_yolo = True
-_agent_file = Path(__file__).parent / 'agent.yaml'
+_default_agent_file = Path(__file__).parent / 'agent.yaml'
 _default_work_dir = KaosPath(os.curdir)
 _default_skill_dir = None
 __env_initialized = False
@@ -94,9 +94,12 @@ _session_idx = 0
 
 async def _create_session_async(
     session_id: str = None,
+    work_dir: Optional[bool] = None,
+    skills_dir: Optional[bool] = None,
     ralph_loop: Optional[bool] = None,
     thinking: Optional[bool] = None,
     yolo: Optional[bool] = None,
+    agent_file: Optional[bool] = None,
 ):
     global _session_idx
     if session_id is None:
@@ -118,28 +121,34 @@ async def _create_session_async(
     from kimi_agent_sdk import Session
     session = await Session.create(
         session_id=session_id,
-        work_dir=_default_work_dir,
-        skills_dir=_get_skill_dir(),
+        work_dir=work_dir if work_dir is not None else _default_work_dir,
+        skills_dir=skills_dir if skills_dir is not None else _get_skill_dir(),
         yolo=yolo if yolo is not None else _default_yolo,
         thinking=thinking if thinking is not None else _default_thinking,
         config=cfg,
-        agent_file=_agent_file
+        agent_file=agent_file if agent_file is not None else _default_agent_file
     )
     return session
 
 
 def create_session(
     session_id: str = None,
+    work_dir: Optional[bool] = None,
+    skills_dir: Optional[bool] = None,
     ralph_loop: Optional[bool] = None,
     thinking: Optional[bool] = None,
     yolo: Optional[bool] = None,
+    agent_file: Optional[bool] = None,
 ):
 
     return asyncio.run(_create_session_async(
         session_id,
+        work_dir,
+        skills_dir,
         ralph_loop,
         thinking,
-        yolo
+        yolo,
+        agent_file
     ))
 
 
@@ -442,74 +451,3 @@ def read_file(path: Path, split_word: str = None):
     if split_word:
         return s.split(split_word)
     return s
-
-
-def _set_compact_key(session, callback):
-    assert session
-    assert callable(callback)
-
-    import my_tools.agent.compact as compact
-    if not session:
-        compact._current_key.key = 'default'
-    else:
-        compact._current_key.key = str(session.id)
-    try:
-        callback()
-    except:
-        raise
-    finally:
-        compact._current_key.key = 'default'
-
-
-def save_session(session):
-    assert session is not None
-    summary_prompt = '''
-Compact the current session's context and export it to a file.
-
-Please:
-1. **Summarize the work completed** - List all files created, modified, or analyzed with brief descriptions of what was done  
-2. **Capture key decisions** - Document important architectural choices, design patterns, or configurations established       
-3. **Record current state** - Note any pending tasks, TODOs, or incomplete work
-4. **Include relevant code snippets** - For critical or complex implementations, include the key code sections (not everything)
-5. **Document lessons learned** - Capture any important insights, gotchas, or solutions to problems encountered
-
-Output: run tool:SaveSession with a clear structure including:
-- Session timestamp
-- Original request/purpose
-- Summary of actions taken
-- Files affected (with before/after states if relevant)
-- Key decisions & rationale
-- Current status & next steps (if any)
-- Code references (optional, for critical parts)
-'''
-
-    def summary():
-        prompt(summary_prompt, session=session)
-    # summary
-    _set_compact_key(session, summary)
-    return session
-
-
-def load_session(session):
-    def load():
-        import my_tools.agent.compact as compact
-        value = compact.LoadSession.load()
-        if not value:
-            print_warning('Session context not found.')
-            return
-        if len(value) == 0:
-            print_warning('Session context is empty.')
-            return
-        load_prompt = f'''
-Read this:
-```
-{value}
-```
-'''
-        prompt(load_prompt, session=session)
-    # summary
-    _set_compact_key(session, load)
-
-
-def compact_session(session=None):
-    prompt('/compact', session=session)

@@ -1,4 +1,3 @@
-import threading
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 import dbm
@@ -6,24 +5,25 @@ from pathlib import Path
 DEFAULT_DB_PATH = Path.home() / ".kimi/sessions/kv_store.db"
 
 
-class SaveSessionParam(BaseModel):
+class StoreSessionParam(BaseModel):
+    key: str = Field(
+        default=None,
+        description="The content key to save",
+    )
     value: str = Field(
         default=None,
-        description="The context",
+        description="The content",
     )
 
 
-_current_key = threading.local()
+class StoreSession(CallableTool2):
+    name: str = "StoreSession"
+    description: str = "Store content."
+    params: type[StoreSessionParam] = StoreSessionParam
 
-
-class SaveSession(CallableTool2):
-    name: str = "SaveSession"
-    description: str = "Save session context."
-    params: type[SaveSessionParam] = SaveSessionParam
-
-    async def __call__(self, params: SaveSessionParam) -> ToolReturnValue:
+    async def __call__(self, params: StoreSessionParam) -> ToolReturnValue:
         try:
-            key = getattr(_current_key, 'key', 'default')
+            key = params.key if params.key else 'default'
             with dbm.open(DEFAULT_DB_PATH, 'c') as db:
                 db[key.encode('utf-8')] = params.value.encode('utf-8')
 
@@ -39,18 +39,17 @@ class SaveSession(CallableTool2):
 class LoadSessionParam(BaseModel):
     key: str = Field(
         default=None,
-        description="The context key to load",
+        description="The content key to load",
     )
 
 
 class LoadSession(CallableTool2):
     name: str = "LoadSession"
-    description: str = "Load session context."
+    description: str = "Load content."
     params: type[LoadSessionParam] = LoadSessionParam
     @staticmethod
     def load(key=None):
-        if key is None:
-            key = getattr(_current_key, 'key', 'default')
+        key = key if key else 'default'
         with dbm.open(DEFAULT_DB_PATH, 'c') as db:
             key_bytes = key.encode('utf-8')
             if key_bytes in db:

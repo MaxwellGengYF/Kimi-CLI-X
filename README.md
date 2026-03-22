@@ -198,7 +198,7 @@ The agent has access to various tools for file operations, code execution, web s
 |------|-------------|------------|
 | `CreateAgent` | Create a subagent and run prompt asynchronously | `prompt` (str): Prompt to send; `session_id` (str): Optional session ID |
 | `WaitAgent` | Wait for a subagent session to finish | `session_id` (str): Session ID to wait for; `timeout` (float): Timeout in seconds |
-| `SaveSession` | Save session context to database | `value` (str): Context value to save |
+| `StoreSession` | Save session context to database | `value` (str): Context value to save |
 | `LoadSession` | Load session context from database | `key` (str): Context key to load |
 
 ## Python API Usage
