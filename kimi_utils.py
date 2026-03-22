@@ -43,7 +43,10 @@ def _init_model():
 
 def _get_skill_dir():
     global _default_skill_dir
-
+    if _default_skill_dir:
+        if type(_default_skill_dir) is not KaosPath:
+            _default_skill_dir = KaosPath(_default_skill_dir)
+        return _default_skill_dir
     def _gen():
         d = _default_skill_dir
         if d is not None:
@@ -61,7 +64,8 @@ def _get_skill_dir():
     _default_skill_dir = _gen()
     if _default_skill_dir:
         print_info(f'skill dir: {str(_default_skill_dir)}')
-        _default_skill_dir = KaosPath(_default_skill_dir)
+        if type(_default_skill_dir) is not KaosPath:
+            _default_skill_dir = KaosPath(_default_skill_dir)
         return _default_skill_dir
     return None
 
