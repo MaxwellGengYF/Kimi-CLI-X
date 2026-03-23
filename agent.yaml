@@ -3,6 +3,8 @@ agent:
   extend: default
   tools:
     - "my_tools.file:Run"
+    - "my_tools.file:WaitProcess"
+    - "my_tools.file:KillProcess"
     - "my_tools.file:Input"
     - "my_tools.py:Python"
     - "my_tools.file:Ls"

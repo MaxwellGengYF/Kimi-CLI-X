@@ -11,6 +11,78 @@ from my_tools.common import _maybe_export_output
 from typing import Optional
 
 
+class WaitParams(BaseModel):
+    timeout: int | None = Field(
+        default=3,
+        description="Timeout in seconds. If not specified, no timeout is applied.",
+    )
+
+
+class WaitProcess(CallableTool2):
+    name: str = "WaitProcess"
+    description: str = "Wait for the global variable 'process' to finish."
+    params: type[WaitParams] = WaitParams
+
+    async def __call__(self, params: WaitParams) -> ToolReturnValue:
+        """Wait for the running process to complete."""
+        global process, reader_thread, start_time
+        timeout = params.timeout if params.timeout is not None else 3
+        timeout = min(timeout, 10)
+        if process is None:
+            return ToolError(
+                output="",
+                message="No process is currently running.",
+                brief="No active process",
+            )
+
+        try:
+            if timeout is not None:
+                while True:
+                    return_code = process.poll()
+                    if return_code is not None:
+                        reader_thread.join(timeout=1)
+                        reader_thread = None
+                        process = None
+                        output = get_final_output()
+                        if return_code != 0:
+                            return ToolError(
+                                output=output,
+                                message=f"Process exited with non-zero return code: {return_code}",
+                                brief="Process failed",
+                            )
+                        else:
+                            return ToolOk(output=output)
+                    elapsed = time.time() - start_time
+                    if elapsed > timeout:
+                        message = f"Process is still working..."
+                        return ToolError(
+                            output=get_final_output(),
+                            message=message,
+                            brief="timeout",
+                        )
+                    await asyncio.sleep(0.05)
+            else:
+                return_code = process.wait()
+                reader_thread.join(timeout=1)
+                reader_thread = None
+                process = None
+                output = get_final_output()
+                if return_code != 0:
+                    return ToolError(
+                        output=output,
+                        message=f"Process exited with non-zero return code: {return_code}",
+                        brief="Process failed",
+                    )
+                return ToolOk(output=output)
+
+        except Exception as exc:
+            return ToolError(
+                output=get_final_output(),
+                message=f"Failed to wait for process: {str(exc)}",
+                brief="Wait failed",
+            )
+
+
 # Keywords that indicate the process is waiting for user input
 INPUT_KEYWORDS = [
     "input", "choose", "enter",
@@ -32,7 +104,6 @@ stdout_lines = []
 output_queue: queue.Queue = queue.Queue()
 reader_thread: Optional[threading.Thread] = None
 process: Optional[subprocess.Popen] = None
-timeout = None
 start_time = None
 
 
@@ -43,17 +114,14 @@ def get_output_text():
             stdout_lines.append(data)
     except queue.Empty:
         pass
+    s = "".join(stdout_lines)
+    stdout_lines.clear()
+    return s
 
-    return "".join(stdout_lines)
 
-
-def get_final_output(dest, output_text=None):
+def get_final_output(output_text=None):
     if output_text == None:
         output_text = get_output_text()
-    if dest:
-        with open(dest, 'w', encoding='utf-8') as f:
-            f.write(output_text)
-        output_text = f"Output saved to {dest}"
     return _maybe_export_output(output_text)
 
 
@@ -108,10 +176,6 @@ class RunParams(BaseModel):
         default=None,
         description="Working directory to run the process in. If not specified, uses the current directory.",
     )
-    dest: str | None = Field(
-        default=None,
-        description="The destination path to save the output. If provided, output will be saved to this file.",
-    )
     timeout: int | None = Field(
         default=120,
         description="Timeout in seconds. If not specified, no timeout is applied.",
@@ -134,77 +198,20 @@ class Run(CallableTool2):
         one reader thread for efficient output handling.
         """
         # Single thread-safe queue for collecting all output (both stdout and stderr)
-        global reader_thread, process, timeout, start_time
-        if process and process.poll() is None:
-            if params.path == '#wait':
-                if params.timeout is not None:
-                    while True:
-                        return_code = process.poll()
-                        if return_code is not None:
-                            reader_thread.join(timeout=1)
-                            reader_thread = None
-                            process = None
-                            output = get_final_output(params.dest)
-                            if return_code != 0:
-                                return ToolError(
-                                    output=output,
-                                    message=f"Process exited with non-zero return code: {return_code}",
-                                    brief="Process failed",
-                                )
-                            else:
-                                return ToolOk(output=output)
-                        elapsed = time.time() - start_time
-                        if elapsed > params.timeout:
-                            process.kill()
-                            process.wait()
-                            reader_thread.join(timeout=1)
-                            reader_thread = None
-                            process = None
-                            output = get_final_output(params.dest)
-                            message = f"Process timed out after {params.timeout} seconds"
-                            return ToolError(
-                                output=output,
-                                message=message,
-                                brief="Process timed out",
-                            )
-                else:
-                    process.wait()
-                    reader_thread.join(timeout=1)
-                    reader_thread = None
-                    process = None
-                    output = get_final_output(params.dest)
-                    if return_code != 0:
-                        return ToolError(
-                            output=output,
-                            message=f"Process exited with non-zero return code: {return_code}",
-                            brief="Process failed",
-                        )
+        global reader_thread, process, start_time
 
-                    return ToolOk(output=output)
+        def unfinished():
+            if process.poll() is not None:
+                return False
+            time.sleep(0.5)
+            return process.poll() is None
 
-            elif params.path == '#kill':
-                process.kill()
-                process.wait()
-                reader_thread.join(timeout=1)
-                reader_thread = None
-                process = None
-                output = get_final_output(params.dest)
-                message = f"Process killed"
-                return ToolOk(
-                    output=output,
-                    message=message,
-                    brief="Process killed")
-
+        if process and unfinished() is None:
             return ToolError(
-                output='',
-                message='Process still running, set path="#wait" to wait, or set path="#kill" to kill process',
+                output=get_final_output(),
+                message='Process still running, use "WaitProcess" tool to wait, or use "KillProcess" to terminate.',
                 brief="",
             )
-        elif params.path.startswith('#'):
-            return ToolError(
-                output='',
-                message='Invalid command',
-                brief="")
         try:
             start_time = time.time()
             return_code = None
@@ -223,7 +230,6 @@ class Run(CallableTool2):
             )
             # Start a single reader thread for both stdout and stderr
             streams = [(process.stdout, 'stdout')]
-            timeout = params.timeout
             reader_thread = threading.Thread(
                 target=_read_streams_into_queue,
                 args=(process, streams, output_queue),
@@ -251,7 +257,7 @@ class Run(CallableTool2):
                     if _check_for_input_prompt(tex):
                         message = f"'Input' tool may used to input to process."
                         return ToolError(
-                            output=get_final_output(params.dest, tex),
+                            output=get_final_output(tex),
                             message=message,
                             brief="",
                         )
@@ -261,7 +267,7 @@ class Run(CallableTool2):
                     reader_thread.join(timeout=1)
                     reader_thread = None
                     process = None
-                    output = get_final_output(params.dest)
+                    output = get_final_output()
                     message = f"Process timed out after {params.timeout} seconds"
                     return ToolError(
                         output=output,
@@ -273,7 +279,7 @@ class Run(CallableTool2):
                 await asyncio.sleep(0.05)
 
             # Collect all output from queue
-            output = get_final_output(params.dest)
+            output = get_final_output()
             reader_thread.join(timeout=1)
             reader_thread = None
             process = None
@@ -291,7 +297,7 @@ class Run(CallableTool2):
             process = None
             reader_thread = None
             return ToolError(
-                output="",
+                output=get_final_output(),
                 message=str(exc),
                 brief="Failed to run process",
             )
@@ -321,7 +327,7 @@ class Input(CallableTool2):
 
         if process.poll() is not None:
             return ToolError(
-                output='',
+                output=get_final_output(),
                 message=f"Process has already exited with return code: {process.returncode}",
                 brief="Process not running",
             )
@@ -334,15 +340,56 @@ class Input(CallableTool2):
 
             process.stdin.write(input_text)
             process.stdin.flush()
+            await asyncio.sleep(1.0)
 
             return ToolOk(
-                output='',
+                output=get_final_output(),
                 message=f"Input sent to process: {repr(params.text)}",
                 brief="Input sent",
             )
         except Exception as exc:
             return ToolError(
-                output='',
+                output=get_final_output(),
                 message=f"Failed to send input: {str(exc)}",
                 brief="Input failed",
+            )
+
+
+class KillParams(BaseModel):
+    pass
+
+
+class KillProcess(CallableTool2):
+    name: str = "KillProcess"
+    description: str = "Kill the currently running process."
+    params: type[KillParams] = KillParams
+
+    async def __call__(self, params: KillParams) -> ToolReturnValue:
+        """Kill the running process."""
+        global process, reader_thread
+
+        if process is None:
+            return ToolError(
+                output="",
+                message="No process is currently running.",
+                brief="No active process",
+            )
+
+        try:
+            process.kill()
+            process.wait()
+            reader_thread.join(timeout=1)
+            reader_thread = None
+            process = None
+            output = get_final_output()
+            return ToolOk(
+                output=output,
+                message="Process killed successfully",
+                brief="Process killed",
+            )
+        except Exception as exc:
+            return ToolError(
+                output=get_final_output(),
+                message=f"Failed to kill process: {str(exc)}",
+                brief="Kill failed",
             )
