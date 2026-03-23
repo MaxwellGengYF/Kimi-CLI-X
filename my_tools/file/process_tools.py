@@ -141,6 +141,9 @@ class Run(CallableTool2):
                     while True:
                         return_code = process.poll()
                         if return_code is not None:
+                            reader_thread.join(timeout=1)
+                            reader_thread = None
+                            process = None
                             output = get_final_output(params.dest)
                             if return_code != 0:
                                 return ToolError(
@@ -166,6 +169,9 @@ class Run(CallableTool2):
                             )
                 else:
                     process.wait()
+                    reader_thread.join(timeout=1)
+                    reader_thread = None
+                    process = None
                     output = get_final_output(params.dest)
                     if return_code != 0:
                         return ToolError(
@@ -195,9 +201,9 @@ class Run(CallableTool2):
                 brief="",
             )
         elif params.path.startswith('#'):
-            return ToolOk(
+            return ToolError(
                 output='',
-                message='Done',
+                message='Invalid command',
                 brief="")
         try:
             start_time = time.time()
