@@ -112,7 +112,7 @@ def _stop_reader_threads():
     global _stop_readers, _reader_threads
     _stop_readers.set()
     for thread in _reader_threads:
-        thread.join(timeout=1.0)
+        thread.join(timeout=5.0)
     _reader_threads = []
 
 
@@ -226,26 +226,43 @@ class Run(CallableTool2):
                     stderr_buffer.append(data)
                     last_output_time = time.time()
 
-                # If input prompt detected, return early and tell agent to use Input tool
+                # If input prompt detected, wait 5 seconds to see if process exits
                 if input_prompt_detected:
-                    _stop_reader_threads()
-                    stdout = b"".join(stdout_buffer).decode(
-                        'utf-8', errors='replace')
-                    stderr = b"".join(stderr_buffer).decode(
-                        'utf-8', errors='replace')
-                    output_lines = [
-                        "Process is waiting for input. Use the 'Input' tool to send input.",
-                        "",
-                        "Process output so far:",
-                    ]
-                    if stdout:
-                        output_lines.append("STDOUT:")
-                        output_lines.append(stdout)
-                    if stderr:
-                        output_lines.append("STDERR:")
-                        output_lines.append(stderr)
-                    _running_process = None
-                    return ToolOk(output=_maybe_export_output("\n".join(output_lines)))
+                    wait_start = time.time()
+                    process_done = False
+                    while time.time() - wait_start < 3:
+                        if process.poll() is not None:
+                            process_done = True
+                            break
+                        await asyncio.sleep(0.01)
+                    
+                    # If process is still running after 5 seconds, return input prompt message
+                    if not process_done:
+                        _stop_reader_threads()
+                        stdout = b"".join(stdout_buffer).decode(
+                            'utf-8', errors='replace')
+                        stderr = b"".join(stderr_buffer).decode(
+                            'utf-8', errors='replace')
+                        output_lines = [
+                            "Process is waiting for input. Use the 'Input' tool to send input.",
+                            "",
+                            "Process output so far:",
+                        ]
+                        if stdout:
+                            output_lines.append(stdout)
+                        if stderr:
+                            output_lines.append(stderr)
+                        return ToolOk(output=_maybe_export_output("\n".join(output_lines)))
+                    else:
+                        _stop_reader_threads()
+                        output_lines = []
+                        stdout = b"".join(stdout_buffer).decode(
+                            'utf-8', errors='replace')
+                        stderr = b"".join(stderr_buffer).decode(
+                            'utf-8', errors='replace')
+                        _running_process = None
+                        return ToolOk(output=_maybe_export_output("\n".join(output_lines)))
+                    # Process exited, continue to normal exit handling below
 
                 # Yield control to allow other async tasks to run
                 await asyncio.sleep(0.01)
@@ -341,6 +358,8 @@ class Input(CallableTool2):
 
         # Check if stdin is available for input
         if process.stdin is None or process.stdin.closed:
+            _stop_reader_threads()
+            _running_process = None
             return ToolError(
                 output="",
                 message="Process does not accept input (stdin is not available)",
@@ -410,7 +429,7 @@ class Input(CallableTool2):
                     break
 
                 await asyncio.sleep(0.01)
-
+            _stop_reader_threads()
             # Get any remaining output
             stdout_items, stderr_items = _drain_queues()
 
@@ -430,16 +449,25 @@ class Input(CallableTool2):
 
             # If input prompt detected, return early and tell agent to use Input tool again
             if input_prompt_detected:
-                output_lines = [
-                    "Input sent successfully. Process is waiting for more input. Use the 'Input' tool to send more input.",
-                    "",
-                    "Process output so far:",
-                ]
+                wait_start = time.time()
+                process_done = False
+                while time.time() - wait_start < 3:
+                    if process.poll() is not None:
+                        process_done = True
+                        break
+                    await asyncio.sleep(0.01)
+                if not process_done:
+                    output_lines = [
+                        "Input sent successfully. Process is waiting for more input. Use the 'Input' tool to send more input.",
+                        "",
+                        "Process output so far:",
+                    ]
+                else:
+                    output_lines = []
+                    _running_process = None
                 if stdout:
-                    output_lines.append("STDOUT:")
                     output_lines.append(stdout)
                 if stderr:
-                    output_lines.append("STDERR:")
                     output_lines.append(stderr)
                 return ToolOk(output=_maybe_export_output("\n".join(output_lines)))
 
@@ -454,12 +482,14 @@ class Input(CallableTool2):
             return ToolOk(output=_maybe_export_output("\n".join(output_lines)))
 
         except (IOError, OSError) as exc:
+            _running_process = None
             return ToolError(
                 output="",
                 message=f"Failed to send input to process: {str(exc)}",
                 brief="Failed to send input",
             )
         except Exception as exc:
+            _running_process = None
             return ToolError(
                 output="",
                 message=f"Unexpected error: {str(exc)}",
