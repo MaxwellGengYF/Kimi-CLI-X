@@ -4,7 +4,6 @@ agent:
   tools:
     - "my_tools.file:Run"
     - "my_tools.py:Python"
-    - "my_tools.file:Input"
     - "my_tools.file:Ls"
     - "my_tools.file:Mkdir"
     - "my_tools.file:Mv"
