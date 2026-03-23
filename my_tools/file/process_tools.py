@@ -27,12 +27,35 @@ def _check_for_input_prompt(text: str) -> bool:
             return True
     return False
 
-
+stdout_lines = []
 output_queue: queue.Queue = queue.Queue()
 reader_thread: Optional[threading.Thread] = None
+process: Optional[subprocess.Popen] = None
+timeout = None
 
 
-def _read_streams_into_queue(process, streams, q: queue.Queue):
+def get_output_text():
+    try:
+        while True:
+            data = output_queue.get_nowait()
+            stdout_lines.append(data)
+    except queue.Empty:
+        pass
+
+    return "".join(stdout_lines)
+
+
+def get_final_output(dest, output_text=None):
+    if output_text == None:
+        output_text = get_output_text()
+    if dest:
+        with open(dest, 'w', encoding='utf-8') as f:
+            f.write(output_text)
+        output_text = f"Output saved to {dest}"
+    return _maybe_export_output(output_text)
+
+
+def _read_streams_into_queue(process: subprocess.Popen, streams, q: queue.Queue):
     """Read from multiple streams and put data into a single queue until stop_event is set.
 
     Args:
@@ -51,9 +74,9 @@ def _read_streams_into_queue(process, streams, q: queue.Queue):
                     continue
 
                 try:
-                    data = stream.read(4096)
+                    data = stream.read(1)
                     if data:
-                        q.put((label, data))
+                        q.put(data)
                         any_data = True
                 except (IOError, OSError, ValueError):
                     # Stream might be closed
@@ -91,7 +114,10 @@ class RunParams(BaseModel):
         default=120,
         description="Timeout in seconds. If not specified, no timeout is applied.",
     )
-
+    detach_input: bool = Field(
+        default=False,
+        description="Enable Detach input mode, if process requires input, early return.",
+    )
 
 class Run(CallableTool2):
     name: str = "Run"
@@ -105,7 +131,8 @@ class Run(CallableTool2):
         one reader thread for efficient output handling.
         """
         # Single thread-safe queue for collecting all output (both stdout and stderr)
-        global reader_thread
+        global reader_thread, process, timeout
+        # TODO  wait last process
         try:
             # Start the process
             process = subprocess.Popen(
@@ -113,13 +140,14 @@ class Run(CallableTool2):
                 cwd=params.cwd,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,  # Line buffered
+                universal_newlines=True
             )
-
             # Start a single reader thread for both stdout and stderr
-            streams = [(process.stdout, 'stdout'), (process.stderr, 'stderr')]
+            streams = [(process.stdout, 'stdout')]
+            timeout = params.timeout
             reader_thread = threading.Thread(
                 target=_read_streams_into_queue,
                 args=(process, streams, output_queue),
@@ -130,59 +158,42 @@ class Run(CallableTool2):
             # Wait for process to complete with timeout
             start_time = time.time()
             return_code = None
+            global stdout_lines
+            stdout_lines = []
 
-            def get_output():
-                stdout_lines = []
-                stderr_lines = []
-
-                try:
-                    while True:
-                        label, data = output_queue.get_nowait()
-                        if label == 'stdout':
-                            stdout_lines.append(data)
-                        else:
-                            stderr_lines.append(data)
-                except queue.Empty:
-                    pass
-
-                # Build output
-                output_parts = []
-
-                stdout_text = "".join(stdout_lines)
-                stderr_text = "".join(stderr_lines)
-
-                if stdout_text:
-                    output_parts.append(stdout_text)
-                if stderr_text:
-                    output_parts.append(stderr_text)
-
-                output_text = "\n".join(output_parts)
-
-                if params.dest:
-                    with open(params.dest, 'w', encoding='utf-8') as f:
-                        f.write(output_text)
-                    output_text = f"Output saved to {params.dest}"
-                return _maybe_export_output(output_text)
+            # if params.input_text:
+            #     if not params.input_text.endswith('\n'):
+            #         params.input_text += '\n'
+            #     process.stdin.write(params.input_text)
+            #     process.stdin.flush()
             while return_code is None:
                 # Check if process has finished
                 return_code = process.poll()
-
                 if return_code is not None:
                     break
 
                 # Check timeout
+                elapsed = time.time() - start_time
+                if params.detach_input:
+                    tex = get_output_text()
+                    if _check_for_input_prompt(tex):
+                        message = f"'Input' tool may used to input to process."
+                        return ToolError(
+                            output=get_final_output(params.dest, tex),
+                            message=message,
+                            brief="",
+                        )
+
                 if params.timeout is not None:
-                    elapsed = time.time() - start_time
                     if elapsed > params.timeout:
                         process.kill()
                         process.wait()
                         reader_thread.join()
-                        output = get_output()
-                        message=f"Process timed out after {params.timeout} seconds"
-                        if _check_for_input_prompt(output):
-                            message += '. "Input" tool may used to input to process.'
+                        reader_thread = None
+                        output = get_final_output(params.dest)
+                        message = f"Process timed out after {params.timeout} seconds"
                         return ToolError(
-                            output=get_output(),
+                            output=output,
                             message=message,
                             brief="Process timed out",
                         )
@@ -191,7 +202,7 @@ class Run(CallableTool2):
                 await asyncio.sleep(0.05)
 
             # Collect all output from queue
-            output = get_output()
+            output = get_final_output(params.dest)
             if return_code != 0:
                 return ToolError(
                     output=output,
