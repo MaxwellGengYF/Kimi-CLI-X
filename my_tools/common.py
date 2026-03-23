@@ -1,7 +1,10 @@
 # Token limit threshold - if output exceeds this, export to a temp file
 # Using 8000 as a conservative threshold to stay well below typical model limits
+from pathlib import Path
 import tempfile
 OUTPUT_TOKEN_LIMIT = 4096
+_temp_folder = Path.home() / '.kimi' / 'sessions'
+_temp_idx = 0
 
 
 def _estimate_tokens(text: str) -> int:
@@ -10,10 +13,13 @@ def _estimate_tokens(text: str) -> int:
 
 
 def _export_to_temp_file(content: str) -> str:
+    global _temp_idx
     """Export content to a temporary file and return the file path."""
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as f:
+    name = str(_temp_folder / str(_temp_idx))
+    with open(name, 'w', encoding='utf-8') as f:
         f.write(content)
-        return f.name
+    _temp_idx += 1
+    return name
 
 
 def _maybe_export_output(output: str) -> str:

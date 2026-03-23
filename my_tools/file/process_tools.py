@@ -33,6 +33,7 @@ output_queue: queue.Queue = queue.Queue()
 reader_thread: Optional[threading.Thread] = None
 process: Optional[subprocess.Popen] = None
 timeout = None
+start_time = None
 
 
 def get_output_text():
@@ -133,9 +134,76 @@ class Run(CallableTool2):
         one reader thread for efficient output handling.
         """
         # Single thread-safe queue for collecting all output (both stdout and stderr)
-        global reader_thread, process, timeout
-        if process
+        global reader_thread, process, timeout, start_time
+        if process and process.poll() is None:
+            if params.path == '#wait':
+                if params.timeout is not None:
+                    while True:
+                        return_code = process.poll()
+                        if return_code is not None:
+                            output = get_final_output(params.dest)
+                            if return_code != 0:
+                                return ToolError(
+                                    output=output,
+                                    message=f"Process exited with non-zero return code: {return_code}",
+                                    brief="Process failed",
+                                )
+                            else:
+                                return ToolOk(output=output)
+                        elapsed = time.time() - start_time
+                        if elapsed > params.timeout:
+                            process.kill()
+                            process.wait()
+                            reader_thread.join(timeout=1)
+                            reader_thread = None
+                            process = None
+                            output = get_final_output(params.dest)
+                            message = f"Process timed out after {params.timeout} seconds"
+                            return ToolError(
+                                output=output,
+                                message=message,
+                                brief="Process timed out",
+                            )
+                else:
+                    process.wait()
+                    output = get_final_output(params.dest)
+                    if return_code != 0:
+                        return ToolError(
+                            output=output,
+                            message=f"Process exited with non-zero return code: {return_code}",
+                            brief="Process failed",
+                        )
+
+                    return ToolOk(output=output)
+
+            elif params.path == '#kill':
+                process.kill()
+                process.wait()
+                reader_thread.join(timeout=1)
+                reader_thread = None
+                process = None
+                output = get_final_output(params.dest)
+                message = f"Process killed"
+                return ToolOk(
+                    output=output,
+                    message=message,
+                    brief="Process killed")
+
+            return ToolError(
+                output='',
+                message='Process still running, set path="#wait" to wait, or set path="#kill" to kill process',
+                brief="",
+            )
+        elif params.path.startswith('#'):
+            return ToolOk(
+                output='',
+                message='Done',
+                brief="")
         try:
+            start_time = time.time()
+            return_code = None
+            global stdout_lines
+            stdout_lines = []
             # Start the process
             process = subprocess.Popen(
                 [params.path] + params.args,
@@ -158,10 +226,6 @@ class Run(CallableTool2):
             reader_thread.start()
 
             # Wait for process to complete with timeout
-            start_time = time.time()
-            return_code = None
-            global stdout_lines
-            stdout_lines = []
 
             # if params.input_text:
             #     if not params.input_text.endswith('\n'):
@@ -185,21 +249,19 @@ class Run(CallableTool2):
                             message=message,
                             brief="",
                         )
-
-                if params.timeout is not None:
-                    if elapsed > params.timeout:
-                        process.kill()
-                        process.wait()
-                        reader_thread.join(timeout=1)
-                        reader_thread = None
-                        process = None
-                        output = get_final_output(params.dest)
-                        message = f"Process timed out after {params.timeout} seconds"
-                        return ToolError(
-                            output=output,
-                            message=message,
-                            brief="Process timed out",
-                        )
+                if params.timeout is not None and elapsed > params.timeout:
+                    process.kill()
+                    process.wait()
+                    reader_thread.join(timeout=1)
+                    reader_thread = None
+                    process = None
+                    output = get_final_output(params.dest)
+                    message = f"Process timed out after {params.timeout} seconds"
+                    return ToolError(
+                        output=output,
+                        message=message,
+                        brief="Process timed out",
+                    )
 
                 # Yield control to allow other async tasks to run
                 await asyncio.sleep(0.05)
@@ -228,3 +290,53 @@ class Run(CallableTool2):
                 brief="Failed to run process",
             )
 
+
+class InputParams(BaseModel):
+    text: str = Field(
+        description="The string to send to the process's stdin.",
+    )
+
+
+class Input(CallableTool2):
+    name: str = "Input"
+    description: str = "Send input to a running process."
+    params: type[InputParams] = InputParams
+
+    async def __call__(self, params: InputParams) -> ToolReturnValue:
+        """Send input text to the running process's stdin."""
+        global process
+
+        if process is None:
+            return ToolError(
+                output="",
+                message="No process is currently running. Use Run tool to start a process first.",
+                brief="No active process",
+            )
+
+        if process.poll() is not None:
+            return ToolError(
+                output='',
+                message=f"Process has already exited with return code: {process.returncode}",
+                brief="Process not running",
+            )
+
+        try:
+            # Ensure the input ends with a newline
+            input_text = params.text
+            if not input_text.endswith('\n'):
+                input_text += '\n'
+
+            process.stdin.write(input_text)
+            process.stdin.flush()
+
+            return ToolOk(
+                output='',
+                message=f"Input sent to process: {repr(params.text)}",
+                brief="Input sent",
+            )
+        except Exception as exc:
+            return ToolError(
+                output='',
+                message=f"Failed to send input: {str(exc)}",
+                brief="Input failed",
+            )

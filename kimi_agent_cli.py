@@ -146,7 +146,7 @@ def _run_cli():
         'clear', 'exit', 'help', 'context', 'fix', 'plan', 'txt'
     }
     input_str = None
-    _create_default_session()
+    _create_default_session(False)
     assert get_default_session()
     text_arr = []
     while True:

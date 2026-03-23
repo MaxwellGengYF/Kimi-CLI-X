@@ -208,7 +208,7 @@ def _print_usage(session):
 
 def print_usage(session=None):
     if not session:
-        session = _create_default_session()
+        session, resume = _create_default_session()
     s = _percentage_str(session.status.context_usage)
     print_success(
         f'Context usage: {s}'
