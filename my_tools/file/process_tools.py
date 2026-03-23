@@ -355,7 +355,7 @@ class Input(CallableTool2):
             input_prompt_detected = False
 
             # Collect output for a short period
-            timeout = _running_process_timeout
+            timeout = min(_running_process_timeout, 60)
             last_output_time = time.time()
             while True:  # 50 * 0.01s = 0.5s
                 if timeout > 1e-4:
