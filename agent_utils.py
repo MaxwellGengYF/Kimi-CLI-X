@@ -176,6 +176,7 @@ def print_agent_json(get_message):
         'ReadFile': ('path', 'line_offset', 'n_lines'),
         'WriteFile': 'path',
         'StrReplaceFile': 'path',
+        'Input': 'input'
     }
 
     def print_item(item):

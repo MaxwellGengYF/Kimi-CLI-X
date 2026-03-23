@@ -320,7 +320,12 @@ class Input(CallableTool2):
                 message="No running process found. Start a process with Run first.",
                 brief="No running process",
             )
-
+        if not params.input:
+            return ToolError(
+                output="",
+                message="No input",
+                brief="No input",
+            )
         process = _running_process
 
         # Check if process is done
