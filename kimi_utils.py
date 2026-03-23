@@ -188,7 +188,7 @@ def get_default_session():
 def _create_default_session(resume: bool = True):
     global _default_session
     if _default_session:
-        return _default_session
+        return _default_session, resume
     _default_session, resumed = create_session("default", resume=resume)
     return _default_session, resumed
 
@@ -215,7 +215,7 @@ def print_usage(session=None):
     )
 
 
-def clear_context(force_create: bool = False):
+def clear_context(force_create: bool = False, resume: bool = False):
     global _default_session
     if _default_session:
         if not force_create and _default_session.status.context_usage < 1e-8:
@@ -224,7 +224,7 @@ def clear_context(force_create: bool = False):
         elif _default_session is not None:
             asyncio.run(_default_session.close())
         _default_session = None
-    _create_default_session(False)
+    _create_default_session(resume)
     _print_usage(_default_session)
 
 
