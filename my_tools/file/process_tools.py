@@ -47,8 +47,9 @@ def _read_stream_into_queue(stream, q: queue.Queue, stop_event: threading.Event)
             except (IOError, OSError):
                 # Stream might be closed
                 break
-    except Exception:
-        pass
+    except Exception as e:
+        import agent_utils
+        agent_utils.print_error(str(e))
 
 
 class RunParams(BaseModel):
@@ -160,7 +161,7 @@ class Run(CallableTool2):
                             _running_process.kill()
                             _running_process.wait()
                     except Exception:
-                        pass
+                        return ToolError(output="Previous process interrupted.")
                     _stop_reader_threads()
                     _running_process = None
                     return ToolOk(output="Previous process interrupted.")
@@ -243,6 +244,7 @@ class Run(CallableTool2):
                     if stderr:
                         output_lines.append("STDERR:")
                         output_lines.append(stderr)
+                    _running_process = None
                     return ToolOk(output=_maybe_export_output("\n".join(output_lines)))
 
                 # Yield control to allow other async tasks to run
@@ -327,6 +329,9 @@ class Input(CallableTool2):
                 brief="No input",
             )
         process = _running_process
+
+        # Restart reader threads to ensure we can read output
+        _start_reader_threads(process)
 
         # Check if process is done
         if process.poll() is not None:
