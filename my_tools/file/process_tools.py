@@ -13,9 +13,9 @@ from typing import Optional
 
 # Keywords that indicate the process is waiting for user input
 INPUT_KEYWORDS = [
-    "input", "choose", "enter", "option",
-    "prompt", "type", "write", "provide", "give",
-    "confirm", "yes/no", "y/n", "press",
+    "input", "choose", "enter",
+    "prompt", "write", "provide",
+    "confirm", "yes/no", "y/n"
 ]
 
 
@@ -26,6 +26,7 @@ def _check_for_input_prompt(text: str) -> bool:
         if keyword in text_lower:
             return True
     return False
+
 
 stdout_lines = []
 output_queue: queue.Queue = queue.Queue()
@@ -114,10 +115,11 @@ class RunParams(BaseModel):
         default=120,
         description="Timeout in seconds. If not specified, no timeout is applied.",
     )
-    detach_input: bool = Field(
+    detect_input: bool = Field(
         default=False,
-        description="Enable Detach input mode, if process requires input, early return.",
+        description="Enable Detect input mode, if process requires input, early return.",
     )
+
 
 class Run(CallableTool2):
     name: str = "Run"
@@ -132,7 +134,7 @@ class Run(CallableTool2):
         """
         # Single thread-safe queue for collecting all output (both stdout and stderr)
         global reader_thread, process, timeout
-        # TODO  wait last process
+        if process
         try:
             # Start the process
             process = subprocess.Popen(
@@ -174,7 +176,7 @@ class Run(CallableTool2):
 
                 # Check timeout
                 elapsed = time.time() - start_time
-                if params.detach_input:
+                if params.detect_input:
                     tex = get_output_text()
                     if _check_for_input_prompt(tex):
                         message = f"'Input' tool may used to input to process."
@@ -188,8 +190,9 @@ class Run(CallableTool2):
                     if elapsed > params.timeout:
                         process.kill()
                         process.wait()
-                        reader_thread.join()
+                        reader_thread.join(timeout=1)
                         reader_thread = None
+                        process = None
                         output = get_final_output(params.dest)
                         message = f"Process timed out after {params.timeout} seconds"
                         return ToolError(
@@ -203,6 +206,9 @@ class Run(CallableTool2):
 
             # Collect all output from queue
             output = get_final_output(params.dest)
+            reader_thread.join(timeout=1)
+            reader_thread = None
+            process = None
             if return_code != 0:
                 return ToolError(
                     output=output,
@@ -214,8 +220,11 @@ class Run(CallableTool2):
 
         except Exception as exc:
             # Clean up
+            process = None
+            reader_thread = None
             return ToolError(
                 output="",
                 message=str(exc),
                 brief="Failed to run process",
             )
+
