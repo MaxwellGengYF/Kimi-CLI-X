@@ -449,8 +449,8 @@ def fix_error(
         prompt_str = f'Fix "{error_keyword}" from command {command}:\n{result}\n'
         if extra_prompt is not None:
             prompt_str = f'{extra_prompt}, {prompt_str}'
-
-        prompt(prompt_str, session)
+        from my_tools.common import _maybe_export_output
+        prompt(_maybe_export_output(prompt_str), session)
     return False
 
 

@@ -4,7 +4,7 @@ import kimi_utils
 def implement_file(
     file_path,
     requires,
-    skill_name: str | None = None,
+    skill_name = None,
     validate_after_work: bool = False
 ):
     try:
@@ -14,6 +14,12 @@ def implement_file(
     s = ''
     
     if skill_name:
+        try:
+            if type(skill_name) is not str:
+                new_str = ', '.join(skill_name)
+                skill_name = new_str
+        except:
+            pass
         default_path = Path(str(kimi_utils._default_skill_dir))
         if default_path and (default_path / skill_name / 'SKILL.md').exists():
             s += f'Use skill:{skill_name}. '
