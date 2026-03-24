@@ -2,7 +2,12 @@
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 from my_tools.common import _maybe_export_output
-# from my_tools.file.find_str import FindStr
+
+from my_tools.file.chdir import Cd
+from my_tools.file.kill_process import KillProcess, KillParams
+from my_tools.file.input import Input, InputParams
+from my_tools.file.run import Run, RunParams
+from my_tools.file.wait_process import WaitProcess, WaitParams
 
 
 class MkdirParams(BaseModel):
@@ -282,5 +287,3 @@ class FileInfo(CallableTool2):
                 message=str(exc),
                 brief="Failed to get file information",
             )
-
-from my_tools.file.process_tools import Run, Input, KillProcess, WaitProcess

@@ -165,7 +165,7 @@ def print_agent_json(get_message):
         'Shell': 'command',
         'Python': 'code',
         'FileInfo': 'path',
-        'Run': ('path', 'args'),
+        'Run': ('path', 'args', 'timeout', 'detect_input'),
         'Rm': 'path',
         'Cp': ('src', 'dest'),
         'Mv': ('src', 'dest'),
@@ -177,7 +177,12 @@ def print_agent_json(get_message):
         'WriteFile': 'path',
         'StrReplaceFile': 'path',
         'Input': 'text',
-        'WaitProcess': 'timeout'
+        'WaitProcess': 'timeout',
+        'Cd': 'path',
+        'SetTodoList': 'todos',
+        'CppSyntaxCheck': ('file_path', 'project_root'),
+        'FetchURL': 'url',
+        'SearchWeb': ('query', 'limit', 'include_content'),
     }
 
     def print_item(item):
@@ -226,7 +231,7 @@ def print_agent_json(get_message):
                             for i in cmd_args:
                                 v = args.get(i)
                                 if v is not None:
-                                    print_args.append(to_str(v))
+                                    print_args.append(f'{i}: {to_str(v)}')
                             print_arg = ' '.join(print_args)
                         else:
                             v = args.get(cmd_args)

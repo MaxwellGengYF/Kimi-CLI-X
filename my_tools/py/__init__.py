@@ -35,14 +35,6 @@ class Python(CallableTool2):
         if self.globals_dict is None:
             self.globals_dict = dict()
             self.locals_dict = dict()
-            exec('''
-import os
-import sys
-import subprocess
-import pathlib
-import json
-from pathlib import Path
-'''.strip(), self.globals_dict, self.locals_dict)
 
         # Capture stdout during exec
         old_stdout = sys.stdout
