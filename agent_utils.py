@@ -193,7 +193,7 @@ def print_agent_json(get_message):
                     _print_func(text, '\n')
                 else:
                     print(item, end='\n')
-        elif item.get("type") == "think":
+        elif item.get("type") == "think" and not _quiet:
             think_content = item.get("think", "")
             if think_content:
                 colorful_print(f"[Think] {think_content}",
@@ -206,7 +206,7 @@ def print_agent_json(get_message):
                         _print_func(f"\n{text_content}", '\n')
                     else:
                         print(f"\n{text_content}", end='\n')
-        elif item.get("type") == "function":
+        elif item.get("type") == "function" and not _quiet:
             def to_str(s):
                 if isinstance(s, str):
                     return s
