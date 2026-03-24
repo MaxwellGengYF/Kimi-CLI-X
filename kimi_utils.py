@@ -46,6 +46,7 @@ def _get_skill_dir():
         if type(_default_skill_dir) is not KaosPath:
             _default_skill_dir = KaosPath(_default_skill_dir)
         return _default_skill_dir
+
     def _gen():
         d = _default_skill_dir
         if d is not None:
@@ -227,9 +228,13 @@ def clear_context(force_create: bool = False, resume: bool = False):
     _print_usage(_default_session)
 
 
-
-
-def prompt(prompt_str: str, session=None):
+def prompt(
+    prompt_str: str,
+    session=None,
+    # settings
+    read_agent: bool = True,
+    skill_name: str | None = None,
+):          
     import my_tools.todo as todo
     _temp_create_session = False
     if session is None:
@@ -238,7 +243,17 @@ def prompt(prompt_str: str, session=None):
         session = create_session()
         _temp_create_session = True
     todo.set_current_id(str(session.id))
-
+    if skill_name:
+        if not _default_skill_dir:
+            print_warning('Skill dir not setted.')
+        elif not (Path(str(_default_skill_dir)) / skill_name / 'SKILL.md').exists():
+            print_warning(f'Skill {skill_name} not found.')
+        else:
+            prompt_str = f'Use skill:{skill_name}.\n'
+    if session.status.context_usage < 1e-4 and read_agent and Path('AGENTS.md').exists():
+        prompt_str += f'Read AGENTS.md.\n'
+            
+        
     global _default_session
     prompt_str = prompt_str.strip()
 

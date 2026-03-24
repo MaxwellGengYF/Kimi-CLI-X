@@ -40,7 +40,8 @@ Available commands:
   /txt            - input multiple line text
   /think:on       - Enable thinking mode
   /think:off      - Disable thinking mode
-  /script         - Enable script mode or agent mode
+  /script         - Write python script
+  /cmd            - Write cmd 
   /cd             - change dir
 
 Or enter any prompt to send to the agent.
@@ -147,7 +148,7 @@ def _run_cli():
     # Read user input from keyboard asynchronously
     exec_ctx = None
     special_commands = {
-        'clear', 'exit', 'help', 'context', 'fix', 'plan', 'txt'
+        'clear', 'exit', 'help', 'context', 'fix', 'plan', 'txt', 'script', 'cmd'
     }
     input_str = None
     _create_default_session(False)
@@ -204,7 +205,15 @@ def _run_cli():
                         print_error(str(e))
                         
                     continue
-                        
+                elif task_split[0] == 'cmd':
+                    s = _input('>>>> Input cmd:\n', text_arr)
+                    from my_tools.py import globals_dict, locals_dict
+                    try:
+                        os.system(s)
+                        print_success('Finished.')
+                    except Exception as e:
+                        print_error(str(e))
+                    continue
                 elif task_split[0] == 'cd':
                     if len(task_split) < 2:
                         print_error('Command must be /cd:PATH')
@@ -424,7 +433,8 @@ Run tool:SetTodoList to set a todo-list of (do NOT implement, ONLY make list):
                     try:
                         if (input_str is not None) and len(input_str) > 0:
                             prompt(prompt_str=input_str,
-                                    session=get_default_session())
+                                    session=get_default_session(),
+                                    read_agent=True)
                     except KeyboardInterrupt as e:
                         print_warning('Keyboard Interrupt.')
         except Exception as e:
