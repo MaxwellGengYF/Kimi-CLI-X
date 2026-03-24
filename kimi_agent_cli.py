@@ -40,6 +40,8 @@ Available commands:
   /txt            - input multiple line text
   /think:on       - Enable thinking mode
   /think:off      - Disable thinking mode
+  /script         - Enable script mode or agent mode
+  /cd             - change dir
 
 Or enter any prompt to send to the agent.
 '''
@@ -116,10 +118,10 @@ def _input(text: str, text_arr: list) -> str:
     return v
 
 
-def _split_text(txt: str):
+def _split_text(lines):
     text_arr = []
     current_text = []
-    for line in txt.splitlines():
+    for line in lines:
         strip_line = line.strip()
         if len(strip_line) == 0:
             continue
@@ -134,6 +136,8 @@ def _split_text(txt: str):
     if current_text:
         text_arr.append('\n'.join(current_text))
     return text_arr
+
+
 
 
 def _run_cli():
@@ -182,6 +186,37 @@ def _run_cli():
                     break
                 elif task_split[0] == 'context':
                     print_usage()
+                    continue
+                elif task_split[0] == 'script':
+                    print('\n>>>> Start input multiple-lines, end with /end')
+                    text = []
+                    while True:
+                        s = _input('', text_arr)
+                        if s.strip() == '/end':
+                            break
+                        text.append(s)
+                    text = '\n'.join(text)
+                    from my_tools.py import globals_dict, locals_dict
+                    try:
+                        exec(text, globals_dict, locals_dict)
+                        print_success('Finished.')
+                    except Exception as e:
+                        print_error(str(e))
+                        
+                    continue
+                        
+                elif task_split[0] == 'cd':
+                    if len(task_split) < 2:
+                        print_error('Command must be /cd:PATH')
+                        continue
+                    path = ''.join(task_split[1:])
+                    try:
+                        os.chdir(path)
+                        kimi_utils._default_skill_dir = None
+                        clear_context(True, True)
+                        print_success(f'Changed directory to: {Path(".").resolve()}')
+                    except Exception as e:
+                        print_error(f'Failed to change directory: {e}')
                     continue
                 elif task_split[0] == 'fix':
                     if len(task_split) < 2:
@@ -249,12 +284,12 @@ Run tool:SetTodoList to set a todo-list of (do NOT implement, ONLY make list):
                     continue
                 elif task_split[0] == 'txt':
                     print('\n>>>> Start input multiple-lines, end with /end')
-                    text = ''
+                    text = []
                     while True:
                         s = _input('', text_arr)
                         if s.strip() == '/end':
                             break
-                        text += s + '\n'
+                        text.append(s)
                     for i in _split_text(text):
                         text_arr.append(i)
                     continue
@@ -361,7 +396,8 @@ Run tool:SetTodoList to set a todo-list of (do NOT implement, ONLY make list):
                         s = f.read()
                         f.close()
                         if suffix == '.py':
-                            print_info(f'Executing {path.name}', end='\n\n')
+                            print_info(
+                                f'Executing {path.name}', end='\n\n')
                             try:
                                 if exec_ctx is None:
                                     exec_ctx = dict()
@@ -388,7 +424,7 @@ Run tool:SetTodoList to set a todo-list of (do NOT implement, ONLY make list):
                     try:
                         if (input_str is not None) and len(input_str) > 0:
                             prompt(prompt_str=input_str,
-                                   session=get_default_session())
+                                    session=get_default_session())
                     except KeyboardInterrupt as e:
                         print_warning('Keyboard Interrupt.')
         except Exception as e:

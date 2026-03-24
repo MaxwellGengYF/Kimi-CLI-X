@@ -10,7 +10,6 @@ _ralph_iterations = 0
 _default_thinking = False
 _default_yolo = True
 _default_agent_file = Path(__file__).parent / 'agent.yaml'
-_default_work_dir = KaosPath(os.curdir)
 _default_skill_dir = None
 __env_initialized = False
 
@@ -129,7 +128,7 @@ async def _create_session_async(
     if resume:
         session = await Session.resume(
             session_id=session_id,
-            work_dir=work_dir if work_dir is not None else _default_work_dir,
+            work_dir=work_dir if work_dir is not None else KaosPath(os.curdir),
             skills_dir=skills_dir if skills_dir is not None else _get_skill_dir(),
             yolo=yolo if yolo is not None else _default_yolo,
             thinking=thinking if thinking is not None else _default_thinking,
@@ -143,7 +142,7 @@ async def _create_session_async(
     if not session:
         session = await Session.create(
             session_id=session_id,
-            work_dir=work_dir if work_dir is not None else _default_work_dir,
+            work_dir=work_dir if work_dir is not None else KaosPath(os.curdir),
             skills_dir=skills_dir if skills_dir is not None else _get_skill_dir(),
             yolo=yolo if yolo is not None else _default_yolo,
             thinking=thinking if thinking is not None else _default_thinking,

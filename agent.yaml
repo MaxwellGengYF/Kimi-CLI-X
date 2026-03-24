@@ -6,7 +6,6 @@ agent:
     - "my_tools.file:WaitProcess"
     - "my_tools.file:KillProcess"
     - "my_tools.file:Input"
-    - "my_tools.file:Cd"
     - "my_tools.py:Python"
     - "my_tools.file:Ls"
     - "my_tools.file:Mkdir"

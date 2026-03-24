@@ -24,17 +24,21 @@ class Params(BaseModel):
         description="Timeout in seconds. If not specified, no timeout is applied.",
     )
 
+
+globals_dict = None
+locals_dict = None
+
+
 class Python(CallableTool2):
     name: str = "Python"
     description: str = "Execute Python code using exec function. Consider as Shell, os, sys, subprocess, pathlib, json, pathlib, Path already imported."
     params: type[Params] = Params
-    globals_dict = None
-    locals_dict = None
 
     async def __call__(self, params: Params) -> ToolReturnValue:
-        if self.globals_dict is None:
-            self.globals_dict = dict()
-            self.locals_dict = dict()
+        global globals_dict, locals_dict
+        if globals_dict is None:
+            globals_dict = dict()
+            locals_dict = dict()
 
         # Capture stdout during exec
         old_stdout = sys.stdout
@@ -42,7 +46,7 @@ class Python(CallableTool2):
         sys.stdout = captured_output
 
         def _exec_code():
-            exec(params.code, self.globals_dict, self.locals_dict)
+            exec(params.code, globals_dict, locals_dict)
 
         try:
             if params.timeout:
