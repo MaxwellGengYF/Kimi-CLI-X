@@ -1,6 +1,7 @@
 """Shared utilities for process management tools."""
 from my_tools.common import _maybe_export_output
 from my_tools.file._state import stdout_lines, output_queue
+import subprocess
 import queue
 
 
