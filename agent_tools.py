@@ -1,16 +1,25 @@
 from kimi_utils import *
-
+import kimi_utils
 
 def implement_file(
     file_path,
     requires,
+    skill_name: str | None = None,
     validate_after_work: bool = False
 ):
     try:
         file_path = ','.join(file_path)
     except TypeError:
         pass
-    s = f'In file {str(file_path)}, finish this requiremets:\n'
+    s = ''
+    
+    if skill_name:
+        default_path = Path(str(kimi_utils._default_skill_dir))
+        if default_path and (default_path / skill_name / 'SKILL.md').exists():
+            s += f'Use skill:{skill_name}. '
+        else:
+            print_warning(f'Skill {skill_name} not exists.')
+    s += f'In file {str(file_path)}, finish this requiremets:\n'
     req_str = ''
     try:
         for i in requires:
@@ -23,6 +32,3 @@ def implement_file(
         clear_context()
         s = f'In file {str(file_path)}, check and validate all requirements finished:\n{req_str}'
         prompt(s)
-        
-        
-        
