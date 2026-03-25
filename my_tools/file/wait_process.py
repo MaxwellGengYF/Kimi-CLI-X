@@ -5,8 +5,7 @@ import time
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 
-from my_tools.file._state import process, reader_thread
-from my_tools.file._utils import get_final_output
+from my_tools.file._utils import get_state, get_final_output
 
 
 class WaitParams(BaseModel):
@@ -23,11 +22,11 @@ class WaitProcess(CallableTool2):
 
     async def __call__(self, params: WaitParams) -> ToolReturnValue:
         """Wait for the running process to complete."""
-        global process, reader_thread
+        state = get_state()
         start_time = time.time()
         timeout = params.timeout if params.timeout is not None else 3
         timeout = min(timeout, 30)
-        if process is None:
+        if state.process is None:
             return ToolError(
                 output="",
                 message="No process is currently running.",
@@ -37,11 +36,12 @@ class WaitProcess(CallableTool2):
         try:
             if timeout is not None:
                 while True:
-                    return_code = process.poll()
+                    return_code = state.process.poll()
                     if return_code is not None:
-                        reader_thread.join(timeout=1)
-                        reader_thread = None
-                        process = None
+                        if state.reader_thread:
+                            state.reader_thread.join(timeout=1)
+                        state.set_reader_thread(None)
+                        state.set_process(None)
                         output = get_final_output()
                         if return_code != 0:
                             return ToolError(
@@ -61,10 +61,11 @@ class WaitProcess(CallableTool2):
                         )
                     await asyncio.sleep(0.05)
             else:
-                return_code = process.wait()
-                reader_thread.join(timeout=timeout)
-                reader_thread = None
-                process = None
+                return_code = state.process.wait()
+                if state.reader_thread:
+                    state.reader_thread.join(timeout=timeout)
+                state.set_reader_thread(None)
+                state.set_process(None)
                 output = get_final_output()
                 if return_code != 0:
                     return ToolError(

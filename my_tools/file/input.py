@@ -4,8 +4,7 @@ import asyncio
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 
-from my_tools.file._state import process
-from my_tools.file._utils import get_final_output
+from my_tools.file._utils import get_state, get_final_output
 
 
 class InputParams(BaseModel):
@@ -21,19 +20,19 @@ class Input(CallableTool2):
 
     async def __call__(self, params: InputParams) -> ToolReturnValue:
         """Send input text to the running process's stdin."""
-        global process
+        state = get_state()
 
-        if process is None:
+        if state.process is None:
             return ToolError(
                 output="",
                 message="No process is currently running. Use Run tool to start a process first.",
                 brief="No active process",
             )
 
-        if process.poll() is not None:
+        if state.process.poll() is not None:
             return ToolError(
                 output=get_final_output(),
-                message=f"Process has already exited with return code: {process.returncode}",
+                message=f"Process has already exited with return code: {state.process.returncode}",
                 brief="Process not running",
             )
 
@@ -43,8 +42,8 @@ class Input(CallableTool2):
             if not input_text.endswith('\n'):
                 input_text += '\n'
 
-            process.stdin.write(input_text)
-            process.stdin.flush()
+            state.process.stdin.write(input_text)
+            state.process.stdin.flush()
             await asyncio.sleep(1.0)
 
             return ToolOk(

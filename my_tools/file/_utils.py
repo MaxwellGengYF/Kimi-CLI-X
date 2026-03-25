@@ -1,8 +1,35 @@
 """Shared utilities for process management tools."""
 from my_tools.common import _maybe_export_output
-from my_tools.file._state import stdout_lines, output_queue
 import subprocess
+import threading
 import queue
+from typing import Optional
+
+
+class ProcessState:
+    """Global state for process management."""
+
+    def __init__(self):
+        self.stdout_lines: list[str] = []
+        self.output_queue: queue.Queue = queue.Queue()
+        self.reader_thread: Optional[threading.Thread] = None
+        self.process: Optional[subprocess.Popen] = None
+
+    def set_process(self, p: Optional[subprocess.Popen]):
+        """Set the process."""
+        self.process = p
+
+    def set_reader_thread(self, t: Optional[threading.Thread]):
+        """Set the reader thread."""
+        self.reader_thread = t
+
+    def set_stdout_lines(self, lines: list[str]):
+        """Set the stdout_lines."""
+        self.stdout_lines = lines
+
+
+# Global ProcessState instance
+_state = ProcessState()
 
 
 # Keywords that indicate the process is waiting for user input
@@ -25,12 +52,12 @@ def _check_for_input_prompt(text: str) -> bool:
 def get_output_text():
     try:
         while True:
-            data = output_queue.get_nowait()
-            stdout_lines.append(data)
+            data = _state.output_queue.get_nowait()
+            _state.stdout_lines.append(data)
     except queue.Empty:
         pass
-    s = "".join(stdout_lines)
-    stdout_lines.clear()
+    s = "".join(_state.stdout_lines)
+    _state.stdout_lines.clear()
     return s
 
 
@@ -78,3 +105,7 @@ def _read_streams_into_queue(process: subprocess.Popen, streams, q: queue.Queue)
     except Exception as e:
         import agent_utils
         agent_utils.print_error(str(e))
+
+
+def get_state():
+    return _state

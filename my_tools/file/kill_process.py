@@ -2,8 +2,7 @@
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel
 
-from my_tools.file._state import process, reader_thread
-from my_tools.file._utils import get_final_output
+from my_tools.file._utils import get_state, get_final_output
 
 
 class KillParams(BaseModel):
@@ -17,9 +16,9 @@ class KillProcess(CallableTool2):
 
     async def __call__(self, params: KillParams) -> ToolReturnValue:
         """Kill the running process."""
-        global process, reader_thread
+        state = get_state()
 
-        if process is None:
+        if state.process is None:
             return ToolError(
                 output="",
                 message="No process is currently running.",
@@ -27,11 +26,12 @@ class KillProcess(CallableTool2):
             )
 
         try:
-            process.kill()
-            process.wait()
-            reader_thread.join(timeout=1)
-            reader_thread = None
-            process = None
+            state.process.kill()
+            state.process.wait()
+            if state.reader_thread:
+                state.reader_thread.join(timeout=1)
+            state.set_reader_thread(None)
+            state.set_process(None)
             output = get_final_output()
             return ToolOk(
                 output=output,

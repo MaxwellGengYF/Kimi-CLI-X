@@ -23,6 +23,7 @@ agent:
     - "kimi_cli.tools.web:SearchWeb"
     - "kimi_cli.tools.web:FetchURL"
     - "my_tools.cpp:CppSyntaxCheck"
+    - "my_tools.agent:CreateAgent"
     # - "my_tools.file:FileInfo"
     # - "my_tools.img:ImageToText"
     # - "my_tools.pdf:PdfToMarkdown"
@@ -34,5 +35,4 @@ agent:
     # - "my_tools.shell:Shell"
     # - "my_tools.zip:Zip"
     # - "my_tools.zip:Unzip"
-    # - "my_tools.agent:CreateAgent"
     # - "my_tools.agent:WaitAgent"
