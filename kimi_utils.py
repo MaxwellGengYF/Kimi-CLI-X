@@ -234,7 +234,7 @@ def prompt(
     # settings
     read_agent: bool = True,
     skill_name: str | None = None,
-):          
+):
     import my_tools.todo as todo
     _temp_create_session = False
     if session is None:
@@ -243,19 +243,26 @@ def prompt(
         session = create_session()
         _temp_create_session = True
     todo.set_current_id(str(session.id))
-    if skill_name:
+    prompt_str = prompt_str.strip()
+
+    def enable_skill(skill_name):
+        nonlocal prompt_str
         if not _default_skill_dir:
             print_warning('Skill dir not setted.')
-        elif not (Path(str(_default_skill_dir)) / skill_name / 'SKILL.md').exists():
+        elif not (Path(str(_default_skill_dir)) / Path(skill_name) / 'SKILL.md').exists():
             print_warning(f'Skill {skill_name} not found.')
         else:
-            prompt_str = f'Use skill:{skill_name}.\n'
+            prompt_str = f'Use skill:{skill_name}.\n' + prompt_str
+    if skill_name:
+        try:
+            for i in skill_name:
+                enable_skill(i)
+        except:
+            enable_skill(skill_name)
     if session.status.context_usage < 1e-4 and read_agent and Path('AGENTS.md').exists():
-        prompt_str += f'Read AGENTS.md.\n'
-            
-        
+        prompt_str = f'Read AGENTS.md.\n' + prompt_str
+
     global _default_session
-    prompt_str = prompt_str.strip()
 
     async def func():
         nonlocal session, _temp_create_session
@@ -311,7 +318,8 @@ def make_todo(
 ):
     import my_tools.todo as todo
     todo._todo_called = False
-    prompt_str = prompt_str + '\n\ncall tool:SetTodoList, to make a todo. Do NOT execute todos, STOP, QUIT.'
+    prompt_str = prompt_str + \
+        '\n\ncall tool:SetTodoList, to make a todo. Do NOT execute todos, STOP, QUIT.'
     prompt(prompt_str, session)
     return todo._todo_called
 

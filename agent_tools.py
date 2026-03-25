@@ -25,7 +25,7 @@ def implement_file(
             s += f'Use skill:{skill_name}. '
         else:
             print_warning(f'Skill {skill_name} not exists.')
-    s += f'In file {str(file_path)}, finish this requiremets:\n'
+    s += f'In file: {str(file_path)}, finish this requiremets:\n'
     req_str = ''
     try:
         for i in requires:
@@ -36,5 +36,5 @@ def implement_file(
     prompt(s)
     if validate_after_work:
         clear_context()
-        s = f'In file {str(file_path)}, check and validate all requirements finished:\n{req_str}'
+        s = f'In file: {str(file_path)}, check and validate all requirements finished:\n{req_str}'
         prompt(s)
