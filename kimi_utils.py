@@ -311,7 +311,7 @@ def make_todo(
 ):
     import my_tools.todo as todo
     todo._todo_called = False
-    prompt_str = prompt_str + '\n\ncall tool:SetTodoList, to make a todo.'
+    prompt_str = prompt_str + '\n\ncall tool:SetTodoList, to make a todo. Do NOT execute todos, STOP, QUIT.'
     prompt(prompt_str, session)
     return todo._todo_called
 
