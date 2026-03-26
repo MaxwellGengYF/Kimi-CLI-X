@@ -125,7 +125,6 @@ async def _create_session_async(
 
     from kimi_agent_sdk import Session
     session = None
-    resumed = False
     if resume:
         session = await Session.resume(
             session_id=session_id,
@@ -138,8 +137,6 @@ async def _create_session_async(
         )
         if not session:
             print_debug(f'Session {session_id} not found.')
-        else:
-            resumed = True
     if not session:
         session = await Session.create(
             session_id=session_id,
@@ -150,7 +147,7 @@ async def _create_session_async(
             config=cfg,
             agent_file=agent_file if agent_file is not None else _default_agent_file
         )
-    return session, resumed
+    return session
 
 
 def create_session(
@@ -188,9 +185,9 @@ def get_default_session():
 def _create_default_session(resume: bool = True):
     global _default_session
     if _default_session:
-        return _default_session, resume
-    _default_session, resumed = create_session("default", resume=resume)
-    return _default_session, resumed
+        return _default_session
+    _default_session = create_session("default", resume=resume)
+    return _default_session
 
 
 _should_print_usage = threading.local()
@@ -208,7 +205,7 @@ def _print_usage(session):
 
 def print_usage(session=None):
     if not session:
-        session, resume = _create_default_session()
+        session = _create_default_session()
     s = _percentage_str(session.status.context_usage)
     print_success(
         f'Context usage: {s}'

@@ -143,6 +143,7 @@ def _split_text(lines):
 
 
 def _run_cli():
+    exec_ctx = dict()
     set_arg()
     # Parse command line arguments for clean mode flag
 
@@ -357,11 +358,10 @@ def _run_cli():
                 script_content = f.read()
             
             # Create a clean execution context
-            exec_ctx = {
+            exec(script_content, {
                 '__name__': '__main__',
                 '__file__': str(tool_path),
-            }
-            exec(script_content, exec_ctx)
+            })
             print_success(f'Tool {tool_name}.py finished.')
         except Exception as e:
             print_error(f'Failed to run tool {tool_name}.py: {e}')
@@ -435,8 +435,6 @@ def _run_cli():
                             print_info(
                                 f'Executing {path.name}', end='\n\n')
                             try:
-                                if exec_ctx is None:
-                                    exec_ctx = dict()
                                 exec(s, exec_ctx)
                             except KeyboardInterrupt as e:
                                 raise e
