@@ -114,14 +114,6 @@ def _read_streams_into_queue(process: subprocess.Popen, stream, q: queue.Queue, 
             except (IOError, OSError, ValueError):
                 # Stream might be closed
                 continue
-            except queue.Full:
-                while data:
-                    try:
-                        q.put_nowait(data)
-                        break
-                    except queue.Full:
-                        time.sleep(0.01)
-                continue
             except BlockingIOError:
                 # No data available (non-blocking mode)
                 continue
