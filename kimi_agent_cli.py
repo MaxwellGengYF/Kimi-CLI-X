@@ -34,7 +34,6 @@ Available commands:
   /context        - Print context usage
   /validate       - Test if a condition is true
   /fix:<command>  - Run a command and fix errors if any
-  /plan           - Make a plan 
   /todo           - Show todo list
   /todo:help      - Show todo commands help
   /txt            - input multiple line text
@@ -43,6 +42,8 @@ Available commands:
   /script         - Write python script
   /cmd            - Write cmd 
   /cd             - change dir
+  /tool:<name>    - Run script from tools/ directory
+  /tool:help      - List all available tools
 
 Or enter any prompt to send to the agent.
 '''
@@ -145,15 +146,249 @@ def _run_cli():
     set_arg()
     # Parse command line arguments for clean mode flag
 
-    # Read user input from keyboard asynchronously
-    exec_ctx = None
-    special_commands = {
-        'clear', 'exit', 'help', 'context', 'fix', 'plan', 'txt', 'script', 'cmd'
-    }
     input_str = None
     _create_default_session(False)
     assert get_default_session()
     text_arr = []
+
+    def _cmd_help(task_split):
+        print(HELP_STR)
+        return None, False
+
+    def _cmd_clear(task_split):
+        clear_context()
+        return None, False
+
+    def _cmd_exit(task_split):
+        print_success('bye!')
+        return None, True
+
+    def _cmd_context(task_split):
+        print_usage()
+        return None, False
+
+    def _cmd_script(task_split):
+        print('\n>>>> Start input multiple-lines, end with /end')
+        text = []
+        while True:
+            s = _input('', text_arr)
+            if s.strip() == '/end':
+                break
+            text.append(s)
+        text = '\n'.join(text)
+        from my_tools.py import globals_dict, locals_dict
+        try:
+            exec(text, globals_dict, locals_dict)
+            print_success('Finished.')
+        except Exception as e:
+            print_error(str(e))
+        return None, False
+
+    def _cmd_cmd(task_split):
+        s = _input('>>>> Input cmd:\n', text_arr)
+        from my_tools.py import globals_dict, locals_dict
+        try:
+            os.system(s)
+            print_success('Finished.')
+        except Exception as e:
+            print_error(str(e))
+        return None, False
+
+    def _cmd_cd(task_split):
+        if len(task_split) < 2:
+            print_error('Command must be /cd:PATH')
+            return None, False
+        path = ''.join(task_split[1:])
+        try:
+            os.chdir(path)
+            kimi_utils._default_skill_dir = None
+            clear_context(True, True)
+            print_success(f'Changed directory to: {Path(".").resolve()}')
+        except Exception as e:
+            print_error(f'Failed to change directory: {e}')
+        return None, False
+
+    def _cmd_fix(task_split):
+        if len(task_split) < 2:
+            print_error('Command must be /fix:<command>')
+            return None, False
+        command_to_fix = task_split[1].strip()
+        if not command_to_fix:
+            print_error('Command must be /fix:<command>')
+            return None, False
+        fix_error(command_to_fix, session=get_default_session())
+        return None, False
+
+    def _cmd_validate(task_split):
+        if len(task_split) < 2:
+            print_error('Command must be /validate:prompt')
+            return None, False
+        result = validate(task_split[1], get_default_session())
+        print_info(f'Validate result: {result}')
+        return None, False
+
+    def _cmd_think(task_split):
+        if len(task_split) < 2:
+            print_error('Command must be /think:on or /think:off')
+            return None, False
+        value = task_split[1].strip().lower()
+        if value == 'on':
+            kimi_utils._default_thinking = True
+            print_success('Thinking mode enabled.')
+        elif value == 'off':
+            kimi_utils._default_thinking = False
+            print_success('Thinking mode disabled.')
+        else:
+            print_error('Command must be /think:on or /think:off')
+            return None, False
+        clear_context(True, True)
+        return None, False
+
+    def _cmd_txt(task_split):
+        print('\n>>>> Start input multiple-lines, end with /end')
+        text = []
+        while True:
+            s = _input('', text_arr)
+            if s.strip() == '/end':
+                break
+            text.append(s)
+        for i in _split_text(text):
+            text_arr.append(i)
+        return None, False
+
+    def _cmd_todo(task_split):
+        subcommand = task_split[1].strip() if len(task_split) > 1 else ''
+
+        if subcommand == 'list':
+            result = get_todo(get_default_session())
+            if not result:
+                print_info('No todo items found.')
+            else:
+                todos = result.todos if hasattr(result, 'todos') else []
+                if not todos:
+                    print_info('No todo items found.')
+                else:
+                    print_success('Todo list:')
+                    for i, todo in enumerate(todos, 1):
+                        status = todo.status if hasattr(todo, 'status') else todo.get('status', 'pending')
+                        title = todo.title if hasattr(todo, 'title') else todo.get('title', 'Unknown')
+                        status_icon = {'pending': '⏳', 'in_progress': '🔄', 'done': '✅'}.get(status, '⏳')
+                        print_info(f'  {i}. [{status_icon}] {title}')
+        elif subcommand == 'clear':
+            clear_todo(get_default_session())
+            print_success('Todo list cleared.')
+        elif subcommand.startswith('make ') or subcommand == 'make':
+            subcommand = subcommand[4:]
+            if not make_todo(subcommand.strip(), get_default_session()):
+                print_error('Make todo-list failed.')
+            else:
+                print_success(f'Make todo-list success.')
+        elif subcommand.startswith('done ') or subcommand == 'done':
+            update_todo_status(get_default_session(), subcommand[5:].strip() if subcommand.startswith('done ') else '', 'done')
+        elif subcommand.startswith('in_progress ') or subcommand == 'in_progress':
+            update_todo_status(get_default_session(), subcommand[12:].strip() if subcommand.startswith('in_progress ') else '', 'in_progress')
+        elif subcommand.startswith('pending ') or subcommand == 'pending':
+            update_todo_status(get_default_session(), subcommand[8:].strip() if subcommand.startswith('pending ') else '', 'pending')
+        elif not subcommand or subcommand == 'help':
+            print_info('''Todo commands:
+  /todo           - Show this help message
+  /todo:list      - Show current todo list
+  /todo:make      - Make a new todo list
+  /todo:clear     - Clear all todo items
+  /todo:done <n>  - Mark item(s) as done (e.g., /todo:done 1,2 or /todo:done 1-3)
+  /todo:in_progress <n> - Mark item(s) as in_progress
+  /todo:pending <n>     - Mark item(s) as pending
+  /todo:help      - Show this help message''')
+        else:
+            print_warning(f'Unknown todo command: {subcommand}. Use /todo:help for usage.')
+        return None, False
+
+    def _cmd_skill(task_split):
+        if len(task_split) < 2:
+            print_error('Command must be /skill:xx')
+            return None, False
+        prompt(f"/skill:{task_split[1]}", get_default_session())
+        return None, False
+
+    def _cmd_file(task_split):
+        if len(task_split) != 2:
+            print_error(f'command format error, must be /file:path')
+            return None, False
+        return task_split[1], False
+
+    def _cmd_tool(task_split):
+        tools_dir = Path(__file__).parent / 'tools'
+        
+        if len(task_split) < 2:
+            print_error('Command must be /tool:<script_name> or /tool:help')
+            return None, False
+        
+        tool_name = task_split[1].strip()
+        
+        # Handle help command
+        if tool_name == 'help':
+            if not tools_dir.exists():
+                print_info('No tools directory found.')
+                return None, False
+            
+            tool_files = sorted([f for f in tools_dir.iterdir() if f.suffix == '.py'])
+            if not tool_files:
+                print_info('No tools available in tools/ directory.')
+            else:
+                print_success('Available tools:')
+                for tool_file in tool_files:
+                    print_info(f'  - {tool_file.name}')
+            return None, False
+        
+        # Remove .py extension if present
+        if tool_name.endswith('.py'):
+            tool_name = tool_name[:-3]
+        
+        tool_path = tools_dir / f'{tool_name}.py'
+        
+        if not tool_path.exists():
+            print_error(f'Tool not found: {tool_name}.py')
+            return None, False
+        
+        try:
+            print_info(f'Running tool: {tool_name}.py')
+            # Read and execute the tool script
+            with open(tool_path, 'r', encoding='utf-8') as f:
+                script_content = f.read()
+            
+            # Create a clean execution context
+            exec_ctx = {
+                '__name__': '__main__',
+                '__file__': str(tool_path),
+            }
+            exec(script_content, exec_ctx)
+            print_success(f'Tool {tool_name}.py finished.')
+        except Exception as e:
+            print_error(f'Failed to run tool {tool_name}.py: {e}')
+        return None, False
+
+    def _cmd_unknown(task_split):
+        print_warning('Unrecognized command.')
+        return None, False
+
+    _command_map = {
+        'help': _cmd_help,
+        'clear': _cmd_clear,
+        'exit': _cmd_exit,
+        'context': _cmd_context,
+        'script': _cmd_script,
+        'cmd': _cmd_cmd,
+        'cd': _cmd_cd,
+        'fix': _cmd_fix,
+        'validate': _cmd_validate,
+        'think': _cmd_think,
+        'txt': _cmd_txt,
+        'todo': _cmd_todo,
+        'skill': _cmd_skill,
+        'file': _cmd_file,
+        'tool': _cmd_tool,
+    }
+
     while True:
         try:
             input_str = _input(
@@ -167,8 +402,6 @@ def _run_cli():
         try:
             if len(input_str) == 0:
                 continue
-            if input_str.lower() in special_commands:
-                input_str = '/' + input_str.lower()
             if input_str is not None and input_str[0] == '/':
                 task = input_str[1:]
                 split_idx = task.strip().find(':')
@@ -176,221 +409,15 @@ def _run_cli():
                     task_split = (task[:split_idx], task[split_idx+1:])
                 else:
                     task_split = (task,)
-                if task_split[0] == 'help':
-                    print(HELP_STR)
-                    continue
-                elif task_split[0] == 'clear':
-                    clear_context()
-                    continue
-                elif task_split[0] == 'exit':
-                    print_success('bye!')
+                handler = _command_map.get(task_split[0], _cmd_unknown)
+                new_input_str, should_break = handler(task_split)
+                if should_break:
                     break
-                elif task_split[0] == 'context':
-                    print_usage()
-                    continue
-                elif task_split[0] == 'script':
-                    print('\n>>>> Start input multiple-lines, end with /end')
-                    text = []
-                    while True:
-                        s = _input('', text_arr)
-                        if s.strip() == '/end':
-                            break
-                        text.append(s)
-                    text = '\n'.join(text)
-                    from my_tools.py import globals_dict, locals_dict
-                    try:
-                        exec(text, globals_dict, locals_dict)
-                        print_success('Finished.')
-                    except Exception as e:
-                        print_error(str(e))
-                        
-                    continue
-                elif task_split[0] == 'cmd':
-                    s = _input('>>>> Input cmd:\n', text_arr)
-                    from my_tools.py import globals_dict, locals_dict
-                    try:
-                        os.system(s)
-                        print_success('Finished.')
-                    except Exception as e:
-                        print_error(str(e))
-                    continue
-                elif task_split[0] == 'cd':
-                    if len(task_split) < 2:
-                        print_error('Command must be /cd:PATH')
-                        continue
-                    path = ''.join(task_split[1:])
-                    try:
-                        os.chdir(path)
-                        kimi_utils._default_skill_dir = None
-                        clear_context(True, True)
-                        print_success(f'Changed directory to: {Path(".").resolve()}')
-                    except Exception as e:
-                        print_error(f'Failed to change directory: {e}')
-                    continue
-                elif task_split[0] == 'fix':
-                    if len(task_split) < 2:
-                        print_error('Command must be /fix:<command>')
-                        continue
-                    command_to_fix = task_split[1].strip()
-                    if not command_to_fix:
-                        print_error('Command must be /fix:<command>')
-                        continue
-                    fix_error(
-                        command_to_fix, session=get_default_session())
-                    continue
-                elif task_split[0] == 'validate':
-                    if len(task_split) < 2:
-                        print_error('Command must be /validate:prompt')
-                        continue
-                    result = validate(
-                        task_split[1], get_default_session())
-                    print_info(f'Validate result: {result}')
-                    continue
-                elif task_split[0] == 'think':
-                    if len(task_split) < 2:
-                        print_error('Command must be /think:on or /think:off')
-                        continue
-                    value = task_split[1].strip().lower()
-                    if value == 'on':
-                        kimi_utils._default_thinking = True
-                        print_success('Thinking mode enabled.')
-                    elif value == 'off':
-                        kimi_utils._default_thinking = False
-                        print_success('Thinking mode disabled.')
-                    else:
-                        print_error('Command must be /think:on or /think:off')
-                        continue
-                    clear_context(True, True)
-                    continue
-                elif task_split[0] == 'plan':
-                    if len(task_split) < 2:
-                        print_error('Command must be /plan:plan_script.py')
-                        continue
-                    script_dst_dir = Path(task_split[1])
-                    if script_dst_dir.suffix != '.py':
-                        print_error(
-                            f'Invalid file extension: {script_dst_dir.suffix}. Expected .py')
-                        continue
-                    plan_str = _input(
-                        ">>>> Enter your plan:\n", text_arr).strip()
-                    import my_tools.todo as todo
-                    todo.clear_todo_list('default')
-                    if len(plan_str) > 0:
-                        prompt(f'''
-Run tool:SetTodoList to set a todo-list of (do NOT implement, ONLY make list):
-{plan_str}
-''')
-                    todo_list = todo.get_todo_list('default')
-                    if todo_list is None:
-                        print_error('Make plan failed.')
-                    else:
-                        data = 'from kimi_utils import prompt\n'
-                        for i in todo_list.todos:
-                            data += f'prompt({repr(i.title)})\n'
-                        script_dst_dir.write_text(data, encoding='utf-8')
-                        print_success(
-                            f'Make plan success. write to {str(script_dst_dir)}')
-                    continue
-                elif task_split[0] == 'txt':
-                    print('\n>>>> Start input multiple-lines, end with /end')
-                    text = []
-                    while True:
-                        s = _input('', text_arr)
-                        if s.strip() == '/end':
-                            break
-                        text.append(s)
-                    for i in _split_text(text):
-                        text_arr.append(i)
-                    continue
-                elif task_split[0] == 'todo':
-                    # Parse subcommand and arguments
-                    subcommand = task_split[1].strip() if len(
-                        task_split) > 1 else ''
-
-                    if not subcommand or subcommand == 'list':
-                        # Show current todo list
-                        result = get_todo(get_default_session())
-                        if not result:
-                            print_info('No todo items found.')
-                        else:
-                            todos = result.todos if hasattr(
-                                result, 'todos') else []
-                            if not todos:
-                                print_info('No todo items found.')
-                            else:
-                                print_success('Todo list:')
-                                for i, todo in enumerate(todos, 1):
-                                    status = todo.status if hasattr(
-                                        todo, 'status') else todo.get('status', 'pending')
-                                    title = todo.title if hasattr(
-                                        todo, 'title') else todo.get('title', 'Unknown')
-                                    status_icon = {'pending': '⏳', 'in_progress': '🔄', 'done': '✅'}.get(
-                                        status, '⏳')
-                                    print_info(
-                                        f'  {i}. [{status_icon}] {title}')
-                        continue
-                    elif subcommand == 'clear':
-                        clear_todo(get_default_session())
-                        print_success('Todo list cleared.')
-                        continue
-                    elif subcommand.startswith('make ') or subcommand == 'make':
-                        subcommand = subcommand[4:]
-                        if not make_todo(subcommand.strip(), get_default_session()):
-                            print_error('Make todo-list failed.')
-                        else:
-                            print_success(f'Make todo-list success.')
-                        continue
-
-                    elif subcommand.startswith('done ') or subcommand == 'done':
-                        # Mark item(s) as done
-                        update_todo_status(get_default_session(), subcommand[5:].strip(
-                        ) if subcommand.startswith('done ') else '', 'done')
-                        continue
-
-                    elif subcommand.startswith('in_progress ') or subcommand == 'in_progress':
-                        # Mark item(s) as in_progress
-                        update_todo_status(get_default_session(), subcommand[12:].strip(
-                        ) if subcommand.startswith('in_progress ') else '', 'in_progress')
-                        continue
-
-                    elif subcommand.startswith('pending ') or subcommand == 'pending':
-                        # Mark item(s) as pending
-                        update_todo_status(get_default_session(), subcommand[8:].strip(
-                        ) if subcommand.startswith('pending ') else '', 'pending')
-                        continue
-
-                    elif subcommand == 'help':
-                        print_info('''Todo commands:
-  /todo           - Show current todo list
-  /todo:list      - Show current todo list
-  /todo:make      - Make a new todo list
-  /todo:clear     - Clear all todo items
-  /todo:done <n>  - Mark item(s) as done (e.g., /todo:done 1,2 or /todo:done 1-3)
-  /todo:in_progress <n> - Mark item(s) as in_progress
-  /todo:pending <n>     - Mark item(s) as pending
-  /todo:help      - Show this help message''')
-                        continue
-
-                    else:
-                        print_warning(
-                            f'Unknown todo command: {subcommand}. Use /todo:help for usage.')
-                        continue
-                elif task_split[0] == 'skill':
-                    if len(task_split) < 2:
-                        print_error('Command must be /skill:xx')
-                        continue
-                    prompt(f"/skill:{task_split[1]}", get_default_session())
-                    continue
-                elif task_split[0] == 'file':
-                    if len(task_split) != 2:
-                        print_error(
-                            f'command format error, must be /file:path')
-                        continue
-                    input_str = task_split[1]
+                if new_input_str is not None:
+                    input_str = new_input_str
                 else:
-                    print_warning('Unrecognized command.')
                     continue
-            if input_str is not None and len(input_str) > 0:
+            elif input_str is not None and len(input_str) > 0:
                 # Test if is file path
                 try:
                     path = Path(input_str)
@@ -439,8 +466,6 @@ Run tool:SetTodoList to set a todo-list of (do NOT implement, ONLY make list):
                         print_warning('Keyboard Interrupt.')
         except Exception as e:
             print_error(str(e))
-            continue
-
 
 def cli():
     try:
