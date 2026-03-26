@@ -24,7 +24,7 @@ class WaitProcess(CallableTool2):
         """Wait for the running process to complete."""
         state = get_state()
         start_time = time.time()
-        timeout = params.timeout if params.timeout is not None else 3
+        timeout = params.timeout if params.timeout is not None else 30
         timeout = min(timeout, 30)
         if state.process is None:
             return ToolError(
@@ -34,10 +34,9 @@ class WaitProcess(CallableTool2):
             )
 
         try:
-            if timeout is None:
-                timeout = 30
             while True:
                 return_code = state.process.poll()
+                # Return
                 if return_code is not None:
                     state.join(timeout=1)
                     state.set_reader_threads(None)
@@ -51,6 +50,7 @@ class WaitProcess(CallableTool2):
                         )
                     else:
                         return ToolOk(output=output)
+                # Input logic
                 if state.detect_input and (time.time() - state.last_write_time) > min(params.timeout, 3):
                     tex = get_output_text()
                     if _check_for_input_prompt(tex):
@@ -60,6 +60,7 @@ class WaitProcess(CallableTool2):
                             message=message,
                             brief="",
                         )
+                # Waiting...
                 elapsed = time.time() - start_time
                 if elapsed > timeout:
                     message = f"Process is still working... "
