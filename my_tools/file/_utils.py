@@ -14,9 +14,12 @@ class ProcessState:
         self.output_queue: queue.Queue = queue.Queue()
         self.reader_thread: Optional[threading.Thread] = None
         self.process: Optional[subprocess.Popen] = None
+        self.name = None
 
     def set_process(self, p: Optional[subprocess.Popen]):
         """Set the process."""
+        if p is None:
+            self.name = None
         self.process = p
 
     def set_reader_thread(self, t: Optional[threading.Thread]):
@@ -64,7 +67,7 @@ def get_output_text():
 def get_final_output(output_text=None):
     if output_text is None:
         output_text = get_output_text()
-    return _maybe_export_output(output_text)
+    return _maybe_export_output(output_text, _state.name)
 
 
 def _read_streams_into_queue(process: subprocess.Popen, streams, q: queue.Queue):

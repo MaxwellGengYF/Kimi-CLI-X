@@ -26,7 +26,7 @@ class Mkdir(CallableTool2):
 
         try:
             os.makedirs(params.path, exist_ok=True)
-            return ToolOk(output=_maybe_export_output(f"Directory created: {params.path}"))
+            return ToolOk(output=_maybe_export_output(f"Directory created: {params.path}", params.path))
         except Exception as exc:
             return ToolError(
                 output="",

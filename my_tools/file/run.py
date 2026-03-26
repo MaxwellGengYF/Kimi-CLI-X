@@ -75,6 +75,7 @@ class Run(CallableTool2):
                 bufsize=1,  # Line buffered
                 universal_newlines=True
             ))
+            state.name = params.path
             # Start a single reader thread for both stdout and stderr
             streams = [(state.process.stdout, 'stdout')]
             state.set_reader_thread(threading.Thread(

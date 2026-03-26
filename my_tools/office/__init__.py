@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 import re
 import os
 from pathlib import Path
-
+from my_tools.common import _maybe_export_output
 
 class Params(BaseModel):
     docx_path: str = Field(
@@ -72,11 +72,11 @@ class DocxToMarkdown(CallableTool2):
                 if len(markdown_content) > max_length:
                     truncated = markdown_content[:max_length] + "\n\n... [content truncated]"
                     return ToolOk(
-                        output=truncated,
+                        output=_maybe_export_output(truncated, params.docx_path),
                         message=f"Content was truncated (total: {len(markdown_content)} characters). Use output_path parameter to save full content to file.",
                     )
                 return ToolOk(
-                    output=markdown_content,
+                    output=_maybe_export_output(markdown_content, params.docx_path),
                     message=f"Converted {len(markdown_content)} characters.",
                 )
 
