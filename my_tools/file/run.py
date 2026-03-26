@@ -63,27 +63,30 @@ class Run(CallableTool2):
         try:
             start_time = time.time()
             return_code = None
-            state.set_stdout_lines([])
+            state.set_stdout_lines()
             # Start the process
             state.set_process(subprocess.Popen(
                 [params.path] + params.args,
                 cwd=params.cwd,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,  # Line buffered
-                universal_newlines=True
-            ))
+                stderr=subprocess.PIPE,
+                text=True
+            ), params.detect_input)
             state.name = params.path
-            # Start a single reader thread for both stdout and stderr
-            streams = [(state.process.stdout, 'stdout')]
-            state.set_reader_thread(threading.Thread(
+            state.set_reader_threads([
+                threading.Thread(
                 target=_read_streams_into_queue,
-                args=(state.process, streams, state.output_queue),
+                args=(state.process, state.process.stdout, state.output_queue, params.detect_input),
                 daemon=True
-            ))
-            state.reader_thread.start()
+            ),
+                threading.Thread(
+                target=_read_streams_into_queue,
+                args=(state.process, state.process.stderr, state.output_queue, False),
+                daemon=True
+            )
+            ])
+            state.start()
 
             # Wait for process to complete with timeout
 
@@ -100,20 +103,20 @@ class Run(CallableTool2):
 
                 # Check timeout
                 elapsed = time.time() - start_time
-                if params.detect_input:
+                if params.detect_input and (time.time() - state.last_write_time) > min(params.timeout, 3):
                     tex = get_output_text()
                     if _check_for_input_prompt(tex):
-                        message = f"'Input' tool may used to input to process."
+                        message = f"Process still running, 'Input' tool may used to input to process."
                         return ToolError(
-                            output=get_final_output(tex),
+                            output=get_final_output(),
                             message=message,
                             brief="",
                         )
                 if params.timeout is not None and elapsed > params.timeout:
                     state.process.kill()
                     state.process.wait()
-                    state.reader_thread.join(timeout=1)
-                    state.set_reader_thread(None)
+                    state.join(timeout=1)
+                    state.set_reader_threads(None)
                     state.set_process(None)
                     output = get_final_output()
                     message = f"Process timed out after {params.timeout} seconds"
@@ -128,8 +131,8 @@ class Run(CallableTool2):
 
             # Collect all output from queue
             output = get_final_output()
-            state.reader_thread.join(timeout=1)
-            state.set_reader_thread(None)
+            state.join(timeout=1)
+            state.set_reader_threads(None)
             state.set_process(None)
             if return_code != 0:
                 return ToolError(
@@ -143,7 +146,7 @@ class Run(CallableTool2):
         except Exception as exc:
             # Clean up
             state.set_process(None)
-            state.set_reader_thread(None)
+            state.set_reader_threads(None)
             return ToolError(
                 output=get_final_output(),
                 message=str(exc),

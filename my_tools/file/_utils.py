@@ -4,31 +4,50 @@ import subprocess
 import threading
 import queue
 from typing import Optional
+import io
 
 
 class ProcessState:
     """Global state for process management."""
 
     def __init__(self):
-        self.stdout_lines: list[str] = []
+        import time
+        self.last_write_time = time.time()
+        self.stdout_lines = io.StringIO()
         self.output_queue: queue.Queue = queue.Queue()
-        self.reader_thread: Optional[threading.Thread] = None
+        self.reader_threads = None
         self.process: Optional[subprocess.Popen] = None
         self.name = None
+        self.detect_input = None
 
-    def set_process(self, p: Optional[subprocess.Popen]):
+    def set_process(self, p: Optional[subprocess.Popen], detect_input = None):
         """Set the process."""
         if p is None:
             self.name = None
         self.process = p
+        self.detect_input = detect_input
 
-    def set_reader_thread(self, t: Optional[threading.Thread]):
+    def set_reader_threads(self, t: list | None):
         """Set the reader thread."""
-        self.reader_thread = t
+        self.reader_threads = t
 
-    def set_stdout_lines(self, lines: list[str]):
+    def join(self, timeout=None):
+        if not self.reader_threads:
+            return
+        for i in self.reader_threads:
+            i.join(timeout=timeout)
+        self.reader_threads = []
+
+    def start(self):
+        if not self.reader_threads:
+            return
+        for i in self.reader_threads:
+            i.start()
+
+    def set_stdout_lines(self):
         """Set the stdout_lines."""
-        self.stdout_lines = lines
+        self.stdout_lines.truncate(0)
+        self.stdout_lines.seek(0)
 
 
 # Global ProcessState instance
@@ -56,21 +75,19 @@ def get_output_text():
     try:
         while True:
             data = _state.output_queue.get_nowait()
-            _state.stdout_lines.append(data)
+            _state.stdout_lines.write(data)
     except queue.Empty:
         pass
-    s = "".join(_state.stdout_lines)
-    _state.stdout_lines.clear()
-    return s
+    return _state.stdout_lines.getvalue()
 
 
-def get_final_output(output_text=None):
-    if output_text is None:
-        output_text = get_output_text()
+def get_final_output():
+    output_text = get_output_text()
+    _state.set_stdout_lines()
     return _maybe_export_output(output_text, _state.name)
 
 
-def _read_streams_into_queue(process: subprocess.Popen, streams, q: queue.Queue):
+def _read_streams_into_queue(process: subprocess.Popen, stream, q: queue.Queue, may_input: bool = False):
     """Read from multiple streams and put data into a single queue until stop_event is set.
 
     Args:
@@ -78,32 +95,43 @@ def _read_streams_into_queue(process: subprocess.Popen, streams, q: queue.Queue)
         q: Thread-safe queue for collecting output
         stop_event: Event to signal the thread to stop
     """
-    import sys
     import time
 
     try:
         while process.poll() is None:
             any_data = False
-
-            for stream, label in streams:
-                if stream.closed:
-                    continue
-
-                try:
+            if stream.closed:
+                continue
+            try:
+                if may_input:
                     data = stream.read(1)
-                    if data:
-                        q.put(data)
-                        any_data = True
-                except (IOError, OSError, ValueError):
-                    # Stream might be closed
-                    continue
-                except BlockingIOError:
-                    # No data available (non-blocking mode)
-                    continue
+                else:
+                    data = stream.read()
+                if data:
+                    any_data = True
+                    q.put_nowait(data)
+                    data = None
+            except (IOError, OSError, ValueError):
+                # Stream might be closed
+                continue
+            except queue.Full:
+                while data:
+                    try:
+                        q.put_nowait(data)
+                        break
+                    except queue.Full:
+                        time.sleep(0.01)
+                continue
+            except BlockingIOError:
+                # No data available (non-blocking mode)
+                continue
 
-            # If no data was read, sleep briefly
+            # Flush remaining data if no new data (ensures timely output)
             if not any_data:
+                _state.last_write_time = time.time()
                 time.sleep(0.01)
+
+        # Final flush of any remaining data
 
     except Exception as e:
         import agent_utils

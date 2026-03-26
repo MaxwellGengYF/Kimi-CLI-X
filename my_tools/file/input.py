@@ -44,13 +44,32 @@ class Input(CallableTool2):
 
             state.process.stdin.write(input_text)
             state.process.stdin.flush()
-            await asyncio.sleep(1.0)
-
-            return ToolOk(
-                output=get_final_output(),
-                message=f"Input sent to process: {repr(params.text)}",
-                brief="Input sent",
-            )
+            import time
+            start_time = time.time()
+            return_value = state.process.poll()
+            while (time.time() - start_time) < 3.0 and return_value is None:
+                time.sleep(0.05)
+                return_value = state.process.poll()
+            
+            if return_value is None:
+                return ToolOk(
+                    output=get_final_output(),
+                    message=f"Input sent to process: {repr(params.text)}, process still running...",
+                    brief="Input sent",
+                )
+            else:
+                if return_value == 0:
+                    return ToolOk(
+                        output=get_final_output(),
+                        message=f"Input sent to process: {repr(params.text)}, process run success",
+                        brief="Input sent",
+                    )
+                else:
+                    return ToolError(
+                        output=get_final_output(),
+                        message=f"Input sent to process: {repr(params.text)}, process failed with {return_value}",
+                        brief="Input sent, Run failed",
+                    )
         except Exception as exc:
             return ToolError(
                 output=get_final_output(),

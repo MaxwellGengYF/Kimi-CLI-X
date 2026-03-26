@@ -5,7 +5,7 @@ import time
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 
-from my_tools.file._utils import get_state, get_final_output
+from my_tools.file._utils import get_state, get_final_output, _check_for_input_prompt, get_output_text
 
 
 class WaitParams(BaseModel):
@@ -34,46 +34,41 @@ class WaitProcess(CallableTool2):
             )
 
         try:
-            if timeout is not None:
-                while True:
-                    return_code = state.process.poll()
-                    if return_code is not None:
-                        if state.reader_thread:
-                            state.reader_thread.join(timeout=1)
-                        state.set_reader_thread(None)
-                        state.set_process(None)
-                        output = get_final_output()
-                        if return_code != 0:
-                            return ToolError(
-                                output=output,
-                                message=f"Process exited with non-zero return code: {return_code}",
-                                brief="Process failed",
-                            )
-                        else:
-                            return ToolOk(output=output)
-                    elapsed = time.time() - start_time
-                    if elapsed > timeout:
-                        message = f"Process is still working... "
+            if timeout is None:
+                timeout = 30
+            while True:
+                return_code = state.process.poll()
+                if return_code is not None:
+                    state.join(timeout=1)
+                    state.set_reader_threads(None)
+                    state.set_process(None)
+                    output = get_final_output()
+                    if return_code != 0:
+                        return ToolError(
+                            output=output,
+                            message=f"Process exited with non-zero return code: {return_code}",
+                            brief="Process failed",
+                        )
+                    else:
+                        return ToolOk(output=output)
+                if state.detect_input and (time.time() - state.last_write_time) > min(params.timeout, 3):
+                    tex = get_output_text()
+                    if _check_for_input_prompt(tex):
+                        message = f"Process still running, 'Input' tool may used to input to process."
                         return ToolError(
                             output=get_final_output(),
                             message=message,
-                            brief="timeout",
+                            brief="",
                         )
-                    await asyncio.sleep(0.05)
-            else:
-                return_code = state.process.wait()
-                if state.reader_thread:
-                    state.reader_thread.join(timeout=timeout)
-                state.set_reader_thread(None)
-                state.set_process(None)
-                output = get_final_output()
-                if return_code != 0:
+                elapsed = time.time() - start_time
+                if elapsed > timeout:
+                    message = f"Process is still working... "
                     return ToolError(
-                        output=output,
-                        message=f"Process exited with non-zero return code: {return_code}",
-                        brief="Process failed",
+                        output=get_final_output(),
+                        message=message,
+                        brief="timeout",
                     )
-                return ToolOk(output=output)
+                await asyncio.sleep(0.05)
 
         except Exception as exc:
             return ToolError(

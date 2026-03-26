@@ -28,9 +28,8 @@ class KillProcess(CallableTool2):
         try:
             state.process.kill()
             state.process.wait()
-            if state.reader_thread:
-                state.reader_thread.join(timeout=1)
-            state.set_reader_thread(None)
+            state.join(timeout=1)
+            state.set_reader_threads(None)
             state.set_process(None)
             output = get_final_output()
             return ToolOk(
