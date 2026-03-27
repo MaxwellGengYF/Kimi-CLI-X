@@ -180,7 +180,7 @@ def print_agent_json(get_message):
         'WaitProcess': 'timeout',
         'Cd': 'path',
         'SetTodoList': 'todos',
-        'CppSyntaxCheck': ('file_path', 'project_root'),
+        'CppSyntaxCheck': ('file_path', 'project_root', 'verbose'),
         'FetchURL': 'url',
         'SearchWeb': ('query', 'limit', 'include_content'),
     }

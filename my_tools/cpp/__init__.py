@@ -6,6 +6,7 @@ import os
 import subprocess
 import time
 from pathlib import Path
+from my_tools.common import _maybe_export_output
 
 
 class Params(BaseModel):
@@ -19,6 +20,10 @@ class Params(BaseModel):
     clangd_path: str = Field(
         default="clangd",
         description="Path to clangd executable (default: clangd).",
+    )
+    verbose: bool = Field(
+        default=False,
+        description="Get verbose compile arguments for the file",
     )
 
 
@@ -126,7 +131,8 @@ class ClangdLSPClient:
                 "rootUri": root_uri,
                 "capabilities": {},
                 "workspaceFolders": [
-                    {"uri": root_uri, "name": Path(self.compile_commands_dir).name}
+                    {"uri": root_uri, "name": Path(
+                        self.compile_commands_dir).name}
                 ],
             },
         )
@@ -285,44 +291,74 @@ class CppSyntaxCheck(CallableTool2):
             )
 
         # Find compile_commands.json
+        file_args = ''
         try:
             compile_commands_dir = load_compile_commands(params.project_root)
         except FileNotFoundError:
             compile_commands_dir = params.project_root
         else:
             # Check if file_path is in compile_commands.json
-            compile_commands_path = Path(compile_commands_dir) / "compile_commands.json"
-            if compile_commands_path.exists():
-                try:
-                    with open(compile_commands_path, "r", encoding="utf-8") as f:
-                        compile_commands = json.load(f)
-                    file_paths_in_db = {entry.get("file", "").replace('\\', '/').replace('//', '/') for entry in compile_commands}
-                    # Check if params.file_path matches any entry
-                    rel_path = str(file_path.relative_to(Path(params.project_root).resolve()))
-                    file_path_str = str(rel_path).replace('\\', '/').replace('//', '/')
-                    if file_path_str not in file_paths_in_db:
-                        # Try with relative path
-                        try:
-                            if rel_path not in file_paths_in_db:
-                                return ToolError(
-                                    output="",
-                                    message=f"File not found in compile_commands.json: {params.file_path}",
-                                    brief=f"File not in compile_commands.json. Please ensure the file is included in the build system.",
-                                )
-                        except ValueError:
+            compile_commands_path = Path(
+                compile_commands_dir) / "compile_commands.json"
+            if not compile_commands_path.exists():
+                return ToolError(
+                    output=output,
+                    message=f"compile_commands.json not found.",
+                    brief=f"This tool is invalid.",
+                )
+
+            try:
+                with open(compile_commands_path, "r", encoding="utf-8") as f:
+                    compile_commands = json.load(f)
+                file_maps = dict()
+                for entry in compile_commands:
+                    name = entry.get("file", None).replace(
+                        '\\', '/').replace('//', '/')
+                    args = entry.get('arguments', [])
+                    args = '\n'.join(args)
+                    if not name:
+                        continue
+                    file_maps[name] = args
+                # Check if params.file_path matches any entry
+                rel_path = str(file_path.relative_to(
+                    Path(params.project_root).resolve()))
+                file_path_str = str(rel_path).replace(
+                    '\\', '/').replace('//', '/')
+                file_args = file_maps.get(file_path_str)
+                if file_args is None:
+                    # Try with relative path
+                    try:
+                        file_args = file_maps.get(rel_path)
+                        if file_args is None:
                             return ToolError(
                                 output="",
                                 message=f"File not found in compile_commands.json: {params.file_path}",
                                 brief=f"File not in compile_commands.json. Please ensure the file is included in the build system.",
                             )
-                except (json.JSONDecodeError, IOError):
-                    pass  # Ignore errors and continue
-        
+                    except ValueError:
+                        return ToolError(
+                            output="",
+                            message=f"File not found in compile_commands.json: {params.file_path}",
+                            brief=f"File not in compile_commands.json. Please ensure the file is included in the build system.",
+                        )
+            except (json.JSONDecodeError, IOError):
+                output = ''
+                if params.verbose:
+                    output = _maybe_export_output(f'Compile arguments:\n' + file_args)
+                return ToolError(
+                    output=output,
+                    message=f"compile_commands.json decode error.",
+                    brief=f"This tool is invalid.",
+                )
+
         # Find clangd
         clangd_path = find_clangd(params.clangd_path, params.project_root)
         if not Path(clangd_path).exists():
+            output = ''
+            if params.verbose:
+                output = _maybe_export_output(f'Compile arguments:\n' + file_args)
             return ToolError(
-                output="",
+                output=output,
                 message=f"clangd not found: {clangd_path}",
                 brief="clangd not found. Please install clangd or provide correct path.",
             )
@@ -331,8 +367,11 @@ class CppSyntaxCheck(CallableTool2):
         try:
             content = file_path.read_text(encoding="utf-8")
         except Exception as e:
+            output = ''
+            if params.verbose:
+                output = _maybe_export_output(f'Compile arguments:\n' + file_args)
             return ToolError(
-                output="",
+                output=output,
                 message=str(e),
                 brief="Failed to read file",
             )
@@ -351,7 +390,11 @@ class CppSyntaxCheck(CallableTool2):
             diagnostics = client.get_diagnostics(str(file_path))
 
             if not diagnostics:
-                return ToolOk(output="[OK] No issues found!")
+                output = 'No issues found!'
+                if params.verbose:
+                    output += f'Compile arguments:\n' + file_args
+                output = _maybe_export_output(output)
+                return ToolOk(output=output)
 
             errors = 0
             warnings = 0
@@ -369,17 +412,27 @@ class CppSyntaxCheck(CallableTool2):
             output = "\n".join(formatted_diagnostics) + summary
 
             if errors > 0:
+                if params.verbose:
+                    output += f'Compile arguments:\n' + file_args
+                output = _maybe_export_output(output)
                 return ToolError(
                     output=output,
                     message=f"Found {errors} error(s), {warnings} warning(s)",
                     brief=f"C++ syntax errors: {errors} error(s), {warnings} warning(s)",
                 )
             else:
+                if params.verbose:
+                    output += f'Compile arguments:\n' + file_args
+                output = _maybe_export_output(output)
                 return ToolOk(output=output)
 
         except Exception as e:
+            output = ''
+            if params.verbose:
+                output = f'Compile arguments:\n' + file_args
+            output = _maybe_export_output(output)
             return ToolError(
-                output="",
+                output=output,
                 message=str(e),
                 brief="Failed to check C++ syntax",
             )
