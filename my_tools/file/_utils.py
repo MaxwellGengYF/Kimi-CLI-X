@@ -98,30 +98,40 @@ def _read_streams_into_queue(process: subprocess.Popen, stream, q: queue.Queue, 
     import time
 
     try:
-        while process.poll() is None:
-            any_data = False
-            if stream.closed:
-                continue
-            try:
-                if may_input:
+        if may_input:
+            while process.poll() is None:
+                if stream.closed:
+                    continue
+                try:
                     data = stream.read(1)
-                else:
+                    if data:
+                        q.put_nowait(data)
+                    else:
+                        _state.last_write_time = time.time()
+                        time.sleep(0.01)
+                except (IOError, OSError, ValueError):
+                    # Stream might be closed
+                    continue
+                except BlockingIOError:
+                    # No data available (non-blocking mode)
+                    continue
+        else:
+            while process.poll() is None:
+                if stream.closed:
+                    continue
+                try:
                     data = stream.read()
-                if data:
-                    any_data = True
-                    q.put_nowait(data)
-                    data = None
-            except (IOError, OSError, ValueError):
-                # Stream might be closed
-                continue
-            except BlockingIOError:
-                # No data available (non-blocking mode)
-                continue
+                    if data:
+                        q.put_nowait(data)
+                    else:
+                        time.sleep(0.01)
+                except (IOError, OSError, ValueError):
+                    # Stream might be closed
+                    continue
+                except BlockingIOError:
+                    # No data available (non-blocking mode)
+                    continue
 
-            # Flush remaining data if no new data (ensures timely output)
-            if not any_data:
-                _state.last_write_time = time.time()
-                time.sleep(0.01)
 
         # Final flush of any remaining data
 

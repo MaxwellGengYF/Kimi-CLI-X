@@ -10,7 +10,7 @@ import sys
 import subprocess
 LSP_JSON = None
 frame = 0
-
+read_agent = False
 COMMENT = """Always write ' Start writen by AGENT ' comment before code, Always write ' End writen by AGENT ' comment after code"""
 curr_dir = Path(os.curdir)
 if not curr_dir.is_absolute():
@@ -44,6 +44,8 @@ Available commands:
   /cd             - change dir
   /tool:<name>    - Run script from tools/ directory
   /tool:help      - List all available tools
+  /md:on          - Enable read AGENTS.md
+  /md:off         - Disable read AGENTS.md
 
 Or enter any prompt to send to the agent.
 '''
@@ -140,8 +142,6 @@ def _split_text(lines):
     return text_arr
 
 
-
-
 def _run_cli():
     exec_ctx = dict()
     set_arg()
@@ -228,6 +228,22 @@ def _run_cli():
         print_info(f'Validate result: {result}')
         return None, False
 
+    def _cmd_md(task_split):
+        global read_agent
+        if len(task_split) < 2:
+            print_error('Command must be /md:on or /md:off')
+            return None, False
+        value = task_split[1].strip().lower()
+        if value == 'on':
+            read_agent = True
+            print_success('Read markdown mode enabled.')
+        elif value == 'off':
+            read_agent = False
+            print_success('Read markdown disabled.')
+        else:
+            print_error('Command must be /think:on or /think:off')
+            return None, False
+
     def _cmd_think(task_split):
         if len(task_split) < 2:
             print_error('Command must be /think:on or /think:off')
@@ -271,9 +287,12 @@ def _run_cli():
                 else:
                     print_success('Todo list:')
                     for i, todo in enumerate(todos, 1):
-                        status = todo.status if hasattr(todo, 'status') else todo.get('status', 'pending')
-                        title = todo.title if hasattr(todo, 'title') else todo.get('title', 'Unknown')
-                        status_icon = {'pending': '⏳', 'in_progress': '🔄', 'done': '✅'}.get(status, '⏳')
+                        status = todo.status if hasattr(
+                            todo, 'status') else todo.get('status', 'pending')
+                        title = todo.title if hasattr(
+                            todo, 'title') else todo.get('title', 'Unknown')
+                        status_icon = {'pending': '⏳', 'in_progress': '🔄', 'done': '✅'}.get(
+                            status, '⏳')
                         print_info(f'  {i}. [{status_icon}] {title}')
         elif subcommand == 'clear':
             clear_todo(get_default_session())
@@ -285,11 +304,14 @@ def _run_cli():
             else:
                 print_success(f'Make todo-list success.')
         elif subcommand.startswith('done ') or subcommand == 'done':
-            update_todo_status(get_default_session(), subcommand[5:].strip() if subcommand.startswith('done ') else '', 'done')
+            update_todo_status(get_default_session(), subcommand[5:].strip(
+            ) if subcommand.startswith('done ') else '', 'done')
         elif subcommand.startswith('in_progress ') or subcommand == 'in_progress':
-            update_todo_status(get_default_session(), subcommand[12:].strip() if subcommand.startswith('in_progress ') else '', 'in_progress')
+            update_todo_status(get_default_session(), subcommand[12:].strip(
+            ) if subcommand.startswith('in_progress ') else '', 'in_progress')
         elif subcommand.startswith('pending ') or subcommand == 'pending':
-            update_todo_status(get_default_session(), subcommand[8:].strip() if subcommand.startswith('pending ') else '', 'pending')
+            update_todo_status(get_default_session(), subcommand[8:].strip(
+            ) if subcommand.startswith('pending ') else '', 'pending')
         elif not subcommand or subcommand == 'help':
             print_info('''Todo commands:
   /todo           - Show this help message
@@ -301,7 +323,8 @@ def _run_cli():
   /todo:pending <n>     - Mark item(s) as pending
   /todo:help      - Show this help message''')
         else:
-            print_warning(f'Unknown todo command: {subcommand}. Use /todo:help for usage.')
+            print_warning(
+                f'Unknown todo command: {subcommand}. Use /todo:help for usage.')
         return None, False
 
     def _cmd_skill(task_split):
@@ -319,20 +342,21 @@ def _run_cli():
 
     def _cmd_tool(task_split):
         tools_dir = Path(__file__).parent / 'tools'
-        
+
         if len(task_split) < 2:
             print_error('Command must be /tool:<script_name> or /tool:help')
             return None, False
-        
+
         tool_name = task_split[1].strip()
-        
+
         # Handle help command
         if tool_name == 'help':
             if not tools_dir.exists():
                 print_info('No tools directory found.')
                 return None, False
-            
-            tool_files = sorted([f for f in tools_dir.iterdir() if f.suffix == '.py'])
+
+            tool_files = sorted(
+                [f for f in tools_dir.iterdir() if f.suffix == '.py'])
             if not tool_files:
                 print_info('No tools available in tools/ directory.')
             else:
@@ -340,23 +364,23 @@ def _run_cli():
                 for tool_file in tool_files:
                     print_info(f'  - {tool_file.name}')
             return None, False
-        
+
         # Remove .py extension if present
         if tool_name.endswith('.py'):
             tool_name = tool_name[:-3]
-        
+
         tool_path = tools_dir / f'{tool_name}.py'
-        
+
         if not tool_path.exists():
             print_error(f'Tool not found: {tool_name}.py')
             return None, False
-        
+
         try:
             print_info(f'Running tool: {tool_name}.py')
             # Read and execute the tool script
             with open(tool_path, 'r', encoding='utf-8') as f:
                 script_content = f.read()
-            
+
             # Create a clean execution context
             exec(script_content, {
                 '__name__': '__main__',
@@ -387,6 +411,7 @@ def _run_cli():
         'skill': _cmd_skill,
         'file': _cmd_file,
         'tool': _cmd_tool,
+        'md': _cmd_md
     }
 
     while True:
@@ -458,12 +483,13 @@ def _run_cli():
                     try:
                         if (input_str is not None) and len(input_str) > 0:
                             prompt(prompt_str=input_str,
-                                    session=get_default_session(),
-                                    read_agent=True)
+                                   session=get_default_session(),
+                                   read_agent=read_agent)
                     except KeyboardInterrupt as e:
                         print_warning('Keyboard Interrupt.')
         except Exception as e:
             print_error(str(e))
+
 
 def cli():
     try:
