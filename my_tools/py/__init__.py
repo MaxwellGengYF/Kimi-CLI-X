@@ -58,54 +58,40 @@ class Python(CallableTool2):
                 _exec_code()
             output = captured_output.getvalue()
             if params.dest:
-                with open(params.dest, 'w', encoding='utf-8') as f:
-                    f.write(output)
-                return ToolOk(output=f"Output saved to {params.dest}")
-            if not output:
-                result = output
-                return ToolOk(output='')
-            return ToolOk(output=_maybe_export_output(result))
+                if output:
+                    with open(params.dest, 'w', encoding='utf-8') as f:
+                        f.write(output)
+                return ToolOk(output=f"Output saved to {params.dest}" if output else '')
+            return ToolOk(output=_maybe_export_output(output))
         except asyncio.TimeoutError:
             output = captured_output.getvalue()
             if params.dest:
-                with open(params.dest, 'w', encoding='utf-8') as f:
-                    f.write(output)
+                if output:
+                    with open(params.dest, 'w', encoding='utf-8') as f:
+                        f.write(output)
                 return ToolError(
-                    output=f"Output saved to {params.dest}",
+                    output=f"Output saved to {params.dest}" if output else '',
                     message=f"Python code execution timed out after {params.timeout} seconds",
                     brief="Python code execution timed out",
                 )
-            if not output:
-                return ToolError(
-                    output='',
-                    message=f"Python code execution timed out after {params.timeout} seconds",
-                    brief="Python code execution timed out",
-                )
-            result = output
             return ToolError(
-                output=_maybe_export_output(result),
+                output=_maybe_export_output(output),
                 message=f"Python code execution timed out after {params.timeout} seconds",
                 brief="Python code execution timed out",
             )
         except Exception as exc:
             output = captured_output.getvalue()
             if params.dest:
-                with open(params.dest, 'w', encoding='utf-8') as f:
-                    f.write(output)
+                if output:
+                    with open(params.dest, 'w', encoding='utf-8') as f:
+                        f.write(output)
                 return ToolError(
-                    output=f"Output saved to {params.dest}",
+                    output=f"Output saved to {params.dest}" if output else '',
                     message=str(exc),
                     brief="Failed to execute Python code",
                 )
-            if not output:
-                return ToolError(
-                    output='',
-                    message=str(exc),
-                    brief="Failed to execute Python code",
-                )
-            result = output
             return ToolError(
-                output=_maybe_export_output(result),
+                output=_maybe_export_output(output),
                 message=str(exc),
                 brief="Failed to execute Python code",
             )

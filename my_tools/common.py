@@ -45,6 +45,8 @@ def _maybe_export_output(output: str, key: Path | None = None) -> str:
     Returns:
         The output string, or a message indicating it was exported to a temp file.
     """
+    if not output:
+        return ''
     if _estimate_tokens(output) > OUTPUT_TOKEN_LIMIT:
         if key is not None:
             if type(key) is not Path:
