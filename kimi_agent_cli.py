@@ -243,6 +243,7 @@ def _run_cli():
         else:
             print_error('Command must be /think:on or /think:off')
             return None, False
+        return None, False
 
     def _cmd_think(task_split):
         if len(task_split) < 2:
