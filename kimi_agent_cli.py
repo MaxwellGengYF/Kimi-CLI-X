@@ -199,7 +199,7 @@ def _run_cli():
         if len(task_split) < 2:
             print_error('Command must be /cd:PATH')
             return None, False
-        path = ''.join(task_split[1:])
+        path = ':'.join(task_split[1:])
         try:
             os.chdir(path)
             kimi_utils._default_skill_dir = None
