@@ -1,18 +1,16 @@
 import asyncio
+import subprocess
 import sys
-from io import StringIO
+import os
 from my_tools.common import _maybe_export_output
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
-
-# Token limit threshold - if output exceeds this, export to temp file
-# Using 8000 as a conservative threshold to stay well below typical model limits
-OUTPUT_TOKEN_LIMIT = 8000
+from my_tools.common import _export_to_temp_file
 
 
 class Params(BaseModel):
     code: str = Field(
-        description="The Python code to execute. ",
+        description="The Python code.",
     )
     dest: str | None = Field(
         default=None,
@@ -24,9 +22,9 @@ class Params(BaseModel):
         description="Timeout in seconds. If not specified, no timeout is applied.",
     )
 
-
-globals_dict = None
-locals_dict = None
+# Force UTF-8 encoding for subprocess on Windows
+env = os.environ.copy()
+env['PYTHONIOENCODING'] = 'utf-8'
 
 
 class Python(CallableTool2):
@@ -35,66 +33,87 @@ class Python(CallableTool2):
     params: type[Params] = Params
 
     async def __call__(self, params: Params) -> ToolReturnValue:
-        global globals_dict, locals_dict
-        if globals_dict is None:
-            globals_dict = dict()
-            locals_dict = dict()
-
-        # Capture stdout during exec
-        old_stdout = sys.stdout
-        captured_output = StringIO()
-        sys.stdout = captured_output
-
-        def _exec_code():
-            exec(params.code, globals_dict, locals_dict)
+        # Save code to temp file
+        from hashlib import md5
+        key = md5(params.code.encode('utf-8')).hexdigest()
+        temp_file, _ = _export_to_temp_file(key, params.code)
 
         try:
-            if params.timeout:
-                await asyncio.wait_for(
-                    asyncio.to_thread(_exec_code),
+
+            # Run the script as subprocess
+            proc = await asyncio.create_subprocess_exec(
+                sys.executable, temp_file,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=env
+            )
+
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    proc.communicate(),
                     timeout=params.timeout
                 )
-            else:
-                _exec_code()
-            output = captured_output.getvalue()
-            if params.dest:
-                if output:
-                    with open(params.dest, 'w', encoding='utf-8') as f:
-                        f.write(output)
-                return ToolOk(output=f"Output saved to {params.dest}" if output else '')
-            return ToolOk(output=_maybe_export_output(output))
-        except asyncio.TimeoutError:
-            output = captured_output.getvalue()
-            if params.dest:
-                if output:
-                    with open(params.dest, 'w', encoding='utf-8') as f:
-                        f.write(output)
+            except asyncio.TimeoutError:
+                proc.kill()
+                await proc.wait()
                 return ToolError(
-                    output=f"Output saved to {params.dest}" if output else '',
+                    output="",
                     message=f"Python code execution timed out after {params.timeout} seconds",
                     brief="Python code execution timed out",
                 )
-            return ToolError(
-                output=_maybe_export_output(output),
-                message=f"Python code execution timed out after {params.timeout} seconds",
-                brief="Python code execution timed out",
-            )
-        except Exception as exc:
-            output = captured_output.getvalue()
-            if params.dest:
-                if output:
-                    with open(params.dest, 'w', encoding='utf-8') as f:
-                        f.write(output)
+
+            # Decode output
+            output = stdout.decode('utf-8', errors='replace')
+            error_output = stderr.decode('utf-8', errors='replace')
+
+            # Combine stdout and stderr if there's any stderr
+            full_output = output
+            if error_output:
+                if full_output:
+                    full_output += "\n" + error_output
+                else:
+                    full_output = error_output
+
+            # Handle process return code
+            if proc.returncode != 0:
+                if params.dest:
+                    if full_output:
+                        with open(params.dest, 'w', encoding='utf-8') as f:
+                            f.write(full_output)
+                    return ToolError(
+                        output=f"Output saved to {params.dest}" if full_output else '',
+                        message=f"Process exited with code {proc.returncode}",
+                        brief="Failed to execute Python code",
+                    )
                 return ToolError(
-                    output=f"Output saved to {params.dest}" if output else '',
+                    output=_maybe_export_output(full_output),
+                    message=f"Process exited with code {proc.returncode}",
+                    brief="Failed to execute Python code",
+                )
+
+            # Success case
+            if params.dest:
+                if full_output:
+                    with open(params.dest, 'w', encoding='utf-8') as f:
+                        f.write(full_output)
+                return ToolOk(output=f"Output saved to {params.dest}" if full_output else '')
+            return ToolOk(output=_maybe_export_output(full_output))
+
+        except Exception as exc:
+            if params.dest:
+                return ToolError(
+                    output=f"",
                     message=str(exc),
                     brief="Failed to execute Python code",
                 )
             return ToolError(
-                output=_maybe_export_output(output),
+                output="",
                 message=str(exc),
                 brief="Failed to execute Python code",
             )
-
         finally:
-            sys.stdout = old_stdout
+            # Clean up temp file
+            try:
+                os.remove(temp_file)
+            except Exception:
+                pass
