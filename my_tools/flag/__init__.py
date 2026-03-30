@@ -7,29 +7,24 @@ _flag = threading.local()
 
 def reset_flag() -> None:
     global _flag
-    _flag.flag = False
+    _flag.value = None
 
 
-def check_flag() -> bool:
+def check_flag() -> str:
     global _flag
-    return hasattr(_flag, 'flag') and _flag.flag == True
+    return getattr(_flag, 'value', "")
 
 
-def _set_flag(value) -> bool:
-    global _flag
-    _flag.flag = value == True
+class Params(BaseModel):
+    value: str = Field(default="", description="The value")
 
 
-class FlagParams(BaseModel):
-    pass
+class SetValue(CallableTool2):
+    name: str = "SetValue"
+    description: str = "Set a value"
+    params: type[Params] = Params
 
-
-class SetFlag(CallableTool2):
-    name: str = "SetFlag"
-    description: str = "Set the flag"
-    params: type[FlagParams] = FlagParams
-
-    async def __call__(self,  params: FlagParams) -> ToolReturnValue:
+    async def __call__(self,  params: Params) -> ToolReturnValue:
         global _flag
-        _flag.flag = True
+        _flag.value = params.value
         return ToolOk(output=f"")

@@ -120,7 +120,7 @@ async def _create_session_async(
     else:
         cfg.loop_control.reserved_context_size = 32_000
     # custom config
-    if ralph_loop is not None and ralph_loop != (_ralph_iterations != 0):
+    if ralph_loop is not None:
         cfg.loop_control.max_ralph_iterations = -1 if ralph_loop else 0
 
     from kimi_agent_sdk import Session
@@ -305,7 +305,7 @@ def validate(
         prompt_str = prompt_str + \
             '\n\nIf the condition is true, call tool:SetFlag.'
         prompt(prompt_str, session)
-        return flag.check_flag()
+        return flag.check_flag() is not None
     else:
         return prompt_str == True
 
