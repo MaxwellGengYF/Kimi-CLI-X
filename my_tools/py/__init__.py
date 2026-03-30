@@ -29,7 +29,7 @@ env['PYTHONIOENCODING'] = 'utf-8'
 
 class Python(CallableTool2):
     name: str = "Python"
-    description: str = "Execute Python code using exec function. Consider as Shell, os, sys, subprocess, pathlib, json, pathlib, Path already imported."
+    description: str = "Execute Python code in a file"
     params: type[Params] = Params
 
     async def __call__(self, params: Params) -> ToolReturnValue:
