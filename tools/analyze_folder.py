@@ -256,19 +256,20 @@ def main():
 # =============================================================================
 # Main Execution Flow (when run as script)
 # =============================================================================
-main()
-print("\n" + "=" * 60)
-print("Project Analysis Script")
-print("=" * 60)
-print("\nThis script will:")
-print("1. Analyze project structure")
-print("2. Create a todo list for analysis")
-print("3. Generate agent prompts for each folder")
-print("4. Compile everything into a README")
-print("\n" + "=" * 60)
+if __name__ == '__main__':
+    main()
+    print("\n" + "=" * 60)
+    print("Project Analysis Script")
+    print("=" * 60)
+    print("\nThis script will:")
+    print("1. Analyze project structure")
+    print("2. Create a todo list for analysis")
+    print("3. Generate agent prompts for each folder")
+    print("4. Compile everything into a README")
+    print("\n" + "=" * 60)
 
-# The actual execution would use kimi_utils functions
-# This script serves as a workflow definition
+    # The actual execution would use kimi_utils functions
+    # This script serves as a workflow definition
 
-print("\nWorkflow defined. To execute:")
-print("  kimi_cli run prompt.py")
+    print("\nWorkflow defined. To execute:")
+    print("  kimi_cli run prompt.py")

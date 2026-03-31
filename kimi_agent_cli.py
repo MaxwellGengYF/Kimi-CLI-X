@@ -4,7 +4,6 @@ from pathlib import Path
 from kaos.path import KaosPath
 import asyncio
 from kimi_utils import print_success, print_error, print_warning, print_info, prompt, clear_context, sync_all,  _create_default_session, print_usage, delete_session_dir, print_debug, get_default_session, fix_error, validate, get_todo, clear_todo, make_todo, update_todo_status
-import kimi_utils
 import os
 import sys
 import subprocess
@@ -80,25 +79,25 @@ def set_arg():
         print_debug('Clean mode OFF.')
 
     if args.ralph:
-        kimi_utils._ralph_iterations = -1
+        agent_utils._ralph_iterations = -1
         print_debug(
             'Ralph loop ON, continue work until done(or running OUT of your TOKEN!!!).')
     else:
-        kimi_utils._ralph_iterations = 0
+        agent_utils._ralph_iterations = 0
         print_debug('Ralph loop OFF.')
 
     if args.think:
-        kimi_utils._default_thinking = True
+        agent_utils._default_thinking = True
         print_debug('Thinking ON.')
     else:
-        kimi_utils._default_thinking = False
+        agent_utils._default_thinking = False
         print_debug('Thinking OFF.')
 
     if args.no_yolo:
-        kimi_utils._default_yolo = False
+        agent_utils._default_yolo = False
         print_debug('YOLO OFF.')
     else:
-        kimi_utils._default_yolo = True
+        agent_utils._default_yolo = True
         print_debug('YOLO ON.')
 
     # Handle --skill-dir argument
@@ -109,7 +108,7 @@ def set_arg():
         # Normalize the path (resolve ., .., and symlinks)
         skill_dir_path = skill_dir_path.resolve()
         if skill_dir_path.exists() and skill_dir_path.is_dir():
-            kimi_utils._default_skill_dir = KaosPath(skill_dir_path)
+            agent_utils._default_skill_dir = KaosPath(skill_dir_path)
             print_debug(f'Skill dir set to: {str(skill_dir_path)}')
         else:
             print_warning(f'Skill dir not found: {str(skill_dir_path)}')
@@ -202,7 +201,7 @@ def _run_cli():
         path = ':'.join(task_split[1:])
         try:
             os.chdir(path)
-            kimi_utils._default_skill_dir = None
+            agent_utils._default_skill_dir = None
             clear_context(True, True)
             print_success(f'Changed directory to: {Path(".").resolve()}')
         except Exception as e:
@@ -251,10 +250,10 @@ def _run_cli():
             return None, False
         value = task_split[1].strip().lower()
         if value == 'on':
-            kimi_utils._default_thinking = True
+            agent_utils._default_thinking = True
             print_success('Thinking mode enabled.')
         elif value == 'off':
-            kimi_utils._default_thinking = False
+            agent_utils._default_thinking = False
             print_success('Thinking mode disabled.')
         else:
             print_error('Command must be /think:on or /think:off')

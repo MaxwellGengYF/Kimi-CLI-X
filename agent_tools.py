@@ -20,7 +20,7 @@ def implement_file(
                 skill_name = new_str
         except:
             pass
-        default_path = Path(str(kimi_utils._default_skill_dir))
+        default_path = Path(str(agent_utils._default_skill_dir))
         if default_path and (default_path / skill_name / 'SKILL.md').exists():
             s += f'Use skill:{skill_name}. '
         else:
