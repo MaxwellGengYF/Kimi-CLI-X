@@ -1,7 +1,7 @@
 import dbm
 import json
 from pathlib import Path
-
+from kimi_utils import _get_skill_dir
 
 class Job:
     def __init__(self):
@@ -35,7 +35,7 @@ class Job:
             raise Exception('Missing required field "steps"')
         if not isinstance(steps, list):
             raise Exception('"steps" must be a list')
-        for i, s in enumerate(steps):
+        for s in steps:
             if not isinstance(s, str):
                 raise Exception('All items in "steps" must be strings')
         
@@ -48,12 +48,20 @@ class Job:
         
         # Validate skills (optional)
         skills = json_dict.get("skills")
+        sk_dir = _get_skill_dir()
+        if sk_dir:
+            sk_dir = Path(str(sk_dir))
         if skills is not None:
             if not isinstance(skills, list):
                 raise Exception('"skills" must be a list')
-            for i, s in enumerate(skills):
+            for s in skills:
                 if not isinstance(s, str):
                     raise Exception('All items in "skills" must be strings')
+                # Check if the skill exists in skill_dir
+                if sk_dir:
+                    skill_path = Path(sk_dir / s / "SKILL.md")
+                    if not skill_path.exists():
+                        raise Exception(f'Skill "{s}" does not exist in skill directory')
 
     @classmethod
     def deserialize(cls, data: str) -> "Job":

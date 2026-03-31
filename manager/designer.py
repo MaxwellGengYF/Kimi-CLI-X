@@ -3,7 +3,7 @@ from pathlib import Path
 import os
 
 from manager.worker import Worker, get_worker, Job, add_worker
-from kimi_utils import prompt, create_session, close_session
+from kimi_utils import prompt, create_session, close_session, _get_skill_dir
 from agent_utils import run_thread, print_error
 from my_tools.check_fmt import check_json
 
@@ -53,7 +53,12 @@ class Designer:
         if not file_path.exists():
             print(f"Error: File {require_name} not found.")
             return
-
+        skill_dir = _get_skill_dir()
+        if skill_dir:
+            skill_dir = str(skill_dir)
+            skill_dir = f"* The proper skills under '{skill_dir}', to 'skills'\n"
+        else:
+            skill_dir = ''
         def async_func():
             prompt_text = f'''
 Analyze the following requirement file: '{str(file_path)}'.
@@ -61,13 +66,13 @@ Design todo-list prompts to finish the requirement. (may split to multiple steps
 Write to JSON file '{dst_file_path}' with these:
 * The prompt steps to 'steps'.
 * The way to validate if the requirement implemented properly to 'target'.
-* The proper skills may used for this requirement
+{skill_dir}
 The file's format should be:
 ```
 {{
     "steps": ["step1", "step2"],
     "target": "way to ...",
-    "skills": ["skill1", "skill2"]
+    "skills": ["skill1", "skill2"]  // optional
 }}
 ```
 '''
