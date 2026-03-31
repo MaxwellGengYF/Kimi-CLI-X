@@ -70,7 +70,7 @@ async def _create_session_async(
     ralph_loop: Optional[bool] = None,
     thinking: Optional[bool] = None,
     yolo: Optional[bool] = None,
-    agent_file: Optional[bool] = None,
+    agent_file: Optional[Path] = None,
     resume=False
 ):
     global _session_idx
@@ -92,6 +92,13 @@ async def _create_session_async(
 
     from kimi_agent_sdk import Session
     session = None
+    if agent_file is None:
+        agent_file = agent_utils._default_agent_file
+    else:
+        if type(agent_file) is not Path:
+            agent_file = Path(agent_file)
+        if not agent_file.is_absolute():
+            agent_file = Path(__file__).parent / agent_file
     if resume:
         session = await Session.resume(
             session_id=session_id,
@@ -100,7 +107,7 @@ async def _create_session_async(
             yolo=yolo if yolo is not None else agent_utils._default_yolo,
             thinking=thinking if thinking is not None else agent_utils._default_thinking,
             config=cfg,
-            agent_file=agent_file if agent_file is not None else agent_utils._default_agent_file
+            agent_file=agent_file
         )
         if not session:
             print_debug(f'Session {session_id} not found.')
@@ -112,7 +119,7 @@ async def _create_session_async(
             yolo=yolo if yolo is not None else agent_utils._default_yolo,
             thinking=thinking if thinking is not None else agent_utils._default_thinking,
             config=cfg,
-            agent_file=agent_file if agent_file is not None else agent_utils._default_agent_file
+            agent_file=agent_file
         )
     return session
 
@@ -124,7 +131,7 @@ def create_session(
     ralph_loop: Optional[bool] = None,
     thinking: Optional[bool] = None,
     yolo: Optional[bool] = None,
-    agent_file: Optional[bool] = None,
+    agent_file: Optional[Path] = None,
     resume=False
 ):
 

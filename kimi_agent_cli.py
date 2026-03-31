@@ -50,6 +50,8 @@ Or enter any prompt to send to the agent.
 '''
 # End writen by AGENT
 CLEAN_MODE = None
+globals_dict = {}
+locals_dict = {}
 
 
 def set_arg():
@@ -142,7 +144,9 @@ def _split_text(lines):
 
 
 def _run_cli():
-    exec_ctx = dict()
+    exec_ctx = {
+        '__name__': '__main__'
+    }
     set_arg()
     # Parse command line arguments for clean mode flag
 
@@ -176,7 +180,7 @@ def _run_cli():
                 break
             text.append(s)
         text = '\n'.join(text)
-        from my_tools.py import globals_dict, locals_dict
+        global globals_dict, locals_dict
         try:
             exec(text, globals_dict, locals_dict)
             print_success('Finished.')
@@ -186,7 +190,6 @@ def _run_cli():
 
     def _cmd_cmd(task_split):
         s = _input('>>>> Input cmd:\n', text_arr)
-        from my_tools.py import globals_dict, locals_dict
         try:
             os.system(s)
             print_success('Finished.')

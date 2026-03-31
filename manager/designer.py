@@ -18,7 +18,8 @@ class Designer:
     def work(self, requirement_file_name: str):
         # Sanitize the filename to ensure it's valid
         file_path = Path(requirement_file_name)
-        dst_file_path = self._folder / Path(str(file_path.with_suffix('')) + '__task.json')
+        dst_file_path = self._folder / \
+            Path(str(file_path.with_suffix('')) + '__task.json')
         dst_file_path.parent.mkdir(exist_ok=True)
         if dst_file_path.exists():
             os.remove(dst_file_path)
@@ -53,7 +54,7 @@ The file's format should be:
         max_try_time = 3
         session = None
         try:
-            session = create_session()
+            session = create_session(agent_file='agent_boss.yaml')
             for i in range(max_try_time):
                 import my_tools.flag as flag
                 flag.reset_flag()

@@ -22,6 +22,7 @@ class Params(BaseModel):
         description="Timeout in seconds. If not specified, no timeout is applied.",
     )
 
+
 # Force UTF-8 encoding for subprocess on Windows
 env = os.environ.copy()
 env['PYTHONIOENCODING'] = 'utf-8'
