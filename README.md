@@ -175,7 +175,7 @@ The agent has access to various tools for file operations, code execution, web s
 |------|-------------|------------|
 | `SetTodoList` | Update the todo list for task tracking | `todos` (list): List of todo items with `title` and `status` ("pending", "in_progress", "done") |
 | `GetTodoList` | Retrieve the current todo list | No parameters |
-| `SetFlag` | Set a flag (used for validation/confirmation) | No parameters |
+| `SetValue` | Set a flag (used for validation/confirmation) | No parameters |
 
 
 ### Archive Operations
@@ -237,7 +237,7 @@ from kimi_utils import (
 
 | Function | Description |
 |----------|-------------|
-| `validate(prompt_str, session=None)` | Validate a condition by prompting the AI. Returns `True` if validation passes (AI calls SetFlag tool). |
+| `validate(prompt_str, session=None)` | Validate a condition by prompting the AI. Returns `True` if validation passes (AI calls SetValue tool). |
 
 ### Error Fixing
 

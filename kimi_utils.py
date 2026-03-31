@@ -270,11 +270,11 @@ def validate(
         import my_tools.flag as flag
         flag.reset_flag()
         prompt_str = prompt_str + \
-            '\n\nIf the condition is true, call tool:SetFlag.'
+            '\n\nIf the condition is true, run `SetValue` tool.'
         prompt(prompt_str, session)
-        return flag.check_flag()
+        return flag.check_flag() is not None
     else:
-        return ''
+        return False
 
 
 def make_todo(

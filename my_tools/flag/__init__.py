@@ -12,11 +12,11 @@ def reset_flag() -> None:
 
 def check_flag() -> str:
     global _flag
-    return getattr(_flag, 'value', "")
+    return getattr(_flag, 'value', None)
 
 
 class Params(BaseModel):
-    value: str = Field(default="", description="The value")
+    value: str = Field(default="1", description="The value")
 
 
 class SetValue(CallableTool2):

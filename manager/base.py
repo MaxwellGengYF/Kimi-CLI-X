@@ -108,14 +108,13 @@ class Job:
                         raise Exception(
                             f'Skill "{s}" does not exist in skill directory')
 
-        # Validate directory (optional)
+        # Validate directory
         directory = json_dict.get("directory")
-        if directory is not None:
-            if not isinstance(directory, str):
-                raise Exception('"directory" must be a string')
-            if not check_path_format(directory):
-                raise Exception(
-                    f'"directory" has invalid path format: "{directory}"')
+        if not isinstance(directory, str):
+            raise Exception('"directory" must be a string')
+        if not check_path_format(directory):
+            raise Exception(
+                f'"directory" has invalid path format: "{directory}"')
 
     @classmethod
     def deserialize(cls, data: str) -> "Job":
@@ -126,7 +125,7 @@ class Job:
         obj.steps = parsed.get("steps", [])
         obj.target = parsed.get("target", "")
         obj.skills = parsed.get("skills", [])
-        obj.directory = parsed.get("directory", "")
+        obj.directory = parsed.get("directory", ".")
         return obj
 
 

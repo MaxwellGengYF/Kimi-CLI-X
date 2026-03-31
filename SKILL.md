@@ -8,7 +8,7 @@ from kimi_utils import *
 prompt('''Your prompt...''')
 
 # Validate a condition by prompting the AI
-# Returns True if the AI calls SetFlag tool (indicating condition is true), False otherwise
+# Returns True if the AI calls SetValue tool (indicating condition is true), False otherwise
 if validate('''condition...'''):
     pass
 
