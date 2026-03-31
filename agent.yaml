@@ -15,7 +15,7 @@ agent:
     - "my_tools.flag:SetValue"
     - "my_tools.todo:SetTodoList"
     - "my_tools.todo:GetTodoList"
-    - "kimi_cli.tools.file:WriteFile"
+    - "my_tools.file:WriteFile"
     - "kimi_cli.tools.file:ReadFile"
     - "kimi_cli.tools.file:Glob"
     - "kimi_cli.tools.file:Grep"
