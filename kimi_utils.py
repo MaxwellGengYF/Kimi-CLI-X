@@ -305,9 +305,9 @@ def validate(
         prompt_str = prompt_str + \
             '\n\nIf the condition is true, call tool:SetFlag.'
         prompt(prompt_str, session)
-        return flag.check_flag() is not None
+        return flag.check_flag()
     else:
-        return prompt_str == True
+        return ''
 
 
 def make_todo(
