@@ -71,7 +71,9 @@ class Run(CallableTool2):
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True
+                text=True,
+                encoding='utf-8',
+                errors='replace'
             ), params.detect_input)
             state.name = params.path
             state.set_reader_threads([
