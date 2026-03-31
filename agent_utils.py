@@ -313,3 +313,47 @@ def _run_process_with_error(command: str, keycode: tuple, skip_success: bool = T
 
 def _percentage_str(num: float) -> str:
     return f"{num * 100:.1f}%"
+
+from pathlib import Path
+
+_ralph_iterations = 0
+_default_thinking = False
+_default_yolo = True
+_default_agent_file = Path(__file__).parent / 'agent.yaml'
+_default_skill_dir = None
+
+
+def _get_skill_dir(use_kaos_path=True):
+    if use_kaos_path:
+        from kaos.path import KaosPath
+    global _default_skill_dir
+    if _default_skill_dir:
+        if use_kaos_path:
+            if type(_default_skill_dir) is not KaosPath:
+                _default_skill_dir = KaosPath(_default_skill_dir)
+        return _default_skill_dir
+
+    def _gen():
+        d = _default_skill_dir
+        if d is not None:
+            return d
+        d = Path(os.curdir) / ".agents/skills"
+        if d.exists():
+            return d
+        d = Path(os.curdir) / ".opencode/skills"
+        if d.exists():
+            return d
+        d = Path(os.curdir) / ".config/.agents/skills"
+        if d.exists():
+            return d
+        return None
+    _default_skill_dir = _gen()
+    if _default_skill_dir:
+        print_debug(f'skill dir: {str(_default_skill_dir)}')
+        if use_kaos_path:
+            if type(_default_skill_dir) is not KaosPath:
+                _default_skill_dir = KaosPath(_default_skill_dir)
+        return _default_skill_dir
+    return None
+
+

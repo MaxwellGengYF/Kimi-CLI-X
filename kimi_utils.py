@@ -4,15 +4,11 @@ from kaos.path import KaosPath
 import asyncio
 import time
 from pathlib import Path
+import agent_utils
+
 
 _default_session = None
-_ralph_iterations = 0
-_default_thinking = False
-_default_yolo = True
-_default_agent_file = Path(__file__).parent / 'agent.yaml'
-_default_skill_dir = None
 __env_initialized = False
-
 
 def _init_model():
     def _check_legal(value, start_with):
@@ -39,35 +35,6 @@ def _init_model():
         default_model = config_model
         print_debug(f'Using {config_model} model.')
 
-
-def _get_skill_dir():
-    global _default_skill_dir
-    if _default_skill_dir:
-        if type(_default_skill_dir) is not KaosPath:
-            _default_skill_dir = KaosPath(_default_skill_dir)
-        return _default_skill_dir
-
-    def _gen():
-        d = _default_skill_dir
-        if d is not None:
-            return d
-        d = Path(os.curdir) / ".agents/skills"
-        if d.exists():
-            return d
-        d = Path(os.curdir) / ".opencode/skills"
-        if d.exists():
-            return d
-        d = Path(os.curdir) / ".config/.agents/skills"
-        if d.exists():
-            return d
-        return None
-    _default_skill_dir = _gen()
-    if _default_skill_dir:
-        print_debug(f'skill dir: {str(_default_skill_dir)}')
-        if type(_default_skill_dir) is not KaosPath:
-            _default_skill_dir = KaosPath(_default_skill_dir)
-        return _default_skill_dir
-    return None
 
 
 def _create_config():
@@ -113,9 +80,9 @@ async def _create_session_async(
     cfg = _create_config()
 
     # No ralph mode defaultly, manually do validate please
-    cfg.loop_control.max_ralph_iterations = _ralph_iterations
+    cfg.loop_control.max_ralph_iterations = agent_utils._ralph_iterations
     cfg.loop_control.max_steps_per_turn = 10000
-    if _ralph_iterations != 0:
+    if agent_utils._ralph_iterations != 0: # type: ignore
         cfg.loop_control.reserved_context_size = 48_000
     else:
         cfg.loop_control.reserved_context_size = 32_000
@@ -129,11 +96,11 @@ async def _create_session_async(
         session = await Session.resume(
             session_id=session_id,
             work_dir=work_dir if work_dir is not None else KaosPath(os.curdir),
-            skills_dir=skills_dir if skills_dir is not None else _get_skill_dir(),
-            yolo=yolo if yolo is not None else _default_yolo,
-            thinking=thinking if thinking is not None else _default_thinking,
+            skills_dir=skills_dir if skills_dir is not None else agent_utils._get_skill_dir(),
+            yolo=yolo if yolo is not None else agent_utils._default_yolo,
+            thinking=thinking if thinking is not None else agent_utils._default_thinking,
             config=cfg,
-            agent_file=agent_file if agent_file is not None else _default_agent_file
+            agent_file=agent_file if agent_file is not None else agent_utils._default_agent_file
         )
         if not session:
             print_debug(f'Session {session_id} not found.')
@@ -141,11 +108,11 @@ async def _create_session_async(
         session = await Session.create(
             session_id=session_id,
             work_dir=work_dir if work_dir is not None else KaosPath(os.curdir),
-            skills_dir=skills_dir if skills_dir is not None else _get_skill_dir(),
-            yolo=yolo if yolo is not None else _default_yolo,
-            thinking=thinking if thinking is not None else _default_thinking,
+            skills_dir=skills_dir if skills_dir is not None else agent_utils._get_skill_dir(),
+            yolo=yolo if yolo is not None else agent_utils._default_yolo,
+            thinking=thinking if thinking is not None else agent_utils._default_thinking,
             config=cfg,
-            agent_file=agent_file if agent_file is not None else _default_agent_file
+            agent_file=agent_file if agent_file is not None else agent_utils._default_agent_file
         )
     return session
 
@@ -244,9 +211,9 @@ def prompt(
 
     def enable_skill(skill_name):
         nonlocal prompt_str
-        if not _default_skill_dir:
+        if not agent_utils._default_skill_dir:
             print_warning('Skill dir not setted.')
-        elif not (Path(str(_default_skill_dir)) / Path(skill_name) / 'SKILL.md').exists():
+        elif not (Path(str(agent_utils._default_skill_dir)) / Path(skill_name) / 'SKILL.md').exists():
             print_warning(f'Skill {skill_name} not found.')
         else:
             prompt_str = f'Use skill:{skill_name}.\n' + prompt_str

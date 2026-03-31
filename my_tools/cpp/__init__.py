@@ -301,6 +301,9 @@ class CppSyntaxCheck(CallableTool2):
             compile_commands_path = Path(
                 compile_commands_dir) / "compile_commands.json"
             if not compile_commands_path.exists():
+                output = ""
+                if params.verbose:
+                    output = _maybe_export_output(f'Compile arguments:\n' + file_args)
                 return ToolError(
                     output=output,
                     message=f"compile_commands.json not found.",
@@ -341,13 +344,13 @@ class CppSyntaxCheck(CallableTool2):
                             message=f"File not found in compile_commands.json: {params.file_path}",
                             brief=f"File not in compile_commands.json. Please ensure the file is included in the build system.",
                         )
-            except (json.JSONDecodeError, IOError):
-                output = ''
+            except (json.JSONDecodeError, IOError) as e:
+                output = ""
                 if params.verbose:
-                    output = _maybe_export_output(f'Compile arguments:\n' + file_args)
+                    output = _maybe_export_output(f'Compile arguments:\n{file_args}\nError: {e}')
                 return ToolError(
                     output=output,
-                    message=f"compile_commands.json decode error.",
+                    message=f"compile_commands.json decode error: {e}",
                     brief=f"This tool is invalid.",
                 )
 
