@@ -183,6 +183,8 @@ def print_agent_json(get_message):
         'CppSyntaxCheck': ('file_path', 'project_root', 'verbose'),
         'FetchURL': 'url',
         'SearchWeb': ('query', 'limit', 'include_content'),
+        'PowerShell': ('command', 'timeout'),
+        'Bash': ('command', 'timeout'),
     }
 
     def print_item(item):

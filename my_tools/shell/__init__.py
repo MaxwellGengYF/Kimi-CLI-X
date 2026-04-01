@@ -15,12 +15,10 @@ from kimi_cli.tools.utils import ToolRejectedError, ToolResultBuilder, load_desc
 from kimi_cli.utils.environment import Environment
 from kimi_cli.utils.subprocess_env import get_clean_env
 import sys
-from .bash_to_pwsh import parse_command
-
+from my_tools.common import _maybe_export_output
 
 MIN_TIMEOUT = 10 * 60
 MAX_TIMEOUT = 15 * 60
-# On Windows platform, check if pwsh (PowerShell Core) exists
 
 
 def _check_command_exists(command: str) -> bool:
@@ -29,20 +27,8 @@ def _check_command_exists(command: str) -> bool:
     return shutil.which(command) is not None
 
 
-# Try to use cmd, should be faster
-_default_pwsh = 'powershell'
-_bash_name = 'bash'
-if sys.platform == 'win32':
-    _bash_name = 'powershell'
-    if not _check_command_exists('pwsh'):
-        print("PowerShell Core (pwsh) not found. Falling back to Windows PowerShell (powershell).")
-    else:
-        _default_pwsh = 'pwsh'
-else:
-    _default_pwsh = 'bash'
-
 class Params(BaseModel):
-    command: str = Field(description=f"The {_bash_name} command to execute.")
+    command: str = Field(description="The command to execute.")
     timeout: int = Field(
         description=(
             "The timeout in seconds for the command to execute. "
@@ -54,25 +40,21 @@ class Params(BaseModel):
     )
 
 
-
-class Shell(CallableTool2[Params]):
-    name: str = "Shell"
-    description: str = f"{_bash_name}"
+class BaseShell(CallableTool2[Params]):
+    """Base class for shell execution tools."""
+    
     params: type[Params] = Params
 
-    def __init__(self, approval: Approval, environment: Environment):
-        is_powershell = environment.shell_name == "Windows PowerShell"
+    def __init__(self, name: str, description: str, approval: Approval, shell_path: str, shell_name: str):
         super().__init__(
+            name=name,
             description=load_desc(
-                Path(__file__).parent /
-                "powershell.md" if is_powershell else
-                ("bash.md"),
-                {"SHELL": f"{environment.shell_name} (`{environment.shell_path}`)"},
+                Path(__file__).parent / description,
+                {"SHELL": f"{shell_name} (`{shell_path}`)"},
             )
         )
         self._approval = approval
-        self._is_powershell = is_powershell
-        self._shell_path = environment.shell_path
+        self._shell_path = shell_path
 
     @override
     async def __call__(self, params: Params) -> ToolReturnValue:
@@ -81,18 +63,16 @@ class Shell(CallableTool2[Params]):
         if not params.command:
             return builder.error("Command cannot be empty.", brief="Empty command")
 
-        if self._is_powershell:
-            command = parse_command(params.command)
-        else:
-            command = params.command
+        command = params.command
         timeout = max(params.timeout, MIN_TIMEOUT)
+        
         if not await self._approval.request(
             self.name,
             "run command",
             f"Run command `{command}`",
             display=[
                 ShellDisplayBlock(
-                    language=_default_pwsh if self._is_powershell else "bash",
+                    language=self._get_language(),
                     command=command,
                 )
             ],
@@ -101,11 +81,11 @@ class Shell(CallableTool2[Params]):
 
         def stdout_cb(line: bytes):
             line_str = line.decode(encoding="utf-8", errors="replace")
-            builder.write(line_str)
+            builder.write(_maybe_export_output(line_str))
 
         def stderr_cb(line: bytes):
             line_str = line.decode(encoding="utf-8", errors="replace")
-            builder.write(line_str)
+            builder.write(_maybe_export_output(line_str))
 
         try:
             exitcode = await self._run_shell_command(
@@ -154,7 +134,87 @@ class Shell(CallableTool2[Params]):
             await process.kill()
             raise
 
+    def _get_language(self) -> str:
+        """Get the display language for the shell."""
+        raise NotImplementedError
+
     def _shell_args(self, command: str) -> tuple[str, ...]:
-        if self._is_powershell:
-            return (str(self._shell_path), "-command", command)
+        """Get the shell arguments for executing a command."""
+        raise NotImplementedError
+
+
+class PowerShell(BaseShell):
+    """PowerShell execution tool."""
+
+    def __init__(self, approval: Approval, environment: Environment):
+        # Determine PowerShell executable
+        if sys.platform == "win32":
+            if _check_command_exists("pwsh"):
+                shell_path = "pwsh"
+                shell_name = "PowerShell Core"
+            else:
+                shell_path = "powershell"
+                shell_name = "Windows PowerShell"
+        else:
+            shell_path = "pwsh" if _check_command_exists("pwsh") else "powershell"
+            shell_name = "PowerShell Core" if shell_path == "pwsh" else "PowerShell"
+        
+        # Use environment shell_path if available and it's PowerShell
+        if hasattr(environment, 'shell_path') and environment.shell_path:
+            env_shell = str(environment.shell_path).lower()
+            if "powershell" in env_shell or "pwsh" in env_shell:
+                shell_path = str(environment.shell_path)
+        if hasattr(environment, 'shell_name') and environment.shell_name:
+            if "powershell" in environment.shell_name.lower():
+                shell_name = environment.shell_name
+
+        super().__init__(
+            name="PowerShell",
+            description="powershell.md",
+            approval=approval,
+            shell_path=shell_path,
+            shell_name=shell_name,
+        )
+
+    def _get_language(self) -> str:
+        return "powershell"
+
+    def _shell_args(self, command: str) -> tuple[str, ...]:
+        return (str(self._shell_path), "-command", command)
+
+
+class Bash(BaseShell):
+    """Bash execution tool."""
+
+    def __init__(self, approval: Approval, environment: Environment):
+        # Determine Bash executable
+        if sys.platform == "win32":
+            # On Windows, try to find bash (Git Bash, WSL, etc.)
+            shell_path = "bash"
+            if hasattr(environment, 'shell_path') and environment.shell_path:
+                env_shell = str(environment.shell_path).lower()
+                if "bash" in env_shell:
+                    shell_path = str(environment.shell_path)
+        else:
+            shell_path = "/bin/bash"
+            if hasattr(environment, 'shell_path') and environment.shell_path:
+                shell_path = str(environment.shell_path)
+        
+        shell_name = "Bash"
+        if hasattr(environment, 'shell_name') and environment.shell_name:
+            if "bash" in environment.shell_name.lower():
+                shell_name = environment.shell_name
+
+        super().__init__(
+            name="Bash",
+            description="bash.md",
+            approval=approval,
+            shell_path=shell_path,
+            shell_name=shell_name,
+        )
+
+    def _get_language(self) -> str:
+        return "bash"
+
+    def _shell_args(self, command: str) -> tuple[str, ...]:
         return (str(self._shell_path), "-c", command)
