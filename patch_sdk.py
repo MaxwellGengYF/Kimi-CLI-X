@@ -51,12 +51,20 @@ def main() -> None:
     # Define source paths
     sdk_src = sdk_repo_path / "python" / "src" / "kimi_agent_sdk"
     cli_src = cli_repo_path / "src" / "kimi_cli"
+    kaos_src = cli_repo_path / "packages" / "kaos" / "src" / "kaos"
+    kosong_src = cli_repo_path / "packages" / "kosong" / "src" / "kosong"
 
     if not sdk_src.exists():
         print(f"Error: SDK source path does not exist: {sdk_src}")
         sys.exit(1)
     if not cli_src.exists():
         print(f"Error: CLI source path does not exist: {cli_src}")
+        sys.exit(1)
+    if not kaos_src.exists():
+        print(f"Error: Kaos source path does not exist: {kaos_src}")
+        sys.exit(1)
+    if not kosong_src.exists():
+        print(f"Error: Kosong source path does not exist: {kosong_src}")
         sys.exit(1)
 
     # Get site-packages directory
@@ -66,6 +74,8 @@ def main() -> None:
     # Define destination paths
     sdk_dst = site_packages / "kimi_agent_sdk"
     cli_dst = site_packages / "kimi_cli"
+    kaos_dst = site_packages / "kaos"
+    kosong_dst = site_packages / "kosong"
 
     # Copy SDK files
     copy_directory(sdk_src, sdk_dst)
@@ -73,8 +83,11 @@ def main() -> None:
     # Copy CLI files
     copy_directory(cli_src, cli_dst)
 
-    # Upgrade kosong package
-    upgrade_package("kosong")
+    # Copy Kaos files
+    copy_directory(kaos_src, kaos_dst)
+
+    # Copy Kosong files
+    copy_directory(kosong_src, kosong_dst)
 
     print("\nPatch completed successfully!")
 
