@@ -20,13 +20,6 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    # Core dependencies
-    "pydantic>=2.0.0",
-    "kimi-agent-sdk>=0.1.0",
-    "kimi-cli>=0.1.0",
-    "kaos>=0.1.0",
-    "kosong>=0.1.0",
-    
     # Image processing & OCR
     "pillow>=10.0.0",
     "pytesseract>=0.3.10",

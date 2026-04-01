@@ -1,2 +1,8 @@
 __pycache__
 agent.py
+kaos/
+kimi_agent_sdk/
+kimi_cli/
+kosong/
+package.zip
+requirements.txt
