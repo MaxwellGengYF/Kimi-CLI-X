@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from agent_utils import print_error, _get_skill_dir, run_thread
 
-
+_ask_mode = False
 def check_path_format(path: str) -> bool:
     """Check if a path's format is valid.
 
@@ -130,8 +130,11 @@ class Job:
 
 
 class Worker:
-    def __init__(self, name: str, task):
+    def __init__(self, name: str, task, clear_db=False):
         self._db_path = name + ".db"
+        if clear_db:
+            import shutil
+            shutil.rmtree(self._db_path, ignore_errors=True)
         self._task = task
         self._mutex = threading.Lock()
 
@@ -255,7 +258,7 @@ def add_worker(worker_name: str, worker: Worker):
         _workers[worker_name] = worker
 
 
-def get_worker(worker_name: str):
+def get_worker(worker_name: str) -> Worker:
     with _workers_mutex:
         return _workers.get(worker_name)
 

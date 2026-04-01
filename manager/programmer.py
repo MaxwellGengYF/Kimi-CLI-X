@@ -6,11 +6,11 @@ from agent_utils import run_thread, print_error
 
 
 class Programmer:
-    def __init__(self, folder: str):
+    def __init__(self, folder: str, clear=False):
         self._folder = Path(folder)
         self._folder.mkdir(exist_ok=True)
         self._worker = Worker(str(self._folder / "worker"),
-                              lambda x: self.work(x))
+                              lambda x: self.work(x), clear)
         add_worker('programmer', self._worker)
 
     def work(self, job_path: str):
@@ -44,11 +44,11 @@ class Programmer:
                 verify_prompt = skill_prefix + dir_prefix + \
                     f"write a test-case to verify and fix: {job.target}"
                 prompt(verify_prompt, session=verify_session)
-                verify_prompt = dir_prefix + 'run test to verify and fix error, check if all test cases pass'
+                verify_prompt = dir_prefix + \
+                    'run test to verify and fix error, check if all test cases pass'
                 for i in range(3):
                     if validate(verify_prompt, session=session):
                         break
-                    
 
         except Exception as e:
             print_error(f"Error in programmer work: {str(e)}")

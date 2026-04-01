@@ -3,16 +3,16 @@ import os
 
 from manager.base import Worker, get_worker, Job, add_worker
 from kimi_utils import prompt, create_session, close_session
-from agent_utils import print_error, _get_skill_dir
+from agent_utils import print_error, _get_skill_dir, print_warning, print_success
 from my_tools.check_fmt import check_json
 
 
 class Designer:
-    def __init__(self, folder: str):
+    def __init__(self, folder: str, clear=False):
         self._folder = Path(folder)
         self._folder.mkdir(exist_ok=True)
         self._worker = Worker(str(self._folder / "worker"),
-                              lambda x: self.work(x))
+                              lambda x: self.work(x), clear)
         add_worker('designer', self._worker)
 
     def work(self, requirement_file_name: str):
@@ -64,7 +64,7 @@ The file's format should be:
                 if not err_msg:
                     break
                 elif i < max_try_time - 1:
-                    print(err_msg)
+                    print_warning(err_msg)
                     prompt_text = f'''
 In {dst_file_path} fix this: {err_msg}.
 '''
@@ -77,6 +77,13 @@ In {dst_file_path} fix this: {err_msg}.
         if not dst_file_path.exists():
             print_error(f'Failed to export {dst_file_path}.')
             return
+        import manager.base as base
+        if base._ask_mode:
+            print_success(
+                f'File saved to {dst_file_path}, do you want me to ask programmer to work?(y/n)')
+            v = input('').lower()
+            if not (v == 'y' or v == 'yes'):
+                return
         worker: Worker = get_worker('programmer')
         if worker:
             worker.add_job(file_path, dst_file_path)
