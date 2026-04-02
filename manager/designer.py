@@ -3,7 +3,7 @@ import os
 
 from manager.base import Worker, get_worker, Job, add_worker
 from kimi_utils import prompt, create_session, close_session
-from agent_utils import print_error, _get_skill_dir, print_warning, print_success
+from agent_utils import print_error, _get_skill_dirs, print_warning, print_success
 from my_tools.check_fmt import check_json
 
 
@@ -26,10 +26,10 @@ class Designer:
         if not file_path.exists():
             print(f"Error: File {file_path} not found.")
             return
-        skill_dir = _get_skill_dir()
-        if skill_dir:
-            skill_dir = str(skill_dir)
-            skill_dir = f"* The proper skills under '{skill_dir}', to 'skills'\n"
+        skill_dirs = _get_skill_dirs()
+        if skill_dirs:
+            skill_dirs_str = ', '.join([str(d) for d in skill_dirs])
+            skill_dir = f"* The proper skills under '{skill_dirs_str}', to 'skills'\n"
         else:
             skill_dir = ''
         prompt_text = f'''

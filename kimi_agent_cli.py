@@ -68,8 +68,8 @@ def set_arg():
                         help='Disable thinking mode')
     parser.add_argument('-no_yolo', '--no_yolo', action='store_true',
                         help='Disable YOLO mode')
-    parser.add_argument('-s', '--skill-dir', type=str, default=None,
-                        help='Specify custom skill directory')
+    parser.add_argument('-s', '--skill-dir', type=str, nargs='*', default=None,
+                        help='Specify custom skill directory(s)')
     args = parser.parse_args()
     if args.no_color:
         agent_utils._colorful_print = False
@@ -104,16 +104,17 @@ def set_arg():
 
     # Handle --skill-dir argument
     if args.skill_dir:
-        skill_dir_path = Path(args.skill_dir)
-        if not skill_dir_path.is_absolute():
-            skill_dir_path = curr_dir / skill_dir_path
-        # Normalize the path (resolve ., .., and symlinks)
-        skill_dir_path = skill_dir_path.resolve()
-        if skill_dir_path.exists() and skill_dir_path.is_dir():
-            agent_utils._default_skill_dir = KaosPath(skill_dir_path)
-            print_debug(f'Skill dir set to: {str(skill_dir_path)}')
-        else:
-            print_warning(f'Skill dir not found: {str(skill_dir_path)}')
+        for skill_dir in args.skill_dir:
+            skill_dir_path = Path(skill_dir)
+            if not skill_dir_path.is_absolute():
+                skill_dir_path = curr_dir / skill_dir_path
+            # Normalize the path (resolve ., .., and symlinks)
+            skill_dir_path = skill_dir_path.resolve()
+            if skill_dir_path.exists() and skill_dir_path.is_dir():
+                agent_utils._default_skill_dirs.append(KaosPath(skill_dir_path))
+                print_debug(f'Skill dir added: {str(skill_dir_path)}')
+            else:
+                print_warning(f'Skill dir not found: {str(skill_dir_path)}')
 
 
 def _input(text: str, text_arr: list) -> str:
@@ -204,7 +205,7 @@ def _run_cli():
         path = ':'.join(task_split[1:])
         try:
             os.chdir(path)
-            agent_utils._default_skill_dir = None
+            agent_utils._default_skill_dirs = []
             clear_context(True, True)
             print_success(f'Changed directory to: {Path(".").resolve()}')
         except Exception as e:

@@ -10,6 +10,7 @@ import agent_utils
 _default_session = None
 __env_initialized = False
 
+
 def _init_model():
     def _check_legal(value, start_with):
         if value is None or type(value) != str:
@@ -34,7 +35,6 @@ def _init_model():
     elif config_model != default_model:
         default_model = config_model
         print_debug(f'Using {config_model} model.')
-
 
 
 def _create_config():
@@ -63,6 +63,23 @@ def delete_session_dir() -> Path:
 _session_idx = 0
 
 
+def make_kaos_dir(obj: object) -> KaosPath:
+    if type(obj) is not KaosPath:
+        return KaosPath(obj)
+    return obj
+
+
+def _ensure_skill_dirs(skill_dirs: object) -> list[KaosPath]:
+    from collections.abc import Iterable
+    if skill_dirs is None:
+        return []
+    if type(skill_dirs) == list:
+        return make_kaos_dir(skill_dirs)
+    if isinstance(skill_dirs, Iterable) and not isinstance(skill_dirs, (str, bytes)):
+        return [make_kaos_dir(i) for i in skill_dirs]
+    return [make_kaos_dir(skill_dirs)]
+
+
 async def _create_session_async(
     session_id: str = None,
     work_dir: Optional[KaosPath] = None,
@@ -82,7 +99,7 @@ async def _create_session_async(
     # No ralph mode defaultly, manually do validate please
     cfg.loop_control.max_ralph_iterations = agent_utils._ralph_iterations
     cfg.loop_control.max_steps_per_turn = 10000
-    if agent_utils._ralph_iterations != 0: # type: ignore
+    if agent_utils._ralph_iterations != 0:  # type: ignore
         cfg.loop_control.reserved_context_size = 48_000
     else:
         cfg.loop_control.reserved_context_size = 32_000
@@ -103,7 +120,8 @@ async def _create_session_async(
         session = await Session.resume(
             session_id=session_id,
             work_dir=work_dir if work_dir is not None else KaosPath(os.curdir),
-            skills_dir=skills_dir if skills_dir is not None else agent_utils._get_skill_dir(),
+            skills_dirs=_ensure_skill_dirs(
+                skills_dir) if skills_dir is not None else agent_utils._get_skill_dirs(),
             yolo=yolo if yolo is not None else agent_utils._default_yolo,
             thinking=thinking if thinking is not None else agent_utils._default_thinking,
             config=cfg,
@@ -115,7 +133,8 @@ async def _create_session_async(
         session = await Session.create(
             session_id=session_id,
             work_dir=work_dir if work_dir is not None else KaosPath(os.curdir),
-            skills_dir=skills_dir if skills_dir is not None else agent_utils._get_skill_dir(),
+            skills_dirs=_ensure_skill_dirs(
+                skills_dir) if skills_dir is not None else agent_utils._get_skill_dirs(),
             yolo=yolo if yolo is not None else agent_utils._default_yolo,
             thinking=thinking if thinking is not None else agent_utils._default_thinking,
             config=cfg,
@@ -218,12 +237,18 @@ def prompt(
 
     def enable_skill(skill_name):
         nonlocal prompt_str
-        if not agent_utils._default_skill_dir:
+        if not agent_utils._default_skill_dirs:
             print_warning('Skill dir not setted.')
-        elif not (Path(str(agent_utils._default_skill_dir)) / Path(skill_name) / 'SKILL.md').exists():
-            print_warning(f'Skill {skill_name} not found.')
         else:
-            prompt_str = f'Use skill:{skill_name}.\n' + prompt_str
+            skill_found = False
+            for skill_dir in agent_utils._default_skill_dirs:
+                if (Path(str(skill_dir)) / Path(skill_name) / 'SKILL.md').exists():
+                    skill_found = True
+                    break
+            if not skill_found:
+                print_warning(f'Skill {skill_name} not found.')
+            else:
+                prompt_str = f'Use skill:{skill_name}.\n' + prompt_str
     if skill_name:
         try:
             for i in skill_name:

@@ -20,8 +20,13 @@ def implement_file(
                 skill_name = new_str
         except:
             pass
-        default_path = Path(str(agent_utils._default_skill_dir))
-        if default_path and (default_path / skill_name / 'SKILL.md').exists():
+        skill_found = False
+        for skill_dir in agent_utils._default_skill_dirs:
+            skill_path = Path(str(skill_dir)) / skill_name / 'SKILL.md'
+            if skill_path.exists():
+                skill_found = True
+                break
+        if skill_found:
             s += f'Use skill:{skill_name}. '
         else:
             print_warning(f'Skill {skill_name} not exists.')

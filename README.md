@@ -138,7 +138,7 @@ This is line 2
 /todo:pending 3
 ```
 
-## Build Script (`build_cli.py`)
+## Build Script (`toolbox_build_cli.py`)
 
 A build utility for the kimi_cli project that handles dependency installation and package copying.
 
@@ -149,7 +149,7 @@ A build utility for the kimi_cli project that handles dependency installation an
 Recursively finds all `pyproject.toml` files under a project directory and installs their dependencies.
 
 ```bash
-python build_cli.py build <project_dir> [options]
+python toolbox_build_cli.py build <project_dir> [options]
 ```
 
 **Options:**
@@ -163,13 +163,13 @@ python build_cli.py build <project_dir> [options]
 
 ```bash
 # Install dependencies for the current project
-python build_cli.py build <cli_repo_path>
+python toolbox_build_cli.py build <cli_repo_path>
 
 # Install with all optional dependencies
-python build_cli.py build <cli_repo_path> --with-optional
+python toolbox_build_cli.py build <cli_repo_path> --with-optional
 
 # Install with specific optional groups
-python build_cli.py build <cli_repo_path> --optional-groups dev test
+python toolbox_build_cli.py build <cli_repo_path> --optional-groups dev test
 ```
 
 #### `copy` - Copy Packages
@@ -177,7 +177,7 @@ python build_cli.py build <cli_repo_path> --optional-groups dev test
 Copies package source files from development repositories to the site-packages directory. This is useful for testing local changes without reinstalling packages.
 
 ```bash
-python build_cli.py copy <sdk_repo_path> <cli_repo_path> <packages_path>
+python toolbox_build_cli.py copy <sdk_repo_path> <cli_repo_path> <packages_path>
 ```
 
 **Arguments:**
@@ -191,7 +191,7 @@ python build_cli.py copy <sdk_repo_path> <cli_repo_path> <packages_path>
 **Example:**
 
 ```bash
-python build_cli.py copy D:/kimi-agent-sdk D:/kimi-cli D:/venv/Lib/site-packages
+python toolbox_build_cli.py copy D:/kimi-agent-sdk D:/kimi-cli D:/venv/Lib/site-packages
 ```
 
 **What gets copied:**
@@ -205,7 +205,7 @@ python build_cli.py copy D:/kimi-agent-sdk D:/kimi-cli D:/venv/Lib/site-packages
 Packages the current project directory into a zip file, excluding build scripts and cache directories.
 
 ```bash
-python build_cli.py package <target_dir> [--output-name NAME]
+python toolbox_build_cli.py package <target_dir> [--output-name NAME]
 ```
 
 **Arguments:**
@@ -216,7 +216,7 @@ python build_cli.py package <target_dir> [--output-name NAME]
 | `--output-name` | (Optional) Name of the output zip file without extension (default: `package`) |
 
 **Excluded Items:**
-- `build_cli.py` - The build script itself
+- `toolbox_build_cli.py` - The build script itself
 - `agent.py` - Agent script
 - `__pycache__` folders - Python cache directories (anywhere in the tree)
 
@@ -224,10 +224,10 @@ python build_cli.py package <target_dir> [--output-name NAME]
 
 ```bash
 # Create package.zip in the dist directory
-python build_cli.py package ./dist
+python toolbox_build_cli.py package ./dist
 
 # Create a named package
-python build_cli.py package ./dist --output-name myproject-v1.0
+python toolbox_build_cli.py package ./dist --output-name myproject-v1.0
 ```
 
 ## Agent Tools

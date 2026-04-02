@@ -322,40 +322,38 @@ _ralph_iterations = 0
 _default_thinking = False
 _default_yolo = True
 _default_agent_file = Path(__file__).parent / 'agent_worker.yaml'
-_default_skill_dir = None
+_default_skill_dirs = []
 
 
-def _get_skill_dir(use_kaos_path=True):
+def _get_skill_dirs(use_kaos_path=True):
     if use_kaos_path:
         from kaos.path import KaosPath
-    global _default_skill_dir
-    if _default_skill_dir:
-        if use_kaos_path:
-            if type(_default_skill_dir) is not KaosPath:
-                _default_skill_dir = KaosPath(_default_skill_dir)
-        return _default_skill_dir
+    global _default_skill_dirs
+    if _default_skill_dirs:
+        return _default_skill_dirs
 
     def _gen():
-        d = _default_skill_dir
-        if d is not None:
-            return d
+        result = []
         d = Path(os.curdir) / ".agents/skills"
         if d.exists():
-            return d
+            result.append(d)
         d = Path(os.curdir) / ".opencode/skills"
         if d.exists():
-            return d
+            result.append(d)
         d = Path(os.curdir) / ".config/.agents/skills"
         if d.exists():
-            return d
-        return None
-    _default_skill_dir = _gen()
-    if _default_skill_dir:
-        print_debug(f'skill dir: {str(_default_skill_dir)}')
+            result.append(d)
+        return result
+    _default_skill_dirs = _gen()
+    if _default_skill_dirs:
+        for d in _default_skill_dirs:
+            print_debug(f'skill dir: {str(d)}')
         if use_kaos_path:
-            if type(_default_skill_dir) is not KaosPath:
-                _default_skill_dir = KaosPath(_default_skill_dir)
-        return _default_skill_dir
-    return None
+            _default_skill_dirs = [
+                KaosPath(d) if type(d) is not KaosPath else d
+                for d in _default_skill_dirs
+            ]
+        return _default_skill_dirs
+    return []
 
 

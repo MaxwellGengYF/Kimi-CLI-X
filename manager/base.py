@@ -4,7 +4,7 @@ import re
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from agent_utils import print_error, _get_skill_dir, run_thread
+from agent_utils import print_error, _get_skill_dirs, run_thread
 
 _ask_mode = False
 def check_path_format(path: str) -> bool:
@@ -92,21 +92,24 @@ class Job:
 
         # Validate skills (optional)
         skills = json_dict.get("skills")
-        sk_dir = _get_skill_dir()
-        if sk_dir:
-            sk_dir = Path(str(sk_dir))
+        sk_dirs = _get_skill_dirs()
         if skills is not None:
             if not isinstance(skills, list):
                 raise Exception('"skills" must be a list')
             for s in skills:
                 if not isinstance(s, str):
                     raise Exception('All items in "skills" must be strings')
-                # Check if the skill exists in skill_dir
-                if sk_dir:
-                    skill_path = Path(sk_dir / s / "SKILL.md")
-                    if not skill_path.exists():
-                        raise Exception(
-                            f'Skill "{s}" does not exist in skill directory')
+                # Check if the skill exists in any skill_dir
+                skill_found = False
+                if sk_dirs:
+                    for sk_dir in sk_dirs:
+                        skill_path = Path(str(sk_dir)) / s / "SKILL.md"
+                        if skill_path.exists():
+                            skill_found = True
+                            break
+                if sk_dirs and not skill_found:
+                    raise Exception(
+                        f'Skill "{s}" does not exist in skill directory')
 
         # Validate directory
         directory = json_dict.get("directory")
