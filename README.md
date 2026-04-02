@@ -1,392 +1,234 @@
 # Kimi Agent CLI
 
-An interactive command-line interface for interacting with the Kimi AI agent.
+Kimi Agent CLI 是一个交互式命令行工具，用于与 Kimi AI Agent 进行交互。它提供了丰富的功能，包括文件操作、代码执行、任务管理、技能加载等。
 
-## Prerequisites
+## 特性介绍
 
-- Set the `KIMI_API_KEY` environment variable with your Kimi API key
-- Optional: Set `KIMI_BASE_URL` (defaults to `https://api.kimi.com/coding/v1`)
-- Optional: Set `KIMI_MODEL_NAME` (defaults to `kimi-for-coding`)
+### 1. 交互式对话
+- 支持多轮对话，保持上下文记忆
+- 可清除对话历史 (`/clear`)
+- 支持多行文本输入 (`/txt`)
 
-## Usage
+### 2. 文件操作工具
+- **ReadFile**: 读取文件内容，支持指定行范围
+- **WriteFile**: 写入文件内容（带验证）
+- **StrReplaceFile**: 字符串替换编辑
+- **Glob**: 文件搜索（glob 模式）
+- **Grep**: 正则表达式搜索文件内容
+- **Ls**: 目录列表
 
-### Basic Usage
+### 3. 代码执行
+- **Shell**: 执行系统命令（Windows 使用 PowerShell）
+- **Python**: 执行 Python 代码
+- **CppSyntaxCheck**: C++ 语法检查（使用 clangd）
+
+### 4. 任务管理
+- 创建待办事项列表 (`/todo:make`)
+- 跟踪任务状态：`pending` ⏳、`in_progress` 🔄、`done` ✅
+- 支持批量更新任务状态
+
+### 5. 技能系统
+- 加载预定义技能 (`/skill:<name>`)
+- 支持自定义技能目录 (`-s, --skill-dir`)
+- 技能模块化，可复用
+
+### 6. 自动化功能
+- **Ralph 模式** (`--ralph`): 自动循环工作直到任务完成
+- **自动修复** (`/fix`): 运行命令并自动修复错误
+- **验证功能** (`/validate`): 验证条件是否为真
+
+### 7. 开发工具
+- 内置构建脚本 (`toolbox_build_cli.py`)
+- 支持包管理和依赖安装
+- 支持创建分发包
+
+---
+
+## 应用方法
+
+### 环境配置
+
+设置以下环境变量：
 
 ```bash
-python kimi_agent_cli.py
+# 必需：Kimi API 密钥
+set KIMI_API_KEY=your_api_key_here
+
+# 可选：API 基础地址（默认：https://api.kimi.com/coding/v1）
+set KIMI_BASE_URL=https://api.kimi.com/coding/v1
+
+# 可选：模型名称（默认：kimi-for-coding）
+set KIMI_MODEL_NAME=kimi-for-coding
 ```
 
-### Command Line Options
-
-| Option | Description |
-|--------|-------------|
-| `-c`, `--clean` | Enable clean mode - delete session cache files after quitting |
-| `--ralph` | Enable ralph loop mode - automatically continues working until task is complete (may consume more tokens) |
-| `--no_think` | Disable thinking mode (thinking is ON by default) |
-| `--no_yolo` | Disable yolo mode (auto-confirm dangerous operations; yolo is ON by default) |
-| `-s`, `--skill-dir` | Specify custom skill directory |
-
-### Examples
+### 启动 CLI
 
 ```bash
-# Start CLI normally
+# 基本用法
 python kimi_agent_cli.py
 
-# Start with clean mode (deletes cache on exit)
+# 清理模式（退出时删除缓存）
 python kimi_agent_cli.py -c
-python kimi_agent_cli.py --clean
 
-# Start with ralph loop mode
+# Ralph 自动循环模式
 python kimi_agent_cli.py --ralph
 
-# Disable thinking mode (thinking is ON by default)
-python kimi_agent_cli.py --no_think
+# 启用思考模式
+python kimi_agent_cli.py --think
 
-# Disable yolo mode (safer mode, requires confirmation)
+# 禁用 YOLO 模式（更安全，需要确认危险操作）
 python kimi_agent_cli.py --no_yolo
 
-# Specify custom skill directory
-python kimi_agent_cli.py -s /path/to/skills
-python kimi_agent_cli.py --skill-dir ./my_skills
+# 指定自定义技能目录
+python kimi_agent_cli.py -s ./my_skills
 
-# Combine multiple options
-python kimi_agent_cli.py -c --ralph --no_think --no_yolo
+# 组合多个选项
+python kimi_agent_cli.py -c --ralph --no_yolo
 ```
 
-## Interactive Commands
+### 交互命令
 
-Once the CLI is running, you can use the following commands:
+启动后，你可以使用以下命令：
 
-| Command | Description |
-|---------|-------------|
-| `/help` | Show available commands |
-| `/clear` | Clear the conversation context and start fresh |
-| `/compact` | Compact the conversation context to save tokens |
-| `/context` | Display current context usage statistics |
-| `/exit` | Exit the program |
-| `/skill:<name>` | Load a specific skill from the skills directory |
-| `/file:<path>` | Load and execute a Python file line by line, or read a file as prompt |
-| `<path>` | Directly specify a Python file path to execute |
-| `/txt` | Input multiple lines of text (end with `/end`) |
-| `/todo` | Show or manage the todo list |
-| `/plan:<script.py>` | Make a plan and save as executable Python script |
-| `/validate:<prompt>` | Test if a condition is true |
-| `/fix:<command>` | Run a command and automatically fix errors if any |
+| 命令 | 说明 |
+|------|------|
+| `/help` | 显示帮助信息 |
+| `/clear` | 清除对话上下文 |
+| `/context` | 显示当前上下文使用统计 |
+| `/exit` | 退出程序 |
+| `/skill:<name>` | 加载指定技能 |
+| `/file:<path>` | 加载并执行文件 |
+| `/txt` | 输入多行文本（以 `/end` 结束） |
+| `/todo` | 显示/管理待办事项 |
+| `/validate:<prompt>` | 验证条件是否为真 |
+| `/fix:<command>` | 运行命令并自动修复错误 |
+| `/tool:<name>` | 运行 tools/ 目录下的脚本 |
+| `/think:on/off` | 开启/关闭思考模式 |
+| `/md:on/off` | 开启/关闭读取 AGENTS.md |
+| `/cd:<path>` | 切换工作目录 |
 
-### Command Examples
+### 使用示例
 
+#### 1. 基本对话
 ```
-# Send a prompt to the AI
 >>>>>>>>> Enter your prompt or command:
-Write a hello world program in Python
+写一个 Python 函数计算斐波那契数列
+```
 
-# Execute a Python file or a text file
+#### 2. 执行 Python 文件
+```
 >>>>>>>>> Enter your prompt or command:
 /file:script.py
-/file:my_prompt.txt
+```
 
-# Or simply provide the path
+或者直接输入文件路径：
+```
 >>>>>>>>> Enter your prompt or command:
 script.py
-my_prompt.txt
+```
 
-# Load a skill
+#### 3. 创建待办事项
+```
 >>>>>>>>> Enter your prompt or command:
-/skill:my-skill
+/todo:make 实现一个带用户认证的 REST API
+```
 
-# Check context usage
+然后可以管理任务状态：
+```
 >>>>>>>>> Enter your prompt or command:
-/context
+/todo:done 1
+/todo:in_progress 2
+```
 
-# Clear conversation history
+#### 4. 加载技能
+```
 >>>>>>>>> Enter your prompt or command:
-/clear
+/skill:python-dev
+```
 
-# Exit the CLI
->>>>>>>>> Enter your prompt or command:
-/exit
-
-# Show current todo list
->>>>>>>>> Enter your prompt or command:
-/todo
-
-# Create a plan (generates todo list)
->>>>>>>>> Enter your prompt or command:
-/plan:Implement a REST API with user authentication
-
-# Validate a condition
->>>>>>>>> Enter your prompt or command:
-/validate:Is Python an interpreted language?
-
-# Run a command and fix errors automatically
+#### 5. 运行命令并自动修复
+```
 >>>>>>>>> Enter your prompt or command:
 /fix:python my_script.py
+```
 
-# Input multiple lines of text
+#### 6. 验证条件
+```
+>>>>>>>>> Enter your prompt or command:
+/validate:Python 是解释型语言吗？
+```
+
+#### 7. 多行文本输入
+```
 >>>>>>>>> Enter your prompt or command:
 /txt
 >>>> Start input multiple-lines, end with /end
-This is line 1
-This is line 2
+这是第一行
+这是第二行
+这是第三行
 /end
-
-# Todo list commands
->>>>>>>>> Enter your prompt or command:
-/todo:make Create a REST API with auth
-/todo:done 1
-/todo:in_progress 2
-/todo:pending 3
 ```
 
-## Build Script (`toolbox_build_cli.py`)
+### Python API 用法
 
-A build utility for the kimi_cli project that handles dependency installation and package copying.
+你也可以在自己的 Python 脚本中使用 `kimi_utils.py`：
 
-### Commands
+```python
+from kimi_utils import prompt, create_session, close_session, fix_error
 
-#### `build` - Install Dependencies
+# 简单提示（自动创建临时会话）
+prompt("写一个计算斐波那契数列的函数")
 
-Recursively finds all `pyproject.toml` files under a project directory and installs their dependencies.
+# 使用持久化会话
+session = create_session("my-session")
+prompt("解释递归", session=session)
+prompt("给我一个例子", session=session)  # 保持上下文
+close_session(session)
 
-```bash
-python toolbox_build_cli.py build <project_dir> [options]
+# 自动修复错误
+fix_error("python my_script.py")
 ```
 
-**Options:**
-
-| Option | Description |
-|--------|-------------|
-| `--with-optional` | Also install optional dependencies (extras) |
-| `--optional-groups <groups>` | Specific optional dependency groups to install (e.g., `dev`, `test`) |
-
-**Examples:**
+### 构建脚本使用
 
 ```bash
-# Install dependencies for the current project
-python toolbox_build_cli.py build <cli_repo_path>
+# 安装项目依赖
+python toolbox_build_cli.py build <project_dir>
 
-# Install with all optional dependencies
-python toolbox_build_cli.py build <cli_repo_path> --with-optional
+# 复制本地包到 site-packages
+python toolbox_build_cli.py copy <sdk_repo> <cli_repo> <packages_path>
 
-# Install with specific optional groups
-python toolbox_build_cli.py build <cli_repo_path> --optional-groups dev test
-```
-
-#### `copy` - Copy Packages
-
-Copies package source files from development repositories to the site-packages directory. This is useful for testing local changes without reinstalling packages.
-
-```bash
-python toolbox_build_cli.py copy <sdk_repo_path> <cli_repo_path> <packages_path>
-```
-
-**Arguments:**
-
-| Argument | Description |
-|----------|-------------|
-| `sdk_repo_path` | Path to the kimi-agent-sdk repository |
-| `cli_repo_path` | Path to the kimi-cli repository |
-| `packages_path` | Path to the target site-packages directory |
-
-**Example:**
-
-```bash
-python toolbox_build_cli.py copy D:/kimi-agent-sdk D:/kimi-cli D:/venv/Lib/site-packages
-```
-
-**What gets copied:**
-- `kimi_agent_sdk` from `<sdk_repo_path>/python/src/kimi_agent_sdk`
-- `kimi_cli` from `<cli_repo_path>/src/kimi_cli`
-- `kaos` from `<cli_repo_path>/packages/kaos/src/kaos`
-- `kosong` from `<cli_repo_path>/packages/kosong/src/kosong`
-
-#### `package` - Create Distribution Package
-
-Packages the current project directory into a zip file, excluding build scripts and cache directories.
-
-```bash
-python toolbox_build_cli.py package <target_dir> [--output-name NAME]
-```
-
-**Arguments:**
-
-| Argument | Description |
-|----------|-------------|
-| `target_dir` | Path to the target directory where the zip file will be created |
-| `--output-name` | (Optional) Name of the output zip file without extension (default: `package`) |
-
-**Excluded Items:**
-- `toolbox_build_cli.py` - The build script itself
-- `agent.py` - Agent script
-- `__pycache__` folders - Python cache directories (anywhere in the tree)
-
-**Examples:**
-
-```bash
-# Create package.zip in the dist directory
-python toolbox_build_cli.py package ./dist
-
-# Create a named package
+# 创建分发包
 python toolbox_build_cli.py package ./dist --output-name myproject-v1.0
 ```
 
-## Agent Tools
+---
 
-The agent has access to various tools for file operations, code execution, web search, and more. Tools are defined in `agent_base.yaml` (basic tools) or `agent_full.yaml` (extended tools).
+## 注意事项
 
+- 只有 `.py` 文件可以通过 `/file` 命令直接执行
+- CLI 会保持对话上下文直到使用 `/clear` 清除
+- 每次 AI 响应后会显示上下文使用情况
+- 按 `Ctrl+C` 可随时中断当前操作或退出 CLI
+- 使用 YOLO 模式时，危险操作会自动确认，请谨慎使用
 
-### File Operations
+---
 
-| Tool | Description | Parameters |
-|------|-------------|------------|
-| `ReadFile` | Read text content from a file | `path` (str): File path; `line_offset` (int): Start line; `n_lines` (int): Number of lines |
-| `WriteFile` | Write content to a file | `path` (str): File path; `content` (str): Content to write; `mode` (str): "overwrite" or "append" |
-| `StrReplaceFile` | Replace strings in a file | `path` (str): File path; `edit` (dict/list): Replacement specification |
-| `Glob` | Find files using glob patterns | `pattern` (str): Glob pattern; `directory` (str): Search directory; `include_dirs` (bool): Include directories |
-| `Grep` | Search file contents using regex | `pattern` (str): Regex pattern; `path` (str): File/directory to search; `output_mode` (str): Output format; `-n` (bool): Show line numbers; `-i` (bool): Case insensitive; `-C` (int): Context lines |
-| `Ls` | List files in a directory | `directory` (str): Directory path; `long_format` (bool): Show detailed info; `recursive` (bool): List recursively |
+## 项目结构
 
-### Code Execution
-
-| Tool | Description | Parameters |
-|------|-------------|------------|
-| `Shell` | Execute shell commands (PowerShell on Windows, bash on Linux/macOS) | `command` (str): Command to execute; `timeout` (int): Timeout in seconds (1-900, default 60) |
-| `Python` | Execute Python code using exec() | `code` (str): Python code; `globals_dict` (dict): Global variables; `locals_dict` (dict): Local variables |
-| `CppSyntaxCheck` | Check C++ file syntax using clangd LSP | `file_path` (str): C++ file path; `project_root` (str): Project root; `clangd_path` (str): Path to clangd |
-
-### Web Tools
-
-| Tool | Description | Parameters |
-|------|-------------|------------|
-| `SearchWeb` | Search the web | Query parameters for web search |
-| `FetchURL` | Fetch and extract content from a URL | `url` (str): URL to fetch |
-
-### Task Management
-
-| Tool | Description | Parameters |
-|------|-------------|------------|
-| `SetTodoList` | Update the todo list for task tracking | `todos` (list): List of todo items with `title` and `status` ("pending", "in_progress", "done") |
-| `GetTodoList` | Retrieve the current todo list | No parameters |
-| `SetValue` | Set a flag (used for validation/confirmation) | No parameters |
-
-
-### Archive Operations
-
-| Tool | Description | Parameters |
-|------|-------------|------------|
-| `Zip` | Create a 7z archive | `source` (str): File/directory to compress; `destination` (str): Output path; `password` (str): Optional password |
-| `Unzip` | Extract archives (7z/zip/rar/tar/gz) | `source` (str): Archive path; `destination` (str): Output directory; `password` (str): Optional password |
-
-### Document Processing
-
-| Tool | Description | Parameters |
-|------|-------------|------------|
-| `PdfToMarkdown` | Convert PDF documents to Markdown | `pdf_path` (str): PDF file path; `output_path` (str): Output file path; `extract_images` (bool): Extract images; `ocr` (bool): Run OCR on images; `extract_tables` (bool): Extract tables; `page_range` (str): Page range (e.g., "0-5") |
-| `ImageToText` | Extract text from images using OCR | `image_path` (str): Image file path; `output_path` (str): Output text file; `language` (str): OCR language code; `preprocess` (bool): Apply image preprocessing |
-
-### Agent Management
-
-| Tool | Description | Parameters |
-|------|-------------|------------|
-| `CreateAgent` | Create a subagent and run prompt asynchronously | `prompt` (str): Prompt to send; `session_id` (str): Optional session ID |
-| `WaitAgent` | Wait for a subagent session to finish | `session_id` (str): Session ID to wait for; `timeout` (float): Timeout in seconds |
-| `StoreSession` | Save session context to database | `value` (str): Context value to save |
-| `LoadSession` | Load session context from database | `key` (str): Context key to load |
-
-## Python API Usage
-
-You can also use `kimi_utils.py` as a Python library to integrate Kimi AI into your own scripts.
-
-### Import
-
-```python
-from kimi_utils import (
-    prompt, create_session, close_session,
-    clear_context, print_usage, validate,
-    prompt_path, fix_error, read_file
-)
 ```
-
-### Session Management
-
-| Function | Description |
-|----------|-------------|
-| `create_session(session_id=None)` | Create a new AI session. Auto-generates session ID if not provided. |
-| `close_session(session)` | Close an existing session. |
-| `get_default_session()` | Get the default session (if exists). |
-| `clear_context()` | Clear the default session and create a fresh one. |
-| `print_usage(session=None)` | Display context usage statistics for a session. |
-
-### Prompt Functions
-
-| Function | Description |
-|----------|-------------|
-| `prompt(prompt_str, session=None)` | Send a prompt to the AI. Creates a temporary session if none provided. |
-| `async_prompt(prompt_str, session=None)` | Async version of `prompt()` - runs in a separate thread. |
-| `prompt_path(path, split_word=None, session=None)` | Read a file and send its contents as a prompt. Optionally split by a delimiter. |
-
-### Validation
-
-| Function | Description |
-|----------|-------------|
-| `validate(prompt_str, session=None)` | Validate a condition by prompting the AI. Returns `True` if validation passes (AI calls SetValue tool). |
-
-### Error Fixing
-
-| Function | Description |
-|----------|-------------|
-| `fix_error(command, extra_prompt=None, skip_success=True, keycode=('error',), session=None)` | Run a command and automatically fix errors using AI. |
-| `async_fix_error(...)` | Async version of `fix_error()` - runs in a separate thread. |
-
-### Utility
-
-| Function | Description |
-|----------|-------------|
-| `read_file(path, split_word=None)` | Read a file's contents. Optionally split by a delimiter. |
-| `context_path()` | Get the path where session data is stored (`~/.kimi/sessions`). |
-| `delete_session_dir()` | Delete all session cache files. |
-
-### API Examples
-
-```python
-from kimi_utils import prompt, create_session, close_session, clear_context, fix_error
-
-# Simple prompt (auto-creates temporary session)
-prompt("Write a Python function to calculate fibonacci numbers")
-
-# Using a persistent session
-session = create_session("my-session")
-prompt("Explain recursion", session=session)
-prompt("Give me an example", session=session)  # Maintains context
-close_session(session)
-
-# Clear context when it gets too large
-clear_context()
-
-# Fix errors in a command automatically
-fix_error("python my_script.py", keycode=("error", "exception"))
-
-# Validate a condition
-from kimi_utils import validate
-result = validate("Is Python an interpreted language?")
-print(result)  # True if AI confirms
+kimi-agent/
+├── kimi_agent_cli.py      # 主 CLI 入口
+├── kimi_utils.py          # Python API 工具函数
+├── agent_utils.py         # Agent 工具函数
+├── toolbox_build_cli.py   # 构建脚本
+├── BUILD.md               # 详细构建文档
+├── agent_boss.yaml        # Agent 基础配置
+├── agent_worker.yaml      # Agent 工作配置
+├── kaos/                  # Kaos 路径库
+├── kosong/                # Kosong 工具库
+├── kimi_cli/              # CLI 核心包
+├── kimi_agent_sdk/        # Kimi Agent SDK
+├── my_tools/              # 自定义工具
+└── tools/                 # 工具脚本目录
 ```
-
-### Todo Commands
-
-| Command | Description |
-|---------|-------------|
-| `/todo` or `/todo:list` | Show current todo list |
-| `/todo:make <prompt>` | Create a new todo list based on the prompt |
-| `/todo:clear` | Clear all todo items |
-| `/todo:done <n>` | Mark item(s) as done (e.g., `/todo:done 1,2` or `/todo:done 1-3`) |
-| `/todo:in_progress <n>` | Mark item(s) as in_progress |
-| `/todo:pending <n>` | Mark item(s) as pending |
-| `/todo:help` | Show todo commands help |
-
-## Notes
-
-- Only `.py` files can be executed directly through the `/file` command
-- The CLI maintains conversation context across prompts until `/clear` is used
-- Context usage information is displayed after each AI response
-- Press `Ctrl+C` (Keyboard Interrupt) at any time to interrupt the current operation or exit the CLI

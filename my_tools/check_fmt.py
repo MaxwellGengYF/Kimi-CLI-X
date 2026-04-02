@@ -1,7 +1,6 @@
 """JSON file validator tool."""
 import xml.etree.ElementTree as ET
 import json
-from enum import Enum
 
 
 def check_json(file_path: str, json_callback = None) -> str | None:
@@ -41,7 +40,8 @@ def check_xml(file_path: str, xml_callback = None) -> str | None:
     """
     try:
         tree = ET.parse(file_path)
-        xml_callback(tree)
+        if xml_callback:
+            xml_callback(tree)
         return None
 
     except ET.ParseError as exc:
