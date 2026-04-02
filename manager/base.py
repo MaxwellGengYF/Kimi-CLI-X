@@ -7,6 +7,8 @@ from pathlib import Path
 from agent_utils import print_error, _get_skill_dirs, run_thread
 
 _ask_mode = False
+
+
 def check_path_format(path: str) -> bool:
     """Check if a path's format is valid.
 
@@ -136,10 +138,13 @@ class Worker:
     def __init__(self, name: str, task, clear_db=False):
         self._db_path = name + ".db"
         if clear_db:
-            import shutil
-            shutil.rmtree(self._db_path, ignore_errors=True)
+            self.clear_db()
         self._task = task
         self._mutex = threading.Lock()
+
+    def clear_db(self):
+        import shutil
+        shutil.rmtree(self._db_path, ignore_errors=True)
 
     def get_job(self, job_name: str):
         """Load a single job from database."""
@@ -269,7 +274,7 @@ def get_worker(worker_name: str) -> Worker:
 def get_all_workers() -> dict[str, Worker]:
     """Get a copy of all workers."""
     with _workers_mutex:
-        return dict(_workers)
+        return _workers
 
 
 def execute_all_jobs():

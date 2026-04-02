@@ -10,7 +10,7 @@ agent:
     - "my_tools.flag:SetValue"
     - "my_tools.todo:SetTodoList"
     - "my_tools.todo:GetTodoList"
-    - "my_tools.file:WriteFile"
+    - "kimi_cli.tools.file:WriteFile"
     - "my_tools.office:DocxToMarkdown"
     - "my_tools.img:ImageToText"
     - "my_tools.pdf:PdfToMarkdown"

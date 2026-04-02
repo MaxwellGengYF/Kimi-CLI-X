@@ -40,8 +40,10 @@ def schedule_project(content: str, job_name: str = None):
 
 
 def start_work():
-    from .base import execute_all_jobs
+    from .base import execute_all_jobs, get_all_workers
     execute_all_jobs()
+    for v in get_all_workers().values():
+        v.clear_db()
 
 
 def do_job(job_json_path: str):
