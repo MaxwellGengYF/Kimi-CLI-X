@@ -88,7 +88,8 @@ async def _create_session_async(
     thinking: Optional[bool] = None,
     yolo: Optional[bool] = None,
     agent_file: Optional[Path] = None,
-    resume=False
+    resume=False,
+    plan_mode: Optional[bool] = None
 ):
     global _session_idx
     if session_id is None:
@@ -123,6 +124,7 @@ async def _create_session_async(
             skills_dirs=_ensure_skill_dirs(
                 skills_dir) if skills_dir is not None else agent_utils._get_skill_dirs(),
             yolo=yolo if yolo is not None else agent_utils._default_yolo,
+            plan_mode=plan_mode if plan_mode is not None else agent_utils._default_plan_mode,
             thinking=thinking if thinking is not None else agent_utils._default_thinking,
             config=cfg,
             agent_file=agent_file
@@ -136,6 +138,7 @@ async def _create_session_async(
             skills_dirs=_ensure_skill_dirs(
                 skills_dir) if skills_dir is not None else agent_utils._get_skill_dirs(),
             yolo=yolo if yolo is not None else agent_utils._default_yolo,
+            plan_mode=plan_mode if plan_mode is not None else agent_utils._default_plan_mode,
             thinking=thinking if thinking is not None else agent_utils._default_thinking,
             config=cfg,
             agent_file=agent_file
@@ -151,7 +154,8 @@ def create_session(
     thinking: Optional[bool] = None,
     yolo: Optional[bool] = None,
     agent_file: Optional[Path] = None,
-    resume=False
+    resume=False,
+    plan_mode: Optional[bool] = None
 ):
 
     return asyncio.run(_create_session_async(
@@ -162,7 +166,8 @@ def create_session(
         thinking,
         yolo,
         agent_file,
-        resume
+        resume,
+        plan_mode
     ))
 
 

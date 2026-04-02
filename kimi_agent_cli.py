@@ -19,7 +19,8 @@ if not curr_dir.is_absolute():
 HELP_STR = '''Command line options:
   -c, --clean         - Delete cache file after quit
   --ralph             - Continue work until done (auto-loop)
-  --think          - Disable thinking mode
+  --think          - Enable thinking mode
+  --plan           - Enable plan mode
   --no_yolo           - Disable YOLO mode
   -s, --skill-dir     - Specify custom skill directory
 
@@ -38,6 +39,8 @@ Available commands:
   /txt            - input multiple line text
   /think:on       - Enable thinking mode
   /think:off      - Disable thinking mode
+  /plan:on        - Enable plan mode
+  /plan:off       - Disable plan mode
   /script         - Write python script
   /cmd            - Write cmd 
   /cd             - change dir
@@ -65,7 +68,9 @@ def set_arg():
     parser.add_argument('-ralph', '--ralph', action='store_true',
                         help='Continue work until done (auto-loop)')
     parser.add_argument('-think', '--think', action='store_true',
-                        help='Disable thinking mode')
+                        help='Enable thinking mode')
+    parser.add_argument('-plan', '--plan', action='store_true',
+                        help='Enable plan mode')
     parser.add_argument('-no_yolo', '--no_yolo', action='store_true',
                         help='Disable YOLO mode')
     parser.add_argument('-s', '--skill-dir', type=str, nargs='*', default=None,
@@ -94,6 +99,13 @@ def set_arg():
     else:
         agent_utils._default_thinking = False
         print_debug('Thinking OFF.')
+
+    if args.plan:
+        agent_utils._default_plan_mode = True
+        print_debug('Plan mode ON.')
+    else:
+        agent_utils._default_plan_mode = False
+        print_debug('Plan mode OFF.')
 
     if args.no_yolo:
         agent_utils._default_yolo = False
@@ -265,6 +277,23 @@ def _run_cli():
         clear_context(True, True)
         return None, False
 
+    def _cmd_plan(task_split):
+        if len(task_split) < 2:
+            print_error('Command must be /plan:on or /plan:off')
+            return None, False
+        value = task_split[1].strip().lower()
+        if value == 'on':
+            agent_utils._default_plan_mode = True
+            print_success('Plan mode enabled.')
+        elif value == 'off':
+            agent_utils._default_plan_mode = False
+            print_success('Plan mode disabled.')
+        else:
+            print_error('Command must be /plan:on or /plan:off')
+            return None, False
+        clear_context(True, True)
+        return None, False
+
     def _cmd_txt(task_split):
         print('\n>>>> Start input multiple-lines, end with /end')
         text = []
@@ -410,6 +439,7 @@ def _run_cli():
         'fix': _cmd_fix,
         'validate': _cmd_validate,
         'think': _cmd_think,
+        'plan': _cmd_plan,
         'txt': _cmd_txt,
         'todo': _cmd_todo,
         'skill': _cmd_skill,

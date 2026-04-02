@@ -76,6 +76,9 @@ python kimi_agent_cli.py --ralph
 # 启用思考模式
 python kimi_agent_cli.py --think
 
+# 启用计划模式
+python kimi_agent_cli.py --plan
+
 # 禁用 YOLO 模式（更安全，需要确认危险操作）
 python kimi_agent_cli.py --no_yolo
 

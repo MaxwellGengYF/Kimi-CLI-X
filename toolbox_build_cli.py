@@ -247,7 +247,7 @@ def package_project(target_dir: str, output_name: str) -> None:
         zip_file_path.unlink()
     
     # Exclusion list
-    excluded_files = {"toolbox_build_cli.py", '.gitignore', '.gitmodule'}
+    excluded_files = {"toolbox_build_cli.py", '.gitignore', '.gitmodule', 'BUILD.md', 'ChangeLog.md'}
     excluded_dirs = {"__pycache__", '.git', '.pytest_cache', '.agents'}
     
     print(f"Packaging contents of: {current_dir}")

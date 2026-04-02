@@ -320,6 +320,7 @@ from pathlib import Path
 
 _ralph_iterations = 0
 _default_thinking = False
+_default_plan_mode = False
 _default_yolo = True
 _default_agent_file = Path(__file__).parent / 'agent_worker.yaml'
 _default_skill_dirs = []
