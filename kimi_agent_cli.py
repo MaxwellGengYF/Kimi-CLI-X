@@ -3,7 +3,7 @@ import agent_utils
 from pathlib import Path
 from kaos.path import KaosPath
 import asyncio
-from kimi_utils import print_success, print_error, print_warning, print_info, prompt, clear_context, sync_all,  _create_default_session, print_usage, delete_session_dir, print_debug, get_default_session, fix_error, validate, get_todo, clear_todo, make_todo, update_todo_status
+from kimi_utils import print_success, print_error, print_warning, print_info, prompt, clear_context, sync_all,  _create_default_session, print_usage, delete_session_dir, print_debug, get_default_session, fix_error, validate
 import os
 import sys
 import subprocess
@@ -34,8 +34,6 @@ Available commands:
   /context        - Print context usage
   /validate       - Test if a condition is true
   /fix:<command>  - Run a command and fix errors if any
-  /todo           - Show todo list
-  /todo:help      - Show todo commands help
   /txt            - input multiple line text
   /think:on       - Enable thinking mode
   /think:off      - Disable thinking mode
@@ -306,60 +304,6 @@ def _run_cli():
             text_arr.append(i)
         return None, False
 
-    def _cmd_todo(task_split):
-        subcommand = task_split[1].strip() if len(task_split) > 1 else ''
-
-        if subcommand == 'list':
-            result = get_todo(get_default_session())
-            if not result:
-                print_info('No todo items found.')
-            else:
-                todos = result.todos if hasattr(result, 'todos') else []
-                if not todos:
-                    print_info('No todo items found.')
-                else:
-                    print_success('Todo list:')
-                    for i, todo in enumerate(todos, 1):
-                        status = todo.status if hasattr(
-                            todo, 'status') else todo.get('status', 'pending')
-                        title = todo.title if hasattr(
-                            todo, 'title') else todo.get('title', 'Unknown')
-                        status_icon = {'pending': '⏳', 'in_progress': '🔄', 'done': '✅'}.get(
-                            status, '⏳')
-                        print_info(f'  {i}. [{status_icon}] {title}')
-        elif subcommand == 'clear':
-            clear_todo(get_default_session())
-            print_success('Todo list cleared.')
-        elif subcommand.startswith('make ') or subcommand == 'make':
-            subcommand = subcommand[4:]
-            if not make_todo(subcommand.strip(), get_default_session()):
-                print_error('Make todo-list failed.')
-            else:
-                print_success(f'Make todo-list success.')
-        elif subcommand.startswith('done ') or subcommand == 'done':
-            update_todo_status(get_default_session(), subcommand[5:].strip(
-            ) if subcommand.startswith('done ') else '', 'done')
-        elif subcommand.startswith('in_progress ') or subcommand == 'in_progress':
-            update_todo_status(get_default_session(), subcommand[12:].strip(
-            ) if subcommand.startswith('in_progress ') else '', 'in_progress')
-        elif subcommand.startswith('pending ') or subcommand == 'pending':
-            update_todo_status(get_default_session(), subcommand[8:].strip(
-            ) if subcommand.startswith('pending ') else '', 'pending')
-        elif not subcommand or subcommand == 'help':
-            print_info('''Todo commands:
-  /todo           - Show this help message
-  /todo:list      - Show current todo list
-  /todo:make      - Make a new todo list
-  /todo:clear     - Clear all todo items
-  /todo:done <n>  - Mark item(s) as done (e.g., /todo:done 1,2 or /todo:done 1-3)
-  /todo:in_progress <n> - Mark item(s) as in_progress
-  /todo:pending <n>     - Mark item(s) as pending
-  /todo:help      - Show this help message''')
-        else:
-            print_warning(
-                f'Unknown todo command: {subcommand}. Use /todo:help for usage.')
-        return None, False
-
     def _cmd_skill(task_split):
         if len(task_split) < 2:
             print_error('Command must be /skill:xx')
@@ -441,7 +385,6 @@ def _run_cli():
         'think': _cmd_think,
         'plan': _cmd_plan,
         'txt': _cmd_txt,
-        'todo': _cmd_todo,
         'skill': _cmd_skill,
         'file': _cmd_file,
         'tool': _cmd_tool,
@@ -494,6 +437,7 @@ def _run_cli():
                             print_info(
                                 f'Executing {path.name}', end='\n\n')
                             try:
+                                exec_ctx['__file__'] = path
                                 exec(s, exec_ctx)
                             except KeyboardInterrupt as e:
                                 raise e
