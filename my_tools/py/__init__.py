@@ -41,7 +41,8 @@ class Python(CallableTool2):
             # Create a restricted globals dict for safer execution
             exec_globals = {"__builtins__": __builtins__,
                             '__name__': '__main__'}
-            exec_locals = {}
+            # Use exec_globals as locals too so functions can reference each other
+            # This is needed for recursive function calls to work properly
 
             # Capture stdout and stderr
             stdout_buffer = io.StringIO()
@@ -49,11 +50,10 @@ class Python(CallableTool2):
             exception = None
             with contextlib.redirect_stdout(stdout_buffer), contextlib.redirect_stderr(stderr_buffer):
                 try:
-                    exec(code, exec_globals, exec_locals)
+                    exec(code, exec_globals, exec_globals)
                 except Exception as e:
                     # Capture full exception info including traceback
-                    error_output = traceback.format_exc()
-                    exception = str(e) + '\n' + error_output
+                    exception = traceback.format_exc()
 
             return stdout_buffer.getvalue(), stderr_buffer.getvalue(), exception
 
@@ -71,8 +71,8 @@ class Python(CallableTool2):
 
             # Handle dest parameter if provided
             if params.dest:
-                output, new_id = _export_to_temp_file(Path(params.dest), output)
-                output = f'output exported to: {output}'
+                Path(params.dest).write_text(output, encoding='utf-8')
+                output = f'output exported to: {params.dest}'
             else:
                 output = _maybe_export_output(output)
             if exception:

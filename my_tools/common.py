@@ -12,7 +12,7 @@ def _estimate_tokens(text: str) -> int:
     return len(text) // 4
 
 
-def _export_to_temp_file(key: Path | None, content: str) -> str:
+def _export_to_temp_file(key: Path | None, content: str) -> tuple[str, bool]:
     global _temp_idx
     """Export content to a temporary file and return the file path."""
     id = _temp_idx
