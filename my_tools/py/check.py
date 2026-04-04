@@ -1,7 +1,6 @@
 import asyncio
 import subprocess
 import sys
-import os
 from my_tools.common import _maybe_export_output
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
@@ -9,8 +8,8 @@ from pathlib import Path
 
 
 class Params(BaseModel):
-    code: str = Field(
-        description="The Python code to analyze.",
+    file_path: str = Field(
+        description="The path to the Python file to analyze.",
     )
 
 
@@ -33,18 +32,19 @@ class PySyntaxCheck(CallableTool2):
                     brief="Ruff installation failed"
                 )
 
-        # Write code to a temp file for ruff to analyze
-        temp_file = None
+        # Read code from file and use it for ruff analysis
         try:
-            import tempfile
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as f:
-                f.write(params.code)
-                temp_file = f.name
-
+            file_path = Path(params.file_path)
+            if not file_path.exists():
+                return ToolError(
+                    message=f"File not found: {params.file_path}",
+                    brief="File not found"
+                )
+            
             # Run ruff check to get errors and warnings
             result = await asyncio.to_thread(
                 subprocess.run,
-                [sys.executable, "-m", "ruff", "check", temp_file, "--output-format=json"],
+                [sys.executable, "-m", "ruff", "check", str(file_path), "--output-format=json"],
                 capture_output=True,
                 text=True
             )
@@ -77,7 +77,7 @@ class PySyntaxCheck(CallableTool2):
             # Also check for formatting issues as hints
             fmt_result = await asyncio.to_thread(
                 subprocess.run,
-                [sys.executable, "-m", "ruff", "format", temp_file, "--check", "--output-format=json"],
+                [sys.executable, "-m", "ruff", "format", str(file_path), "--check", "--output-format=json"],
                 capture_output=True,
                 text=True
             )
@@ -110,6 +110,3 @@ class PySyntaxCheck(CallableTool2):
 
         except Exception as e:
             return ToolError(message=str(e), brief="PySyntaxCheck error")
-        finally:
-            if temp_file and os.path.exists(temp_file):
-                os.unlink(temp_file)
