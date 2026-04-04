@@ -2,6 +2,7 @@ import dbm
 import json
 import re
 import threading
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from agent_utils import print_error, _get_skill_dirs, run_thread
@@ -57,18 +58,22 @@ class Job:
 
     def serialize(self) -> str:
         """Serialize job to JSON string."""
-        if not isinstance(self.target, str):
-            raise TypeError(
-                f"target must be a string, got {type(self.target).__name__}")
         for i, step in enumerate(self.steps):
             if not isinstance(step, str):
                 raise TypeError(
                     f"step at index {i} must be a string, got {type(step).__name__}")
-        for i, skill in enumerate(self.skills):
-            if not isinstance(skill, str):
-                raise TypeError(
-                    f"skill at index {i} must be a string, got {type(skill).__name__}")
-        return json.dumps({"steps": self.steps, "target": self.target, "skills": self.skills, "directory": self.directory})
+        result = {"steps": self.steps}
+        if self.target:
+            result["target"] = self.target
+        if self.skills:
+            for i, skill in enumerate(self.skills):
+                if not isinstance(skill, str):
+                    raise TypeError(
+                        f"skill at index {i} must be a string, got {type(skill).__name__}")
+            result["skills"] = self.skills
+        if self.directory:
+            result["directory"] = self.directory
+        return json.dumps(result)
 
     @staticmethod
     def check_json_dict_validate(json_dict: dict):
@@ -85,11 +90,9 @@ class Job:
             if not isinstance(s, str):
                 raise Exception('All items in "steps" must be strings')
 
-        # Validate target
+        # Validate target (optional)
         target = json_dict.get("target")
-        if target is None:
-            raise Exception('Missing required field "target"')
-        if not isinstance(target, str):
+        if target is not None and not isinstance(target, str):
             raise Exception('"target" must be a string')
 
         # Validate skills (optional)
@@ -113,13 +116,14 @@ class Job:
                     raise Exception(
                         f'Skill "{s}" does not exist in skill directory')
 
-        # Validate directory
+        # Validate directory (optional)
         directory = json_dict.get("directory")
-        if not isinstance(directory, str):
-            raise Exception('"directory" must be a string')
-        if not check_path_format(directory):
-            raise Exception(
-                f'"directory" has invalid path format: "{directory}"')
+        if directory is not None:
+            if not isinstance(directory, str):
+                raise Exception('"directory" must be a string')
+            if not check_path_format(directory):
+                raise Exception(
+                    f'"directory" has invalid path format: "{directory}"')
 
     @classmethod
     def deserialize(cls, data: str) -> "Job":
@@ -130,7 +134,7 @@ class Job:
         obj.steps = parsed.get("steps", [])
         obj.target = parsed.get("target", "")
         obj.skills = parsed.get("skills", [])
-        obj.directory = parsed.get("directory", ".")
+        obj.directory = parsed.get("directory", "")
         return obj
 
 
@@ -257,24 +261,29 @@ class Worker:
         return False
 
 
-_workers = dict()
+_workers: deque[Worker] = deque()
 _workers_mutex = threading.Lock()
 
 
-def add_worker(worker_name: str, worker: Worker):
+def add_worker(worker: Worker):
     with _workers_mutex:
-        _workers[worker_name] = worker
+        _workers.append(worker)
 
 
-def get_worker(worker_name: str) -> Worker:
+def get_worker() -> Worker | None:
+    """Get a worker using ring-queue design (dequeue from left, enqueue to right)."""
     with _workers_mutex:
-        return _workers.get(worker_name)
+        if not _workers:
+            return None
+        worker = _workers.popleft()
+        _workers.append(worker)
+        return worker
 
 
-def get_all_workers() -> dict[str, Worker]:
+def get_all_workers() -> list[Worker]:
     """Get a copy of all workers."""
     with _workers_mutex:
-        return _workers
+        return list(_workers)
 
 
 def execute_all_jobs():
@@ -298,8 +307,8 @@ def execute_all_jobs():
 
         with ThreadPoolExecutor(max_workers=len(workers)) as executor:
             futures = {
-                executor.submit(worker_loop, worker): name
-                for name, worker in workers.items()
+                executor.submit(worker_loop, worker): i
+                for i, worker in enumerate(workers)
             }
 
             for future in as_completed(futures):
@@ -309,7 +318,7 @@ def execute_all_jobs():
                     print_error()
         # Check if any worker still has jobs (including newly added workers)
         has_any_jobs = False
-        for worker in get_all_workers().values():
+        for worker in get_all_workers():
             if worker.has_jobs():
                 has_any_jobs = True
                 break

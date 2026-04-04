@@ -100,10 +100,6 @@ async def _create_session_async(
     # No ralph mode defaultly, manually do validate please
     cfg.loop_control.max_ralph_iterations = agent_utils._ralph_iterations
     cfg.loop_control.max_steps_per_turn = 10000
-    if agent_utils._ralph_iterations != 0:  # type: ignore
-        cfg.loop_control.reserved_context_size = 48_000
-    else:
-        cfg.loop_control.reserved_context_size = 32_000
     # custom config
     if ralph_loop is not None:
         cfg.loop_control.max_ralph_iterations = -1 if ralph_loop else 0

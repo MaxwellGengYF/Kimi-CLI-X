@@ -8,6 +8,7 @@ from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 from my_tools.common import _export_to_temp_file
 from pathlib import Path
+from .check import PySyntaxCheck
 
 class Params(BaseModel):
     code: str = Field(

@@ -1,25 +1,23 @@
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
-from kimi_utils import prompt, _create_session_async
-from pathlib import Path
-
-class CreateAgentParams(BaseModel):
-    prompt_path: str = Field(
-        description="The path to the prompt file to send to the agent session.",
+from kimi_utils import prompt
+from my_tools.common import _maybe_export_output
+class SubAgentParams(BaseModel):
+    prompt: str = Field(
+        description="The prompt to send to the sub-agent.",
     )
 
-class CreateAgent(CallableTool2):
-    name: str = "CreateAgent"
+class SubAgent(CallableTool2):
+    name: str = "SubAgent"
     description: str = "Create a sub-agent."
-    params: type[CreateAgentParams] = CreateAgentParams
+    params: type[SubAgentParams] = SubAgentParams
 
-    async def __call__(self, params: CreateAgentParams) -> ToolReturnValue:
+    async def __call__(self, params: SubAgentParams) -> ToolReturnValue:
         global _sessions
         try:
             # Sub-agent should disable thinking, ralph, enable yolo
             # Run the prompt asynchronously
-            prompt_content = Path(params.prompt_path).read_text(encoding='utf-8')
-            prompt(prompt_content, False)
+            prompt(_maybe_export_output(params.prompt), False)
             return ToolOk(output=f"")
         except Exception as exc:
             return ToolError(

@@ -4,5 +4,5 @@ kaos/
 kimi_agent_sdk/
 kimi_cli/
 kosong/
-package.zip
 requirements.txt
+tests/
