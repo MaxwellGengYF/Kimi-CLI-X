@@ -2,7 +2,7 @@
 # Using 8000 as a conservative threshold to stay well below typical model limits
 from pathlib import Path
 import tempfile
-OUTPUT_TOKEN_LIMIT = 4096
+OUTPUT_TOKEN_LIMIT = 1024
 _temp_folder = Path.home() / '.kimi' / 'sessions'
 _temp_idx = 0
 _temp_set = dict()

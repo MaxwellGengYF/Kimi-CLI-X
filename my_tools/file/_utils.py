@@ -15,6 +15,7 @@ class ProcessState:
         self.last_write_time = time.time()
         self.stdout_lines = io.StringIO()
         self.output_queue: queue.Queue = queue.Queue()
+        self.output_path = None
         self.reader_threads = None
         self.process: Optional[subprocess.Popen] = None
         self.name = None
@@ -24,6 +25,8 @@ class ProcessState:
         """Set the process."""
         if p is None:
             self.name = None
+            self.output_path = None
+            self.reader_threads = None
         self.process = p
         self.detect_input = detect_input
 
@@ -84,6 +87,12 @@ def get_output_text():
 def get_final_output():
     output_text = get_output_text()
     _state.set_stdout_lines()
+    # Save output to file if output_path is provided
+    output_path = get_state().output_path
+    if output_path:
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(output_text)
+        return f'exported to {output_path}'
     return _maybe_export_output(output_text, _state.name)
 
 

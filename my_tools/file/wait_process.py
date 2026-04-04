@@ -39,7 +39,6 @@ class WaitProcess(CallableTool2):
                 # Return
                 if return_code is not None:
                     state.join(timeout=1)
-                    state.set_reader_threads(None)
                     state.set_process(None)
                     output = get_final_output()
                     if return_code != 0:

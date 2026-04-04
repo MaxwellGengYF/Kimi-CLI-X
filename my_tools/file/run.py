@@ -6,7 +6,7 @@ import time
 
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
-
+from my_tools.common import _maybe_export_output
 from my_tools.file._utils import (
     get_state,
     get_final_output, get_output_text, _check_for_input_prompt, _read_streams_into_queue
@@ -21,13 +21,17 @@ class RunParams(BaseModel):
         default_factory=list,
         description="List of arguments to pass to the executable.",
     )
+    timeout: int | None = Field(
+        default=120,
+        description="Timeout in seconds. If not specified, no timeout is applied.",
+    )
     cwd: str | None = Field(
         default=None,
         description="Working directory to run the process in. If not specified, uses the current directory.",
     )
-    timeout: int | None = Field(
-        default=120,
-        description="Timeout in seconds. If not specified, no timeout is applied.",
+    output_path: str | None = Field(
+        default=None,
+        description="Destination path to save the output. If provided, output will be saved to this file.",
     )
     detect_input: bool = Field(
         default=False,
@@ -76,6 +80,7 @@ class Run(CallableTool2):
                 errors='replace'
             ), params.detect_input)
             state.name = params.path
+            state.output_path = params.output_path
             state.set_reader_threads([
                 threading.Thread(
                 target=_read_streams_into_queue,
@@ -118,7 +123,6 @@ class Run(CallableTool2):
                     state.process.kill()
                     state.process.wait()
                     state.join(timeout=1)
-                    state.set_reader_threads(None)
                     state.set_process(None)
                     output = get_final_output()
                     message = f"Process timed out after {params.timeout} seconds"
@@ -134,7 +138,6 @@ class Run(CallableTool2):
             # Collect all output from queue
             output = get_final_output()
             state.join(timeout=1)
-            state.set_reader_threads(None)
             state.set_process(None)
             if return_code != 0:
                 return ToolError(
@@ -148,7 +151,6 @@ class Run(CallableTool2):
         except Exception as exc:
             # Clean up
             state.set_process(None)
-            state.set_reader_threads(None)
             return ToolError(
                 output=get_final_output(),
                 message=str(exc),
