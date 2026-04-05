@@ -44,7 +44,7 @@ class SubAgent(CallableTool2):
                 return None
 
             err_msg = await asyncio.to_thread(prompt_func)
-            output = '\n'.join(output_lst)
+            output = _maybe_export_output('\n'.join(output_lst))
             if err_msg:
                 return ToolError(output=output, message=err_msg, brief='')
             return ToolOk(output=output)
