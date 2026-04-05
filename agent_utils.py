@@ -1,3 +1,5 @@
+from pathlib import Path
+from typing import Callable
 import os
 from enum import Enum
 from typing import Optional
@@ -62,6 +64,8 @@ class Style(Enum):
 
 _colorful_print = True
 _print_func = None
+
+
 def colorful_print(
     text: str,
     fg: Optional[Color] = None,
@@ -101,7 +105,10 @@ def colorful_print(
     else:
         print(text, end=end)
 
+
 _quiet = False
+
+
 def print_success(text: str, end: str = "\n") -> None:
     """Print success message in green."""
     colorful_print(text, fg=Color.BRIGHT_GREEN, styles=[Style.BOLD], end=end)
@@ -153,7 +160,7 @@ def _process_lru():
         _threads = [p for p in _threads if p.is_alive()]
 
 
-def print_agent_json(get_message):
+def print_agent_json(get_message, output_function: Callable | None = None):
     json_str = None
     try:
         json_str = get_message()
@@ -185,6 +192,7 @@ def print_agent_json(get_message):
         'SearchWeb': ('query', 'limit', 'include_content'),
         'PowerShell': ('command', 'timeout'),
         'Bash': ('command', 'timeout'),
+        'SubAgent': ('prompt', 'session_id')
     }
 
     def print_item(item):
@@ -204,6 +212,8 @@ def print_agent_json(get_message):
             text_content = item.get("text", "")
             if text_content:
                 if not (text_content.find('<choice>') >= 0 and text_content.find('</choice>') >= 0):
+                    if output_function:
+                        output_function(text_content)
                     if _print_func:
                         _print_func(f"\n{text_content}", '\n')
                     else:
@@ -316,7 +326,6 @@ def _run_process_with_error(command: str, keycode: tuple, skip_success: bool = T
 def _percentage_str(num: float) -> str:
     return f"{num * 100:.1f}%"
 
-from pathlib import Path
 
 _ralph_iterations = 0
 _default_thinking = False
@@ -356,5 +365,3 @@ def _get_skill_dirs(use_kaos_path=True):
             ]
         return _default_skill_dirs
     return []
-
-

@@ -5,7 +5,7 @@ import asyncio
 import time
 from pathlib import Path
 import agent_utils
-
+from typing import Callable
 
 _default_session = None
 __env_initialized = False
@@ -223,8 +223,9 @@ def prompt(
     prompt_str: str,
     session=None,
     # settings
-    read_agent: bool = True,
+    read_agents_md: bool = True,
     skill_name: str | None = None,
+    output_function: Callable | None = None
 ):
     _temp_create_session = False
     if session is None:
@@ -254,25 +255,21 @@ def prompt(
                 enable_skill(i)
         except:
             enable_skill(skill_name)
-    if session.status.context_usage < 1e-4 and read_agent and Path('AGENTS.md').exists():
+    if session.status.context_usage < 1e-4 and read_agents_md and Path('AGENTS.md').exists():
         prompt_str = f'Read AGENTS.md.\n' + prompt_str
 
     global _default_session
-
+    print_debug(f'Start...', end='\n\n')
     async def func():
         nonlocal session, _temp_create_session
         max_retries = 5
         for attempt in range(max_retries):
-            if len(prompt_str) > 50:
-                print_debug(f'Prompt: {prompt_str[:50]}...', end='\n\n')
-            else:
-                print_debug(f'Prompt: {prompt_str}', end='\n\n')
             try:
                 async for message in session.prompt(
                     prompt_str,
                     merge_wire_messages=True,
                 ):
-                    print_agent_json(lambda: message.model_dump_json())
+                    print_agent_json(lambda: message.model_dump_json(), output_function)
                 _print_usage(session)
                 max_retries = 0
             except Exception as e:

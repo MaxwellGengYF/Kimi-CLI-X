@@ -462,7 +462,7 @@ def _run_cli():
                         if (input_str is not None) and len(input_str) > 0:
                             prompt(prompt_str=input_str,
                                    session=get_default_session(),
-                                   read_agent=read_agent)
+                                   read_agents_md=read_agent)
                     except KeyboardInterrupt as e:
                         print_warning('Keyboard Interrupt.')
         except Exception as e:
