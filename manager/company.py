@@ -1,3 +1,5 @@
+from pathlib import Path
+from .base import Job
 _designer = None
 
 
@@ -7,7 +9,7 @@ def create_company(
     clear_db=False
 ):
     from .designer import Designer
-    global  _designer
+    global _designer
     import manager.base as base
     _designer = Designer(designer_folder, clear_db)
     base._ask_mode = ask_mode
@@ -22,7 +24,7 @@ def schedule_project(content: str, job_name: str = None):
         print_error('Company not opened.')
         return
     from my_tools.common import _export_to_temp_file
-    file_name, new_id = _export_to_temp_file(None, content)
+    file_name, new_id = _export_to_temp_file(None, content.strip())
     from .base import get_worker
     worker = get_worker()
     if worker is None:
@@ -42,9 +44,19 @@ def start_work():
         v.clear_db()
 
 
-def do_job(job_json_path: str):
+def designer(content: str) -> Path | None:
     from agent_utils import print_error
     if _designer is None:
         print_error('Company not opened.')
         return
-    _designer.work(job_json_path)
+    from my_tools.common import _export_to_temp_file
+    file_path, new_id = _export_to_temp_file(None, content.strip())
+    return _designer._work_designer(file_path, True)
+
+
+def worker(job: Job):
+    from agent_utils import print_error
+    if _designer is None:
+        print_error('Company not opened.')
+        return
+    _designer._work_programmer(job)

@@ -10,7 +10,6 @@ from my_tools.file.run import Run, RunParams
 from my_tools.file.wait_process import WaitProcess, WaitParams
 
 
-
 class LsParams(BaseModel):
     directory: str = Field(
         default=".",
@@ -85,3 +84,56 @@ class Ls(CallableTool2):
                 brief="Failed to list files",
             )
 
+
+class MkdirParams(BaseModel):
+    path: str = Field(
+        description="The directory path to create.",
+    )
+
+
+class Mkdir(CallableTool2):
+    name: str = "Mkdir"
+    description: str = "Create a directory at the specified path. Supports recursive creation. If the directory already exists, it is considered successful."
+    params: type[MkdirParams] = MkdirParams
+
+    async def __call__(self, params: MkdirParams) -> ToolReturnValue:
+        import os
+
+        try:
+            os.makedirs(params.path, exist_ok=True)
+            return ToolOk(output=_maybe_export_output(f"Directory created: {params.path}", params.path))
+        except Exception as exc:
+            return ToolError(
+                output="",
+                message=str(exc),
+                brief="Failed to create directory",
+            )
+
+
+class RmParams(BaseModel):
+    path: str = Field(
+        description="The file or directory path to delete.",
+    )
+
+
+class Rm(CallableTool2):
+    name: str = "Rm"
+    description: str = "Delete a file or directory at the specified path. Supports recursive deletion of directories."
+    params: type[RmParams] = RmParams
+
+    async def __call__(self, params: RmParams) -> ToolReturnValue:
+        import shutil
+        import os
+
+        try:
+            if os.path.isdir(params.path):
+                shutil.rmtree(params.path)
+            else:
+                os.remove(params.path)
+            return ToolOk(output=_maybe_export_output(f"Deleted: {params.path}"))
+        except Exception as exc:
+            return ToolError(
+                output="",
+                message=str(exc),
+                brief="Failed to delete file or directory",
+            )

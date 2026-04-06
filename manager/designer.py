@@ -16,7 +16,7 @@ class Designer:
                               lambda x: self.work(x), clear)
         add_worker(self._worker)
 
-    def _work_designer(self, requirement_file_name: str):
+    def _work_designer(self, requirement_file_name: str, manual_mode: bool = False) -> Path:
         """Designer branch: Process requirement file and create job JSON."""
         # Sanitize the filename to ensure it's valid
         file_path = Path(requirement_file_name)
@@ -27,7 +27,7 @@ class Designer:
             os.remove(dst_file_path)
         if not file_path.exists():
             print(f"Error: File {file_path} not found.")
-            return
+            return None
         skill_dirs = _get_skill_dirs()
         if skill_dirs:
             skill_dirs_str = ', '.join([str(d) for d in skill_dirs])
@@ -72,25 +72,25 @@ In {dst_file_path} fix this: {err_msg}.
 '''
                 else:
                     print_error(f'Write to {dst_file_path} failed.')
-                    return
+                    return None
         finally:
             if session:
                 close_session(session)
-        if not dst_file_path.exists():
-            print_error(f'Failed to export {dst_file_path}.')
-            return
+        if manual_mode:
+            return dst_file_path
         import manager.base as base
         if base._ask_mode:
             print_success(
                 f'File saved to {dst_file_path}, do you want me to ask programmer to work?(y/n)')
             v = input('').lower()
             if not (v == 'y' or v == 'yes'):
-                return
+                return None
         worker: Worker = get_worker()
         if worker:
             worker.add_job(file_path, dst_file_path)
         else:
             print_error('Can not get worker')
+        return dst_file_path
 
     def _work_programmer(self, job: Job):
         """Programmer branch: Execute job steps."""
@@ -145,7 +145,7 @@ In {dst_file_path} fix this: {err_msg}.
         except (json.JSONDecodeError, Exception):
             return False
 
-    def work(self, job_path: str):
+    def work(self, job_path: str, manual_mode: bool = False):
         """
         Main work entry point.
         If job_path is valid JSON that serializes to a Job class, go programmer's branch.
@@ -164,7 +164,7 @@ In {dst_file_path} fix this: {err_msg}.
             except Exception:
                 pass
             # Designer branch: treat as requirement file
-            self._work_designer(job_path)
+            self._work_designer(job_path, manual_mode)
         else:
             # Not a file, try parsing as JSON string directly
             if self._is_valid_job_json(job_path):
