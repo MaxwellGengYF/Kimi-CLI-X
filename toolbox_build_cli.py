@@ -248,7 +248,7 @@ def package_project(target_dir: str, output_name: str) -> None:
     
     # Exclusion list
     excluded_files = {"toolbox_build_cli.py", '.gitignore', '.gitmodule', 'BUILD.md', 'ChangeLog.md'}
-    excluded_dirs = {"__pycache__", '.git', '.pytest_cache', '.agents'}
+    excluded_dirs = {"__pycache__", '.git', '.pytest_cache', '.agents', 'kimi-cli', 'kimi-agent-sdk'}
     
     print(f"Packaging contents of: {current_dir}")
     print(f"Output zip: {zip_file_path}")
@@ -302,8 +302,9 @@ def main():
         help="Find all pyproject.toml files recursively and install dependencies."
     )
     build_parser.add_argument(
-        "project_dir",
-        help="Path to the kimi_cli project directory"
+        "--project-dir",
+        default="./kimi-cli",
+        help="Path to the kimi_cli project directory (default: ./kimi-cli)"
     )
     build_parser.add_argument(
         "--with-optional",
@@ -323,16 +324,19 @@ def main():
         help="Copy packages from source repos to site-packages."
     )
     copy_parser.add_argument(
-        "sdk_repo_path",
-        help="Path to the kimi-agent-sdk repository"
+        "--sdk-repo-path",
+        default="./kimi-agent-sdk",
+        help="Path to the kimi-agent-sdk repository (default: ./kimi-agent-sdk)"
     )
     copy_parser.add_argument(
-        "cli_repo_path",
-        help="Path to the kimi-cli repository"
+        "--cli-repo-path",
+        default="./kimi-cli",
+        help="Path to the kimi-cli repository (default: ./kimi-cli)"
     )
     copy_parser.add_argument(
-        "packages_path",
-        help="Path to the target site-packages directory"
+        "--packages-path",
+        default=".",
+        help="Path to the target site-packages directory (default: .)"
     )
     
     # Package command
@@ -341,8 +345,9 @@ def main():
         help="Zip all folders and scripts to a target directory."
     )
     package_parser.add_argument(
-        "target_dir",
-        help="Path to the target directory for the zip file"
+        "--target-dir",
+        default=".",
+        help="Path to the target directory for the zip file (default: .)"
     )
     package_parser.add_argument(
         "--output-name",

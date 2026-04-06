@@ -30,13 +30,18 @@ class SubAgent(CallableTool2):
             )
 
         try:
-            output_lst = []
+            output_str = ''
+
+            def output_function(fn):
+                nonlocal output_str
+                if fn:
+                    output_str = fn
 
             def prompt_func():
                 try:
                     _sub_agent_scope.active = True
                     prompt(prompt_str=params.prompt, session=False,
-                           output_function=lambda fn: output_lst.append(fn))
+                           output_function=output_function)
                 except Exception as e:
                     return str(e)
                 finally:
@@ -44,7 +49,7 @@ class SubAgent(CallableTool2):
                 return None
 
             err_msg = await asyncio.to_thread(prompt_func)
-            output = _maybe_export_output('\n'.join(output_lst))
+            output = _maybe_export_output(output_str)
             if err_msg:
                 return ToolError(output=output, message=err_msg, brief='')
             return ToolOk(output=output)

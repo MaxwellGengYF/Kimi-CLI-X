@@ -27,13 +27,13 @@ python toolbox_build_cli.py build <project_dir> [options]
 
 ```bash
 # Install dependencies for the current project
-python toolbox_build_cli.py build <cli_repo_path>
+python toolbox_build_cli.py build
 
 # Install with all optional dependencies
-python toolbox_build_cli.py build <cli_repo_path> --with-optional
+python toolbox_build_cli.py build --with-optional
 
 # Install with specific optional groups
-python toolbox_build_cli.py build <cli_repo_path> --optional-groups dev test
+python toolbox_build_cli.py build --optional-groups dev test
 ```
 
 #### `copy` - Copy Packages
@@ -41,7 +41,7 @@ python toolbox_build_cli.py build <cli_repo_path> --optional-groups dev test
 Copies package source files from development repositories to the site-packages directory. This is useful for testing local changes without reinstalling packages.
 
 ```bash
-python toolbox_build_cli.py copy <sdk_repo_path> <cli_repo_path> <packages_path>
+python toolbox_build_cli.py copy
 ```
 
 **Arguments:**
@@ -69,7 +69,7 @@ python toolbox_build_cli.py copy D:/kimi-agent-sdk D:/kimi-cli D:/venv/Lib/site-
 Packages the current project directory into a zip file, excluding build scripts and cache directories.
 
 ```bash
-python toolbox_build_cli.py package <target_dir> [--output-name NAME]
+python toolbox_build_cli.py package [--output-name NAME]
 ```
 
 **Arguments:**
@@ -88,7 +88,7 @@ python toolbox_build_cli.py package <target_dir> [--output-name NAME]
 
 ```bash
 # Create package.zip in the dist directory
-python toolbox_build_cli.py package ./dist
+python toolbox_build_cli.py package
 
 # Create a named package
 python toolbox_build_cli.py package ./dist --output-name myproject-v1.0

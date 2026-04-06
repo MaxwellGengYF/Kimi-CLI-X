@@ -1,4 +1,3 @@
-import dbm
 import json
 import re
 import threading
@@ -140,30 +139,54 @@ class Job:
 
 class Worker:
     def __init__(self, name: str, task, clear_db=False):
-        self._db_path = name + ".db"
+        self._db_path = Path(name + ".db")
+        self._db = {}
         if clear_db:
             self.clear_db()
+        else:
+            self._load_db()
         self._task = task
         self._mutex = threading.Lock()
 
+    def _load_db(self):
+        """Load database from JSON file."""
+        json_path = self._db_path / '.worker.json'
+        try:
+            if json_path.exists():
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    self._db = json.load(f)
+        except Exception:
+            self._db = {}
+
+    def _save_db(self):
+        """Save database to JSON file."""
+        json_path = self._db_path / '.worker.json'
+        try:
+            self._db_path.mkdir(parents=True, exist_ok=True)
+            with open(json_path, 'w', encoding='utf-8') as f:
+                json.dump(self._db, f, ensure_ascii=False)
+        except Exception as e:
+            print_error(str(e))
+
     def clear_db(self):
-        import shutil
-        shutil.rmtree(self._db_path, ignore_errors=True)
+        self._db = {}
+        json_path = self._db_path / '.worker.json'
+        try:
+            if json_path.exists():
+                json_path.unlink()
+        except Exception:
+            pass
 
     def get_job(self, job_name: str):
         """Load a single job from database."""
         try:
             with self._mutex:
-                with dbm.open(str(self._db_path), 'c') as db:
-                    key = job_name.encode('utf-8')
-                    data = db.get(key)
-                    if data is not None:
-                        # data format: "path\x00finished" where finished is '0' or '1'
-                        path = data.decode('utf-8')
-                        # Read json from path, deserialize to job
-                        with open(path, 'r', encoding='utf-8') as f:
-                            job = Job.deserialize(f.read())
-                        return job
+                path = self._db.get(job_name)
+                if path is not None:
+                    # Read json from path, deserialize to job
+                    with open(path, 'r', encoding='utf-8') as f:
+                        job = Job.deserialize(f.read())
+                    return job
         except Exception:
             pass
         return None
@@ -172,12 +195,7 @@ class Worker:
         """Load a single job from database."""
         try:
             with self._mutex:
-                with dbm.open(str(self._db_path), 'c') as db:
-                    key = job_name.encode('utf-8')
-                    data = db.get(key)
-                    if data is not None:
-                        path = data.decode('utf-8')
-                        return path
+                return self._db.get(job_name)
         except Exception:
             pass
         return None
@@ -188,9 +206,8 @@ class Worker:
             path = str(path)
         try:
             with self._mutex:
-                with dbm.open(str(self._db_path), 'c') as db:
-                    key = job_name.encode('utf-8')
-                    db[key] = path.encode('utf-8')
+                self._db[job_name] = path
+                self._save_db()
         except Exception as e:
             print_error(str(e))
 
@@ -208,17 +225,8 @@ class Worker:
         self._save_job(job_name, job_path)
 
     def get_all_jobs(self) -> dict[str, str]:
-        jobs = {}
-        try:
-            with self._mutex:
-                with dbm.open(str(self._db_path), 'c') as db:
-                    for key in db.keys():
-                        job_name = key.decode('utf-8')
-                        data = db[key].decode('utf-8')
-                        jobs[job_name] = data
-        except Exception:
-            pass
-        return jobs
+        with self._mutex:
+            return self._db.copy()
 
     def execute_jobs(self):
         """Extract and remove all jobs in database, and call self._task with value.
@@ -231,12 +239,9 @@ class Worker:
             # Extract all jobs under mutex
             jobs_data = []
             with self._mutex:
-                with dbm.open(str(self._db_path), 'c') as db:
-                    keys = list(db.keys())
-                    for key in keys:
-                        data = db[key].decode('utf-8')
-                        del db[key]
-                        jobs_data.append(data)
+                jobs_data = list(self._db.values())
+                self._db.clear()
+                self._save_db()
 
             # Process jobs outside of mutex
             thds: list[threading.Thread] = []
@@ -252,13 +257,8 @@ class Worker:
 
     def has_jobs(self) -> bool:
         """Check if there are any jobs in the database."""
-        try:
-            with self._mutex:
-                with dbm.open(str(self._db_path), 'c') as db:
-                    return len(db.keys()) > 0
-        except Exception:
-            pass
-        return False
+        with self._mutex:
+            return len(self._db) > 0
 
 
 _workers: deque[Worker] = deque()

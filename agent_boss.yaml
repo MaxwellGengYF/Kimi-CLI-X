@@ -3,7 +3,7 @@ agent:
   extend: default
   tools:
     - "my_tools.file:Ls"
-    - "my_tools.todo:SetTodoList"
+    - "kimi_cli.tools.todo:SetTodoList"
     - "my_tools.office:DocxToMarkdown"
     - "my_tools.img:ImageToText"
     - "my_tools.pdf:PdfToMarkdown"

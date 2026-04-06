@@ -1,0 +1,7 @@
+[submodule "kimi-cli"]
+	path = kimi-cli
+	url = https://github.com/MaxwellGengYF/kimi-cli.git
+	branch = dev
+[submodule "kimi-agent-sdk"]
+	path = kimi-agent-sdk
+	url = https://github.com/MaxwellGengYF/kimi-agent-sdk.git
