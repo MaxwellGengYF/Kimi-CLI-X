@@ -12,6 +12,8 @@ import tomllib
 from pathlib import Path
 import shutil
 import zipfile
+import configparser
+from concurrent.futures import ThreadPoolExecutor, as_completed
 # Cull list: packages that should NOT be installed
 CULL_LIST = ['kimi-agent-sdk', 'kimi-cli', 'kaos', 'kosong']
 
@@ -241,6 +243,142 @@ def copy_package(sdk_repo_path, cli_repo_path, packages_path) -> None:
     print("\nPatch completed successfully!")
 
 
+def parse_gitmodules(gitmodules_path: Path) -> list[dict]:
+    """
+    Parse .gitmodules file and extract submodule information.
+    
+    Args:
+        gitmodules_path: Path to .gitmodules file
+        
+    Returns:
+        List of dictionaries containing submodule info (name, path, url, branch)
+    """
+    submodules = []
+    if not gitmodules_path.exists():
+        return submodules
+    
+    config = configparser.ConfigParser()
+    config.read(gitmodules_path)
+    
+    for section in config.sections():
+        if section.startswith('submodule '):
+            name = section[10:].strip('"')
+            submodule = {
+                'name': name,
+                'path': config.get(section, 'path', fallback=name),
+                'url': config.get(section, 'url', fallback=''),
+                'branch': config.get(section, 'branch', fallback='main')
+            }
+            submodules.append(submodule)
+    
+    return submodules
+
+
+def _update_single_submodule(submodule: dict, current_dir: Path) -> tuple[str, bool]:
+    """
+    Worker function to update (clone or pull) a single submodule.
+    
+    Args:
+        submodule: Dictionary containing submodule info
+        current_dir: Base directory path
+        
+    Returns:
+        Tuple of (submodule name, success status)
+    """
+    name = submodule['name']
+    path = current_dir / submodule['path']
+    url = submodule['url']
+    branch = submodule['branch']
+    
+    if path.exists() and (path / '.git').exists():
+        # Submodule already exists, pull latest
+        print(f"[PULL] {name} -> {submodule['path']}")
+        try:
+            result = subprocess.run(
+                ['git', 'pull', 'origin', branch],
+                cwd=path,
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            if result.returncode == 0:
+                print(f"  [OK] Pulled latest changes ({name})")
+                return name, True
+            else:
+                print(f"  [WARN] Pull failed: {result.stderr.strip()} ({name})")
+                return name, False
+        except Exception as e:
+            print(f"  [FAIL] Error pulling: {e} ({name})")
+            return name, False
+    else:
+        # Submodule doesn't exist, clone it
+        print(f"[CLONE] {name} -> {submodule['path']}")
+        try:
+            result = subprocess.run(
+                ['git', 'clone', '--branch', branch, url, str(path)],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            if result.returncode == 0:
+                print(f"  [OK] Cloned successfully ({name})")
+                return name, True
+            else:
+                print(f"  [FAIL] Clone failed: {result.stderr.strip()} ({name})")
+                return name, False
+        except Exception as e:
+            print(f"  [FAIL] Error cloning: {e} ({name})")
+            return name, False
+
+
+def update_submodules() -> bool:
+    """
+    Parse .gitmodules and clone or pull all submodules using multi-threading.
+    
+    Returns:
+        True if all submodules are up to date, False otherwise
+    """
+    current_dir = Path.cwd()
+    gitmodules_path = current_dir / '.gitmodules'
+    
+    if not gitmodules_path.exists():
+        print("No .gitmodules file found, skipping submodule update.")
+        return True
+    
+    submodules = parse_gitmodules(gitmodules_path)
+    
+    if not submodules:
+        print("No submodules defined in .gitmodules.")
+        return True
+    
+    print(f"Found {len(submodules)} submodule(s) in .gitmodules")
+    print("-" * 50)
+    
+    all_success = True
+    
+    # Use ThreadPoolExecutor for concurrent submodule updates
+    with ThreadPoolExecutor() as executor:
+        # Submit all tasks
+        future_to_submodule = {
+            executor.submit(_update_single_submodule, submodule, current_dir): submodule
+            for submodule in submodules
+        }
+        
+        # Collect results as they complete
+        for future in as_completed(future_to_submodule):
+            submodule = future_to_submodule[future]
+            try:
+                name, success = future.result()
+                if not success:
+                    all_success = False
+            except Exception as e:
+                print(f"  [FAIL] Unexpected error processing {submodule['name']}: {e}")
+                all_success = False
+    
+    print("-" * 50)
+    return all_success
+
+
 def package_project(target_dir: str, output_name: str) -> None:
     """
     Zip all folders and scripts under current directory to a target directory.
@@ -249,6 +387,7 @@ def package_project(target_dir: str, output_name: str) -> None:
         target_dir: Path to the target directory for the zip file
         output_name: Name of the output zip file (without extension)
     """
+    
     target_path = Path(target_dir).resolve()
     current_dir = Path.cwd()
     
@@ -264,7 +403,7 @@ def package_project(target_dir: str, output_name: str) -> None:
         zip_file_path.unlink()
     
     # Exclusion list
-    excluded_files = {"toolbox_build_cli.py", '.gitignore', '.gitmodule', 'BUILD.md', 'ChangeLog.md'}
+    excluded_files = {"toolbox_build_cli.py", '.gitignore', '.gitmodules', 'BUILD.md', 'ChangeLog.md'}
     excluded_dirs = {"__pycache__", '.git', '.pytest_cache', '.agents', 'kimi-cli', 'kimi-agent-sdk', '.skill_cache'}
     
     print(f"Packaging contents of: {current_dir}")
@@ -372,9 +511,17 @@ def main():
         help="Name of the output zip file (without extension)"
     )
     
-    args = parser.parse_args()
+    pull_parser = subparsers.add_parser(
+        "pull",
+        help="Pull submodule."
+    )
     
-    if args.command == "copy":
+    args = parser.parse_args()
+    if args.command == 'pull':
+        if not update_submodules():
+            from agent_utils import print_error
+            print_error('Pull failed.')
+    elif args.command == "copy":
         copy_package(args.sdk_repo_path, args.cli_repo_path, args.packages_path)
     elif args.command == "package":
         package_project(args.target_dir, args.output_name)
