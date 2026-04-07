@@ -34,7 +34,7 @@ def is_culled(dep: str) -> bool:
     return dep_name in CULL_LIST
 
 
-def find_pyproject_files(project_dir: str) -> list[Path]:
+def find_pyproject_files(project_dir: str, recursive:bool = True) -> list[Path]:
     """
     Recursively find all pyproject.toml files under the project directory.
     
@@ -55,7 +55,7 @@ def find_pyproject_files(project_dir: str) -> list[Path]:
         sys.exit(1)
     
     # Recursively find all pyproject.toml files
-    pyproject_files = list(project_path.rglob("pyproject.toml"))
+    pyproject_files = list(project_path.rglob("pyproject.toml") if recursive else project_path.glob("pyproject.toml"))
     
     # Sort for consistent output
     pyproject_files.sort()
@@ -366,6 +366,7 @@ def main():
         print("-" * 50)
         
         pyproject_files = find_pyproject_files(args.project_dir)
+        pyproject_files.extend(find_pyproject_files(Path('.').resolve(), False))
         
         if not pyproject_files:
             print("No pyproject.toml files found.")
@@ -377,8 +378,11 @@ def main():
         
         for i, file_path in enumerate(pyproject_files, 1):
             # Get relative path from project root for cleaner output
-            rel_path = file_path.relative_to(Path(args.project_dir).resolve())
-            print(f"[{i}/{len(pyproject_files)}] Processing: {rel_path}")
+            try:
+                rel_path = file_path.relative_to(Path(args.project_dir).resolve())
+                print(f"[{i}/{len(pyproject_files)}] Processing: {rel_path}")
+            except ValueError:
+                print(f"[{i}/{len(pyproject_files)}] Processing: {file_path}")
             
             # Parse dependencies
             deps_info = parse_dependencies(file_path)

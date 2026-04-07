@@ -30,6 +30,8 @@ dependencies = [
     # PDF processing
     "pymupdf>=1.23.0",
     "pdfplumber>=0.10.0",
+    "numpy",
+    "chromadb"
 ]
 
 [project.optional-dependencies]
