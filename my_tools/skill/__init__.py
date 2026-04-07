@@ -11,7 +11,6 @@ from pydantic import BaseModel, Field
 from skill_rag.pipeline import RAGPipeline, QueryResult
 from skill_rag.loader import MarkdownLoader
 
-
 class Params(BaseModel):
     """Parameters for the SkillAnalyzer tool."""
     
@@ -77,11 +76,6 @@ class SkillAnalyzer(CallableTool2):
                 for skill_file in skills_dir.rglob("SKILL.md"):
                     if skill_file.is_file():
                         skill_files.append(skill_file)
-        
-        # Also check for direct SKILL.md files in the directory
-        direct_skill = directory / "SKILL.md"
-        if direct_skill.exists():
-            skill_files.append(direct_skill)
         
         return sorted(skill_files)
     

@@ -193,7 +193,8 @@ def print_agent_json(get_message, output_function: Callable | None = None):
         'PowerShell': ('command', 'timeout'),
         'Bash': ('command', 'timeout'),
         'SubAgent': ('prompt', 'session_id'),
-        'SkillAnalyzer': ('query', 'directory', 'top_k', 'refresh')
+        'SkillAnalyzer': ('query', 'directory', 'top_k', 'refresh'),
+        'RAG': ('query', 'file_path', 'top_k', 'refresh')
     }
 
     def print_item(item):
