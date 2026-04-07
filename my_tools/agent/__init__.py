@@ -30,12 +30,11 @@ class SubAgent(CallableTool2):
             )
 
         try:
-            output_str = ''
+            output_strs = []
 
             def output_function(fn):
-                nonlocal output_str
                 if fn:
-                    output_str = fn
+                    output_strs.append(fn)
 
             def prompt_func():
                 try:
@@ -49,7 +48,7 @@ class SubAgent(CallableTool2):
                 return None
 
             err_msg = await asyncio.to_thread(prompt_func)
-            output = _maybe_export_output(output_str)
+            output = _maybe_export_output('\n'.join(output_strs))
             if err_msg:
                 return ToolError(output=output, message=err_msg, brief='')
             return ToolOk(output=output)
