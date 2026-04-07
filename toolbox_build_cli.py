@@ -19,6 +19,25 @@ CULL_LIST = ['kimi-agent-sdk', 'kimi-cli', 'kaos', 'kosong']
 collected_deps = []
 
 
+def extract_package_name(dep: str) -> str:
+    """
+    Extract package name from a dependency string.
+    
+    Args:
+        dep: Dependency string (e.g., 'package-name>=1.0', 'requests[security]>=2.0')
+        
+    Returns:
+        The normalized package name (lowercase, extras and version specifiers removed)
+    """
+    # Remove extras (e.g., 'requests[security]' -> 'requests')
+    name = dep.split('[')[0]
+    # Remove version specifiers (=, <, >, !)
+    name = name.split('=')[0].split('<')[0].split('>')[0].split('!')[0]
+    # Remove environment markers (text after ;)
+    name = name.split(';')[0]
+    return name.strip().lower()
+
+
 def is_culled(dep: str) -> bool:
     """
     Check if a dependency is in the cull list.
@@ -29,9 +48,7 @@ def is_culled(dep: str) -> bool:
     Returns:
         True if the dependency should be culled (not installed)
     """
-    # Extract package name from dependency string (remove version specifiers)
-    dep_name = dep.split('[')[0].split('=')[0].split('<')[0].split('>')[0].split('!')[0].split(';')[0].strip().lower()
-    return dep_name in CULL_LIST
+    return extract_package_name(dep) in CULL_LIST
 
 
 def find_pyproject_files(project_dir: str, recursive:bool = True) -> list[Path]:
@@ -416,10 +433,17 @@ def main():
         # Export collected dependencies to requirements.txt
         if collected_deps:
             req_path = "requirements.txt"
+            # Deduplicate by package name, keeping the first occurrence (which has more specific version)
+            seen_packages = {}
+            for dep in collected_deps:
+                pkg_name = extract_package_name(dep)
+                if pkg_name not in seen_packages:
+                    seen_packages[pkg_name] = dep
+            
             with open(req_path, "w") as f:
-                for dep in sorted(set(collected_deps)):
+                for dep in sorted(seen_packages.values()):
                     f.write(f"{dep}\n")
-            print(f"Exported {len(set(collected_deps))} unique dependencies to {req_path}")
+            print(f"Exported {len(seen_packages)} unique dependencies to {req_path}")
         
         print("-" * 50)
         if all_success:
