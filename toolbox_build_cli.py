@@ -265,7 +265,7 @@ def package_project(target_dir: str, output_name: str) -> None:
     
     # Exclusion list
     excluded_files = {"toolbox_build_cli.py", '.gitignore', '.gitmodule', 'BUILD.md', 'ChangeLog.md'}
-    excluded_dirs = {"__pycache__", '.git', '.pytest_cache', '.agents', 'kimi-cli', 'kimi-agent-sdk'}
+    excluded_dirs = {"__pycache__", '.git', '.pytest_cache', '.agents', 'kimi-cli', 'kimi-agent-sdk', '.skill_cache'}
     
     print(f"Packaging contents of: {current_dir}")
     print(f"Output zip: {zip_file_path}")
