@@ -10,7 +10,7 @@ class BashToPowerShellConverter:
 
     def convert(self, bash_code: str) -> str:
         """Convert bash code to appropriate shell syntax."""
-        lines = bash_code.strip().split('\n')
+        lines = bash_code.strip().splitlines()
         result_lines = []
 
         for line in lines:

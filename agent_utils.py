@@ -192,7 +192,8 @@ def print_agent_json(get_message, output_function: Callable | None = None):
         'SearchWeb': ('query', 'limit', 'include_content'),
         'PowerShell': ('command', 'timeout'),
         'Bash': ('command', 'timeout'),
-        'SubAgent': ('prompt', 'session_id')
+        'SubAgent': ('prompt', 'session_id'),
+        'SkillAnalyzer': ('query', 'directory', 'top_k', 'refresh')
     }
 
     def print_item(item):
@@ -335,7 +336,7 @@ _default_agent_file = Path(__file__).parent / 'agent_worker.yaml'
 _default_skill_dirs = []
 
 
-def _get_skill_dirs(use_kaos_path=True):
+def _get_skill_dirs(use_kaos_path=True) -> list:
     if use_kaos_path:
         from kaos.path import KaosPath
     global _default_skill_dirs
@@ -347,10 +348,10 @@ def _get_skill_dirs(use_kaos_path=True):
         d = Path(os.curdir) / ".agents/skills"
         if d.exists():
             result.append(d)
-        d = Path(os.curdir) / ".opencode/skills"
+        d = Path(os.curdir) / ".config/.agents/skills"
         if d.exists():
             result.append(d)
-        d = Path(os.curdir) / ".config/.agents/skills"
+        d = Path(os.curdir) / ".opencode/skills"
         if d.exists():
             result.append(d)
         return result

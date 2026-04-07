@@ -4,9 +4,9 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 from dataclasses import dataclass
 
-from rag.loader import MarkdownLoader, Document
-from rag.embeddings import EmbeddingService
-from rag.vector_store import ChromaVectorStore
+from skill_rag.loader import MarkdownLoader, Document
+from skill_rag.embeddings import EmbeddingService
+from skill_rag.vector_store import ChromaVectorStore
 
 
 @dataclass
@@ -16,6 +16,8 @@ class QueryResult:
     metadata: Dict[str, Any]
     distance: float
     source: str
+    start_line: int = 0    # Starting line number in source file
+    end_line: int = 0      # Ending line number in source file
 
 
 class RAGPipeline:
@@ -87,7 +89,9 @@ class RAGPipeline:
         metadatas = [
             {
                 **doc.metadata,
-                "chunk_index": doc.chunk_index
+                "chunk_index": doc.chunk_index,
+                "start_line": doc.start_line,
+                "end_line": doc.end_line,
             }
             for doc in documents
         ]
@@ -138,11 +142,14 @@ class RAGPipeline:
         query_results = []
         if results["documents"] and results["documents"][0]:
             for i in range(len(results["documents"][0])):
+                metadata = results["metadatas"][0][i] if results["metadatas"] else {}
                 query_results.append(QueryResult(
                     content=results["documents"][0][i],
-                    metadata=results["metadatas"][0][i] if results["metadatas"] else {},
+                    metadata=metadata,
                     distance=results["distances"][0][i] if results["distances"] else 0.0,
-                    source=results["metadatas"][0][i].get("source", "") if results["metadatas"] else ""
+                    source=metadata.get("source", ""),
+                    start_line=metadata.get("start_line", 0),
+                    end_line=metadata.get("end_line", 0),
                 ))
         
         return query_results

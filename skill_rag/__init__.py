@@ -1,9 +1,9 @@
 """RAG (Retrieval-Augmented Generation) system with ChromaDB."""
 
-from rag.loader import MarkdownLoader, Document
-from rag.embeddings import EmbeddingService
-from rag.vector_store import ChromaVectorStore
-from rag.pipeline import RAGPipeline, QueryResult
+from skill_rag.loader import MarkdownLoader, Document
+from skill_rag.embeddings import EmbeddingService
+from skill_rag.vector_store import ChromaVectorStore
+from skill_rag.pipeline import RAGPipeline, QueryResult
 
 __version__ = "0.1.0"
 __all__ = [

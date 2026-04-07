@@ -248,7 +248,7 @@ def main():
         print(f"  Function: {doc.metadata.get('name', 'N/A')}")
         print(f"  Line: {doc.metadata.get('line', 'N/A')}")
         print(f"  Content:")
-        for line in doc.content.split('\n'):
+        for line in doc.content.splitlines():
             print(f"    {line}")
     
     print("\n" + "=" * 70)

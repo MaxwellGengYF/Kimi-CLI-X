@@ -185,7 +185,7 @@ class EmbeddingService:
             Cleaned text
         """
         # Remove excessive whitespace but preserve structure
-        lines = text.split('\n')
+        lines = text.splitlines()
         lines = [line.strip() for line in lines]
         text = ' '.join(line for line in lines if line)
         
