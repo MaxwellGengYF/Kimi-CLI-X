@@ -1,10 +1,62 @@
 """Document loader for markdown files with frontmatter parsing."""
 
+import json
 import re
 import yaml
 from pathlib import Path
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Any
+
+
+def _sanitize_metadata_value(value: Any) -> Any:
+    """Sanitize metadata value for ChromaDB compatibility.
+    
+    ChromaDB only supports: str, int, float, bool, and lists of those types.
+    Complex types (dicts, nested lists) are serialized to JSON strings.
+    
+    Args:
+        value: The metadata value to sanitize
+        
+    Returns:
+        Sanitized value compatible with ChromaDB
+    """
+    if value is None:
+        return ""
+    if isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, list):
+        # Check if all items are simple types
+        if all(isinstance(item, (str, int, float, bool)) for item in value):
+            return value
+        # Check if it's a list of strings (after converting non-strings)
+        try:
+            simple_list = []
+            for item in value:
+                if isinstance(item, (str, int, float, bool)):
+                    simple_list.append(item)
+                else:
+                    # Contains complex items, serialize the whole list
+                    return json.dumps(value, ensure_ascii=False)
+            return simple_list
+        except (TypeError, ValueError):
+            return json.dumps(value, ensure_ascii=False)
+    # For dicts or any other complex types, serialize to JSON
+    try:
+        return json.dumps(value, ensure_ascii=False)
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def sanitize_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
+    """Sanitize all metadata values for ChromaDB compatibility.
+    
+    Args:
+        metadata: Raw metadata dict
+        
+    Returns:
+        Sanitized metadata dict
+    """
+    return {key: _sanitize_metadata_value(value) for key, value in metadata.items()}
 
 
 @dataclass
@@ -48,14 +100,17 @@ class MarkdownLoader:
         
         documents = []
         for i, (chunk, start_line, end_line) in enumerate(chunks):
+            # Build raw metadata
+            raw_metadata = {
+                'source': str(file_path),
+                'filename': file_path.name,
+                'name': frontmatter.get('name', file_path.stem),
+                **{k: v for k, v in frontmatter.items() if k != 'name'}
+            }
+            # Sanitize metadata for ChromaDB compatibility
             doc = Document(
                 content=chunk,
-                metadata={
-                    'source': str(file_path),
-                    'filename': file_path.name,
-                    'name': frontmatter.get('name', file_path.stem),
-                    **{k: v for k, v in frontmatter.items() if k != 'name'}
-                },
+                metadata=sanitize_metadata(raw_metadata),
                 source=str(file_path),
                 chunk_index=i,
                 start_line=start_line,
