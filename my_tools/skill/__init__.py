@@ -19,7 +19,7 @@ class Params(BaseModel):
     )
     directory: str = Field(
         default=None,
-        description="Directory to scan for skills. Defaults to current working directory. Skills are found in *//SKILL.md pattern.",
+        description="Directory to scan for skills. Defaults to current working directory. Skills are found in */SKILL.md pattern.",
     )
     top_k: int = Field(
         default=3,
@@ -60,7 +60,7 @@ class SkillAnalyzer(CallableTool2):
     def _find_skill_files(self, directory: Path) -> list[Path]:
         """Find all SKILL.md files in the directory.
         
-        Searches for files matching pattern: */SKILL.md
+        Searches for files matching pattern: */SKILL.md (case-sensitive)
         
         Args:
             directory: Root directory to search
@@ -70,18 +70,22 @@ class SkillAnalyzer(CallableTool2):
         """
         skill_files = []
         
-        # Search for */skills/**/SKILL.md pattern
-        for skills_dir in directory.rglob("."):
-            if skills_dir.is_dir():
-                for skill_file in skills_dir.rglob("SKILL.md"):
-                    if skill_file.is_file():
-                        skill_files.append(skill_file)
+        # Ensure directory is a standard Path object (not KaosPath)
+        # by converting through string to avoid __fspath__ issues
+        if not isinstance(directory, Path):
+            directory = Path(str(directory))
         
-        return sorted(skill_files)
+        # Search for all .md files recursively, then filter by exact name match
+        # This ensures case-sensitivity on all platforms (Windows rglob is case-insensitive)
+        for md_file in directory.rglob("*.md"):
+            if md_file.is_file() and md_file.name == "SKILL.md":
+                skill_files.append(md_file)
+        
+        return sorted(set(skill_files))
     
     def _get_cache_key(self, directory: str) -> str:
         """Generate a cache key for the given directory."""
-        abs_path = str(Path(directory).resolve())
+        abs_path = str(Path(str(directory)).resolve())
         return f"{self.COLLECTION_NAME}_{abs_path}"
     
     def _index_directory(self, directory: str, force_refresh: bool = False) -> IndexedCollection:
@@ -94,7 +98,7 @@ class SkillAnalyzer(CallableTool2):
         Returns:
             IndexedCollection with pipeline and metadata
         """
-        dir_path = Path(directory).resolve()
+        dir_path = Path(str(directory)).resolve()
         cache_key = self._get_cache_key(directory)
         
         # Check cache first
@@ -109,7 +113,7 @@ class SkillAnalyzer(CallableTool2):
         if not skill_files:
             raise ValueError(
                 f"No SKILL.md files found in '{directory}'. "
-                "Skills are searched using pattern: */skills/**/SKILL.md"
+                "Skills are searched using pattern: */SKILL.md"
             )
         
         # Create unique collection name based on directory
@@ -130,8 +134,8 @@ class SkillAnalyzer(CallableTool2):
         total_chunks = 0
         for skill_file in skill_files:
             try:
-                chunks = pipeline.index_file(skill_file)
-                total_chunks += chunks
+                result = pipeline.index_file(skill_file)
+                total_chunks += result.total_chunks
             except Exception as e:
                 # Log error but continue with other files
                 print(f"Warning: Failed to index {skill_file}: {e}")
@@ -201,10 +205,13 @@ class SkillAnalyzer(CallableTool2):
                 content_preview += "\n\n... [content truncated]"
             
             output_lines.extend([
-                f"### {i}. {skill_name}",
-                f"- **Path:** `{source}`",
-                f"- **Line:** {line_ref}",
-                f"- **Relevance Score:** {1.0 - result.distance:.3f}",
+                f"**Result #{i}**",
+                f"",
+                f"**Skill:** {skill_name}",
+                f"**Path:** `{source}`",
+                f"**Line:** {line_ref}",
+                f"**Relevance Score:** {1.0 - result.distance:.3f}",
+                f"",
                 f"**Content Preview:**",
                 f"",
                 f"{content_preview}",
@@ -229,19 +236,19 @@ class SkillAnalyzer(CallableTool2):
             if params.directory is None:
                 from agent_utils import _get_skill_dirs
                 lst =  _get_skill_dirs(False)
-                if lst:
-                    params.directory = lst[0]
-            dir_path = Path(params.directory)
+            # Ensure directory is converted to string first to handle KaosPath
+            # then convert to standard Path to avoid __fspath__ issues
+            dir_path = Path(str(params.directory))
             if not dir_path.exists():
                 return ToolError(
-                    message=f"Directory not found: {params.directory}",
+                    message=f"Directory not found: {dir_path}",
                     output="",
                     brief="Directory not found",
                 )
             
             if not dir_path.is_dir():
                 return ToolError(
-                    message=f"Path is not a directory: {params.directory}",
+                    message=f"Path is not a directory: {dir_path}",
                     output="",
                     brief="Invalid directory",
                 )
@@ -249,7 +256,7 @@ class SkillAnalyzer(CallableTool2):
             # Index the directory
             try:
                 indexed = self._index_directory(
-                    params.directory, 
+                    str(dir_path), 
                     force_refresh=params.refresh
                 )
             except ValueError as e:
@@ -281,7 +288,8 @@ class SkillAnalyzer(CallableTool2):
             # Format and return results
             output = self._format_results(results, indexed, params.query)
             from my_tools.common import _maybe_export_output
-            return ToolOk(output=_maybe_export_output(output))
+            formatted_output = _maybe_export_output(output)
+            return ToolOk(output=formatted_output, message=formatted_output)
             
         except Exception as e:
             return ToolError(

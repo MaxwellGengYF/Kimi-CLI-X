@@ -21,7 +21,7 @@ class Params(BaseModel):
     )
     file_path: Optional[str] = Field(
         default=None,
-        description="Path to a file or directory to index and search. If a directory is provided, all markdown files (*.md) within it will be indexed. Defaults to current working directory.",
+        description="Path to a file or directory to index and search. If a directory is provided, all text files within it will be indexed. Defaults to current working directory.",
     )
     top_k: int = Field(
         default=3,
@@ -46,7 +46,7 @@ class IndexedFile:
 class RAG(CallableTool2):
     name: str = "RAG"
     description: str = (
-        "Perform semantic search on a markdown file using RAG. "
+        "Perform semantic search on a text file using RAG. "
         "Indexes the file and allows natural language queries to find relevant content."
     )
     params: type[Params] = Params
@@ -140,14 +140,18 @@ class RAG(CallableTool2):
         
         try:
             if is_file:
-                chunk_count = pipeline.index_file(file_path_obj)
+                result = pipeline.index_file(file_path_obj)
+                chunk_count = result.total_chunks
             else:
-                chunk_count = pipeline.index_directory(file_path_obj)
+                result = pipeline.index_directory(file_path_obj)
+                chunk_count = result.total_chunks
         except Exception as e:
+            pipeline.close()
             item_type = "file" if is_file else "directory"
             raise ValueError(f"Failed to index {item_type} '{file_path}': {e}")
         
         if chunk_count == 0:
+            pipeline.close()
             item_type = "file" if is_file else "directory"
             raise ValueError(f"No content could be indexed from {item_type} '{file_path}'")
         

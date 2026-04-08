@@ -1,165 +1,89 @@
-"""RAG (Retrieval-Augmented Generation) system with ChromaDB."""
+"""skill_rag: RAG pipeline using ChromaDB with simple hash-based embeddings.
 
-# Document loading
-from skill_rag.document_loaders import (
-    Document,
-    BaseLoader,
-    MarkdownLoader,
-    TextLoader,
-    PDFLoader,
-    WordLoader,
-    AutoLoader,
-    get_loader_for_file
-)
+This module provides a complete RAG (Retrieval-Augmented Generation) pipeline
+that uses ChromaDB for vector storage and retrieval, with simple hash-based
+embeddings that don't require external ML models.
 
-# Backward compatibility alias
-UniversalDocumentLoader = AutoLoader
+Example:
+    >>> from skill_rag import RAGPipeline
+    >>> 
+    >>> # Create pipeline
+    >>> pipeline = RAGPipeline(
+    ...     collection_name="my_docs",
+    ...     persist_directory="./chroma_db"
+    ... )
+    >>> 
+    >>> # Index documents
+    >>> from pathlib import Path
+    >>> result = pipeline.index_directory(Path("./docs"))
+    >>> print(f"Indexed {result.new_chunks} new chunks")
+    >>> 
+    >>> # Query
+    >>> results = pipeline.query("What is RAG?", top_k=3)
+    >>> for r in results:
+    ...     print(f"Score: {1-r.distance:.3f}, Content: {r.content[:100]}...")
+"""
 
-# Configuration
-from skill_rag.config import (
-    RAGConfig,
-    EmbeddingConfig,
-    VectorStoreConfig,
-    RerankerConfig,
-    HybridSearchConfig,
-    QueryOptimizationConfig,
-    LoaderConfig,
-    FileTrackingConfig,
-    MMRConfig,
-    get_config,
-    set_config,
-    reload_config,
-    get_embedding_config,
-    get_vector_store_config,
-    get_reranker_config,
-    get_hybrid_search_config,
-    get_mmr_config,
-)
-
-# Code loading
-from skill_rag.code_loader import (
-    CodeLoader,
-    CodeBlock,
-    LanguageParser,
-    PythonParser,
-    JavaScriptParser,
-    GenericCodeParser,
-    get_parser,
-    is_code_file,
-    create_code_loader
-)
-
-# Embeddings
-from skill_rag.embeddings import EmbeddingService, SentenceTransformerEmbedder
-from skill_rag.embedding_cache import (
-    EmbeddingCache,
-    CachedEmbedder,
-    cached_embedder
-)
-
-# Vector store
-from skill_rag.vector_store import ChromaVectorStore
-
-# Reranker
-from skill_rag.reranker import Reranker, CrossEncoderReranker
-
-# Hybrid search
-from skill_rag.hybrid_search import HybridSearcher, HybridSearchResult
-
-# Query optimization
-from skill_rag.query_optimizer import (
-    QueryOptimizer,
-    QueryExpander,
-    HyDEGenerator,
-    OptimizedQuery,
-    create_optimizer
-)
-
-# File tracking (incremental indexing)
-from skill_rag.file_tracker import FileTracker, compute_file_hash
-
-# MMR Diversity
-from skill_rag.mmr_diversity import (
-    MMREngine,
-    MMRDiversifier,
-    MMRResult,
-    create_mmr_engine,
-    cosine_similarity
-)
+__version__ = "0.1.0"
 
 # Main pipeline
 from skill_rag.pipeline import RAGPipeline, QueryResult, IndexingResult
 
-__version__ = "0.3.0"
+# Embeddings - simple hash-based only
+from skill_rag.embeddings import SimpleEmbedder, EmbeddingService
+
+# Vector store
+from skill_rag.vector_store import ChromaVectorStore
+
+# Document loader
+from skill_rag.loader import Document, MarkdownLoader, UniversalDocumentLoader
+
+# Hybrid search
+from skill_rag.hybrid_search import (
+    HybridSearcher,
+    BM25Searcher,
+    SearchResult,
+    hybrid_query
+)
+
+# Query optimizer
+from skill_rag.query_optimizer import QueryOptimizer, create_optimizer
+
+# File tracking
+from skill_rag.file_tracker import FileTracker, compute_file_hash
+
+# Config
+from skill_rag.config import RAGConfig, get_config, configure
+
 __all__ = [
-    # Document loading
-    "Document",
-    "BaseLoader",
-    "MarkdownLoader",
-    "TextLoader",
-    "PDFLoader",
-    "WordLoader",
-    "AutoLoader",
-    "get_loader_for_file",
-    # Code loading
-    "CodeLoader",
-    "CodeBlock",
-    "LanguageParser",
-    "PythonParser",
-    "JavaScriptParser",
-    "GenericCodeParser",
-    "get_parser",
-    "is_code_file",
-    "create_code_loader",
-    # Embeddings
-    "EmbeddingService",
-    "SentenceTransformerEmbedder",
-    "EmbeddingCache",
-    "CachedEmbedder",
-    "cached_embedder",
-    # Vector store
-    "ChromaVectorStore",
-    # Reranker
-    "Reranker",
-    "CrossEncoderReranker",
-    # Hybrid search
-    "HybridSearcher",
-    "HybridSearchResult",
-    # Query optimization
-    "QueryOptimizer",
-    "QueryExpander",
-    "HyDEGenerator",
-    "OptimizedQuery",
-    "create_optimizer",
-    # File tracking
-    "FileTracker",
-    "compute_file_hash",
-    # MMR Diversity
-    "MMREngine",
-    "MMRDiversifier",
-    "MMRResult",
-    "create_mmr_engine",
-    "cosine_similarity",
+    # Version
+    "__version__",
     # Pipeline
     "RAGPipeline",
     "QueryResult",
     "IndexingResult",
-    # Configuration
+    # Embeddings
+    "SimpleEmbedder",
+    "EmbeddingService",
+    # Vector store
+    "ChromaVectorStore",
+    # Loader
+    "Document",
+    "MarkdownLoader",
+    "UniversalDocumentLoader",
+    # Search
+    "HybridSearcher",
+    "BM25Searcher",
+    "SearchResult",
+    "hybrid_query",
+    # Query optimizer
+    "QueryOptimizer",
+    "create_optimizer",
+    # File tracking
+    "FileTracker",
+    "compute_file_hash",
+    # Config
     "RAGConfig",
-    "EmbeddingConfig",
-    "VectorStoreConfig",
-    "RerankerConfig",
-    "HybridSearchConfig",
-    "QueryOptimizationConfig",
-    "LoaderConfig",
-    "FileTrackingConfig",
-    "MMRConfig",
     "get_config",
-    "set_config",
-    "reload_config",
-    "get_embedding_config",
-    "get_vector_store_config",
-    "get_reranker_config",
-    "get_hybrid_search_config",
-    "get_mmr_config",
+    "configure",
 ]

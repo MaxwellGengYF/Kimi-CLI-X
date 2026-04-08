@@ -1,4 +1,8 @@
-"""RAG Pipeline that orchestrates document loading, embedding, and retrieval."""
+"""RAG Pipeline that orchestrates document loading, embedding, and retrieval.
+
+This version uses only the vector database (ChromaDB) for storage and retrieval,
+without requiring external embedding models like sentence-transformers.
+"""
 
 import hashlib
 import logging
@@ -6,13 +10,11 @@ import threading
 from pathlib import Path
 from typing import List, Optional, Dict, Any, Tuple, Union
 from dataclasses import dataclass
+import warnings
 
 from skill_rag.loader import MarkdownLoader, Document, UniversalDocumentLoader
-from skill_rag.embeddings import EmbeddingService, SentenceTransformerEmbedder
-from skill_rag.embedding_cache import CachedEmbedder, EmbeddingCache
-from skill_rag.config import get_config
+from skill_rag.embeddings import SimpleEmbedder
 from skill_rag.vector_store import ChromaVectorStore
-from skill_rag.reranker import Reranker, CrossEncoderReranker
 from skill_rag.hybrid_search import HybridSearcher, HybridSearchResult
 from skill_rag.query_optimizer import QueryOptimizer, create_optimizer
 from skill_rag.file_tracker import FileTracker, compute_file_hash
@@ -42,22 +44,23 @@ class IndexingResult:
 
 
 class RAGPipeline:
-    """Main RAG pipeline for indexing and querying documents."""
+    """Main RAG pipeline for indexing and querying documents.
+    
+    This pipeline uses ChromaDB for vector storage and a simple hash-based
+    embedder for generating embeddings. No external ML models required.
+    """
     
     def __init__(
         self,
         collection_name: str = "skill_docs",
         persist_directory: str = "./chroma_db",
-        embedding_model: Optional[str] = "all-MiniLM-L6-v2",
-        use_reranker: bool = False,
-        reranker_model: Optional[str] = None,
+        embedding_dimension: int = 384,
+        embedding_model: Optional[str] = None,  # Deprecated, kept for compatibility
         use_hybrid_search: bool = False,
         alpha: float = 0.5,
         use_query_optimizer: bool = False,
         query_optimizer_mode: str = "expansion",
         enable_file_tracking: bool = True,
-        use_embedding_cache: bool = True,
-        cache_dir: Optional[str] = None,
         use_semantic_chunking: bool = False
     ):
         """Initialize the RAG pipeline.
@@ -65,18 +68,24 @@ class RAGPipeline:
         Args:
             collection_name: Name for the ChromaDB collection
             persist_directory: Directory for persistent storage
-            embedding_model: Name of embedding model to use (None for legacy EmbeddingService)
-            use_reranker: Whether to use reranking
-            reranker_model: Reranker model name (None for default)
+            embedding_dimension: Dimension for embeddings (default: 384)
+            embedding_model: Deprecated, no longer used
             use_hybrid_search: Whether to use hybrid search (BM25 + vector)
             alpha: Weight for vector search in hybrid (0=BM25, 1=vector, 0.5=balanced)
             use_query_optimizer: Whether to optimize queries before search
             query_optimizer_mode: Query optimizer mode ("none", "expansion", "hyde", "full")
             enable_file_tracking: Whether to enable incremental file indexing
-            use_embedding_cache: Whether to enable embedding caching
-            cache_dir: Directory for embedding cache (None for default)
             use_semantic_chunking: Use semantic chunking with paragraph/sentence boundaries
         """
+        # Warn about deprecated parameter
+        if embedding_model is not None:
+            warnings.warn(
+                "embedding_model parameter is deprecated. "
+                "This pipeline now uses a simple hash-based embedder.",
+                DeprecationWarning,
+                stacklevel=2
+            )
+        
         # Persist directory for tracking files
         self.persist_directory = Path(persist_directory) if persist_directory else None
         
@@ -87,48 +96,15 @@ class RAGPipeline:
             use_semantic_chunking=use_semantic_chunking
         )
         
-        # Embedding model selection with optional caching
-        if embedding_model:
-            try:
-                base_embedder = SentenceTransformerEmbedder(model_name=embedding_model)
-            except Exception as e:
-                logger.warning(f"Failed to load {embedding_model}: {e}. Using fallback embedder.")
-                base_embedder = EmbeddingService(dimension=384)
-        else:
-            # Legacy embedder
-            base_embedder = EmbeddingService(dimension=384)
-        
-        # Wrap with cache if enabled
-        if use_embedding_cache:
-            if cache_dir:
-                cache_path = Path(cache_dir)
-            elif self.persist_directory:
-                cache_path = self.persist_directory / "embedding_cache"
-            else:
-                cache_path = Path(".embedding_cache")
-            self.embedder = CachedEmbedder(
-                base_embedder,
-                cache_dir=cache_path,
-                enabled=True
-            )
-            logger.info(f"Embedding cache enabled at {cache_path}")
-        else:
-            self.embedder = base_embedder
+        # Simple hash-based embedder (no external dependencies)
+        self.embedder = SimpleEmbedder(dimension=embedding_dimension)
         
         # Vector store
         self.store = ChromaVectorStore(
             collection_name=collection_name,
             persist_directory=persist_directory,
-            embedding_dimension=self.embedder.dimension
+            embedding_dimension=embedding_dimension
         )
-        
-        # Optional reranker
-        self.reranker: Optional[Reranker] = None
-        if use_reranker:
-            try:
-                self.reranker = CrossEncoderReranker(model_name=reranker_model)
-            except Exception as e:
-                logger.warning(f"Failed to load reranker: {e}")
         
         # Optional hybrid search
         self.hybrid_searcher: Optional[HybridSearcher] = None
@@ -358,7 +334,7 @@ class RAGPipeline:
                         logger.info(f"Deleted {deleted_chunks} chunks from removed files")
                     except Exception as e:
                         logger.warning(f"Failed to delete stale chunks: {e}")
-                self.file_tracker.save()
+                    self.file_tracker.save()
             
             # Index each file individually
             total_new = 0
@@ -532,7 +508,7 @@ class RAGPipeline:
         ids = []
         
         for doc, content_hash in docs_with_hash:
-            # Generate embedding
+            # Generate embedding using simple embedder
             emb = self.embedder.embed([doc.content])[0]
             
             # Prepare metadata
@@ -564,7 +540,7 @@ class RAGPipeline:
     
     def _update_doc(self, existing_id: str, doc: Document, content_hash: str) -> None:
         """Update an existing document."""
-        # Generate new embedding
+        # Generate new embedding using simple embedder
         emb = self.embedder.embed([doc.content])[0]
         
         # Prepare metadata
@@ -589,7 +565,6 @@ class RAGPipeline:
         query_text: str,
         top_k: int = 3,
         filter_dict: Optional[Dict[str, Any]] = None,
-        use_rerank: Optional[bool] = None,
         use_hybrid: Optional[bool] = None
     ) -> List[QueryResult]:
         """Query the indexed documents.
@@ -598,14 +573,12 @@ class RAGPipeline:
             query_text: Query text
             top_k: Number of results to return
             filter_dict: Optional metadata filter
-            use_rerank: Override reranking (None uses pipeline default)
             use_hybrid: Override hybrid search (None uses pipeline default)
             
         Returns:
             List of QueryResult objects
         """
-        # Determine which methods to use
-        do_rerank = use_rerank if use_rerank is not None else (self.reranker is not None)
+        # Determine which method to use
         do_hybrid = use_hybrid if use_hybrid is not None else self.use_hybrid_search
         
         # Optimize query if optimizer is enabled
@@ -623,22 +596,16 @@ class RAGPipeline:
             results = self._hybrid_query(
                 optimized_query,
                 keyword_query,
-                top_k=top_k * 3 if do_rerank else top_k,
+                top_k=top_k,
                 filter_dict=filter_dict
             )
         else:
             # Vector-only search
             results = self._vector_query(
                 optimized_query,
-                top_k=top_k * 3 if do_rerank else top_k,
+                top_k=top_k,
                 filter_dict=filter_dict
             )
-        
-        # Rerank if enabled
-        if do_rerank and self.reranker and results:
-            results = self._rerank_results(query_text, results, top_k)
-        elif len(results) > top_k:
-            results = results[:top_k]
         
         return results
     
@@ -699,32 +666,6 @@ class RAGPipeline:
         
         return query_results
     
-    def _rerank_results(
-        self,
-        query: str,
-        results: List[QueryResult],
-        top_k: int
-    ) -> List[QueryResult]:
-        """Rerank results using cross-encoder."""
-        if not self.reranker or not results:
-            return results
-        
-        documents = [r.content for r in results]
-        ranked = self.reranker.rerank(query, documents, top_k=top_k)
-        
-        # Map back to QueryResults
-        doc_to_result = {r.content: r for r in results}
-        reranked_results = []
-        
-        for doc_text, score in ranked:
-            if doc_text in doc_to_result:
-                result = doc_to_result[doc_text]
-                # Update score (reranker score is typically 0-1)
-                result.distance = 1.0 - score
-                reranked_results.append(result)
-        
-        return reranked_results
-    
     def _parse_results(self, results: Dict[str, Any]) -> List[QueryResult]:
         """Parse ChromaDB results into QueryResult objects."""
         query_results = []
@@ -749,10 +690,8 @@ class RAGPipeline:
         """Get pipeline statistics."""
         stats = self.store.get_stats()
         stats.update({
-            "embedding_model": getattr(self.embedder, 'model_name', 'legacy'),
+            "embedder_type": "simple_hash",
             "embedding_dimension": self.embedder.dimension,
-            "reranker_enabled": self.reranker is not None,
-            "reranker_model": getattr(self.reranker, 'model_name', None) if self.reranker else None,
             "hybrid_search_enabled": self.use_hybrid_search,
             "hybrid_alpha": self.hybrid_alpha if self.use_hybrid_search else None,
             "query_optimizer_enabled": self.query_optimizer is not None,
@@ -799,6 +738,14 @@ class RAGPipeline:
             self.hybrid_searcher.clear()
         if self.file_tracker:
             self.file_tracker.clear()
+
+    def close(self) -> None:
+        """Close the pipeline and release resources."""
+        with self._lock:
+            if self.store and hasattr(self.store, 'client') and self.store.client:
+                # Delete the client to release file locks
+                del self.store.client
+                self.store.client = None
     
     def delete_collection(self) -> None:
         """Delete the entire collection."""
