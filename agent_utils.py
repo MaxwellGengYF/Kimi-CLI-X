@@ -192,7 +192,7 @@ def print_agent_json(get_message, output_function: Callable | None = None):
         'SearchWeb': ('query', 'limit', 'include_content'),
         'PowerShell': ('command', 'timeout'),
         'Bash': ('command', 'timeout'),
-        'SubAgent': ('prompt', 'session_id'),
+        'SubAgent': ('prompt', 'thinking'),
         'SkillAnalyzer': ('query', 'directory', 'top_k', 'refresh'),
         'RAG': ('query', 'file_path', 'top_k', 'refresh')
     }

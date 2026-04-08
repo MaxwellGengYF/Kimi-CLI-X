@@ -2,7 +2,7 @@ import asyncio
 import threading
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
-from kimi_utils import prompt
+from kimi_utils import prompt, create_session, close_session
 from my_tools.common import _maybe_export_output
 
 # Thread-local storage to track SubAgentScope context
@@ -11,8 +11,13 @@ _sub_agent_scope = threading.local()
 
 class SubAgentParams(BaseModel):
     prompt: str = Field(
-        description="The prompt to send to the sub-agent.",
+        description="The prompt to send to the sub-agent",
     )
+    thinking: bool = Field(
+        default=False,
+        description='Enable deep-thinking mode, default false'
+    )
+    # thinking:
 
 
 class SubAgent(CallableTool2):
@@ -37,13 +42,19 @@ class SubAgent(CallableTool2):
                     output_strs.append(fn)
 
             def prompt_func():
+                session = None
                 try:
                     _sub_agent_scope.active = True
-                    prompt(prompt_str=params.prompt, session=False,
+                    session = create_session(
+                        thinking=params.thinking,
+                        plan_mode=False)
+                    prompt(prompt_str=params.prompt, session=session,
                            output_function=output_function)
                 except Exception as e:
                     return str(e)
                 finally:
+                    if session:
+                        close_session(session)
                     _sub_agent_scope.active = False
                 return None
 
