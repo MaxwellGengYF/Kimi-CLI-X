@@ -1,5 +1,6 @@
-"""Document loader for markdown files with frontmatter parsing."""
+"""Document loader for markdown files with frontmatter parsing and multi-format support."""
 
+import io
 import json
 import re
 import yaml
@@ -134,6 +135,50 @@ class MarkdownLoader:
         for file_path in sorted(directory.rglob(pattern)):
             docs = self.load_file(file_path)
             documents.extend(docs)
+        return documents
+    
+    def load_text(
+        self,
+        content: str,
+        source: str = "inline",
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> List[Document]:
+        """Load and chunk raw text content.
+        
+        Args:
+            content: Text content
+            source: Source identifier
+            metadata: Optional metadata
+            
+        Returns:
+            List of Document chunks
+        """
+        frontmatter, body, frontmatter_line_count = self._parse_frontmatter(content)
+        
+        # Merge provided metadata with frontmatter
+        merged_metadata = {**(metadata or {}), **frontmatter}
+        
+        # Chunk by headers
+        chunks = self._chunk_by_headers(body, frontmatter_line_count)
+        
+        documents = []
+        for i, (chunk, start_line, end_line) in enumerate(chunks):
+            raw_metadata = {
+                'source': source,
+                'filename': source,
+                'name': merged_metadata.get('name', source),
+                **{k: v for k, v in merged_metadata.items() if k != 'name'}
+            }
+            doc = Document(
+                content=chunk,
+                metadata=sanitize_metadata(raw_metadata),
+                source=source,
+                chunk_index=i,
+                start_line=start_line,
+                end_line=end_line
+            )
+            documents.append(doc)
+        
         return documents
     
     def _parse_frontmatter(self, content: str) -> tuple[Dict[str, Any], str, int]:
@@ -288,3 +333,375 @@ class MarkdownLoader:
         save_chunk()
         
         return chunks
+
+
+class PDFLoader:
+    """Load text from PDF files."""
+    
+    def __init__(self, chunk_size: int = 1000, chunk_overlap: int = 100):
+        self.chunk_size = chunk_size
+        self.chunk_overlap = chunk_overlap
+    
+    def load_file(self, file_path: Path) -> List[Document]:
+        """Load text from a PDF file.
+        
+        Args:
+            file_path: Path to PDF file
+            
+        Returns:
+            List of Document chunks
+        """
+        try:
+            from PyPDF2 import PdfReader
+        except ImportError:
+            raise ImportError("PyPDF2 is required for PDF loading. Install with: pip install PyPDF2")
+        
+        reader = PdfReader(str(file_path))
+        
+        documents = []
+        text_buffer = []
+        current_size = 0
+        chunk_index = 0
+        current_page = 0
+        
+        for page_num, page in enumerate(reader.pages):
+            text = page.extract_text()
+            if not text.strip():
+                continue
+            
+            current_page = page_num + 1
+            text_buffer.append(text)
+            current_size += len(text)
+            
+            # When buffer exceeds chunk size, create chunks
+            if current_size >= self.chunk_size:
+                full_text = '\n'.join(text_buffer)
+                chunks = self._chunk_text(full_text, current_page - len(text_buffer) + 1)
+                
+                for chunk_text, start_page in chunks:
+                    doc = Document(
+                        content=chunk_text,
+                        metadata={
+                            'source': str(file_path),
+                            'filename': file_path.name,
+                            'name': file_path.stem,
+                            'page_start': start_page,
+                            'page_end': current_page,
+                            'format': 'pdf'
+                        },
+                        source=str(file_path),
+                        chunk_index=chunk_index,
+                        start_line=0,  # PDFs don't have lines
+                        end_line=0
+                    )
+                    documents.append(doc)
+                    chunk_index += 1
+                
+                text_buffer = []
+                current_size = 0
+        
+        # Process remaining text
+        if text_buffer:
+            full_text = '\n'.join(text_buffer)
+            chunks = self._chunk_text(full_text, current_page - len(text_buffer) + 1)
+            
+            for chunk_text, start_page in chunks:
+                doc = Document(
+                    content=chunk_text,
+                    metadata={
+                        'source': str(file_path),
+                        'filename': file_path.name,
+                        'name': file_path.stem,
+                        'page_start': start_page,
+                        'page_end': current_page,
+                        'format': 'pdf'
+                    },
+                    source=str(file_path),
+                    chunk_index=chunk_index,
+                    start_line=0,
+                    end_line=0
+                )
+                documents.append(doc)
+                chunk_index += 1
+        
+        return documents
+    
+    def _chunk_text(self, text: str, start_page: int) -> List[tuple[str, int]]:
+        """Split text into chunks while tracking page numbers.
+        
+        Returns:
+            List of (chunk_text, start_page) tuples
+        """
+        paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+        
+        if not paragraphs:
+            return [(text.strip(), start_page)] if text.strip() else []
+        
+        chunks = []
+        current_chunk = []
+        current_size = 0
+        chunk_start_page = start_page
+        
+        for para in paragraphs:
+            para_size = len(para)
+            
+            if current_size + para_size > self.chunk_size and current_chunk:
+                # Save current chunk
+                chunks.append(('\n\n'.join(current_chunk), chunk_start_page))
+                
+                # Start new chunk with overlap
+                overlap_count = min(2, len(current_chunk))
+                current_chunk = current_chunk[-overlap_count:] + [para]
+                current_size = sum(len(p) for p in current_chunk)
+            else:
+                current_chunk.append(para)
+                current_size += para_size
+        
+        # Add remaining content
+        if current_chunk:
+            chunks.append(('\n\n'.join(current_chunk), chunk_start_page))
+        
+        return chunks
+
+
+class DocxLoader:
+    """Load text from Word (.docx) files."""
+    
+    def __init__(self, chunk_size: int = 1000, chunk_overlap: int = 100):
+        self.chunk_size = chunk_size
+        self.chunk_overlap = chunk_overlap
+    
+    def load_file(self, file_path: Path) -> List[Document]:
+        """Load text from a Word file.
+        
+        Args:
+            file_path: Path to .docx file
+            
+        Returns:
+            List of Document chunks
+        """
+        try:
+            from docx import Document as DocxDocument
+        except ImportError:
+            raise ImportError("python-docx is required for Word loading. Install with: pip install python-docx")
+        
+        doc = DocxDocument(str(file_path))
+        
+        # Extract text from paragraphs
+        paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+        
+        # Also extract text from tables
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    cell_text = cell.text.strip()
+                    if cell_text:
+                        paragraphs.append(cell_text)
+        
+        documents = []
+        current_chunk = []
+        current_size = 0
+        chunk_index = 0
+        
+        for para in paragraphs:
+            para_size = len(para)
+            
+            if current_size + para_size > self.chunk_size and current_chunk:
+                # Save current chunk
+                doc = Document(
+                    content='\n\n'.join(current_chunk),
+                    metadata={
+                        'source': str(file_path),
+                        'filename': file_path.name,
+                        'name': file_path.stem,
+                        'format': 'docx'
+                    },
+                    source=str(file_path),
+                    chunk_index=chunk_index,
+                    start_line=0,
+                    end_line=0
+                )
+                documents.append(doc)
+                chunk_index += 1
+                
+                # Start new chunk with overlap
+                overlap_count = min(2, len(current_chunk))
+                current_chunk = current_chunk[-overlap_count:] + [para]
+                current_size = sum(len(p) for p in current_chunk)
+            else:
+                current_chunk.append(para)
+                current_size += para_size
+        
+        # Add remaining content
+        if current_chunk:
+            doc = Document(
+                content='\n\n'.join(current_chunk),
+                metadata={
+                    'source': str(file_path),
+                    'filename': file_path.name,
+                    'name': file_path.stem,
+                    'format': 'docx'
+                },
+                source=str(file_path),
+                chunk_index=chunk_index,
+                start_line=0,
+                end_line=0
+            )
+            documents.append(doc)
+        
+        return documents
+
+
+class UniversalDocumentLoader:
+    """Universal document loader that supports multiple file formats.
+    
+    Supports semantic chunking for all document types when use_semantic_chunking is True.
+    """
+    
+    SUPPORTED_FORMATS = {
+        '.md': MarkdownLoader,
+        '.markdown': MarkdownLoader,
+        '.pdf': PDFLoader,
+        '.docx': DocxLoader,
+    }
+    
+    def __init__(
+        self,
+        chunk_size: int = 1000,
+        chunk_overlap: int = 100,
+        use_semantic_chunking: bool = False
+    ):
+        """Initialize universal loader.
+        
+        Args:
+            chunk_size: Maximum characters per chunk
+            chunk_overlap: Overlap between chunks
+            use_semantic_chunking: Use semantic chunking with paragraph/sentence boundaries
+        """
+        self.chunk_size = chunk_size
+        self.chunk_overlap = chunk_overlap
+        self.use_semantic_chunking = use_semantic_chunking
+        self._loaders: Dict[str, Any] = {}
+        self._semantic_chunker: Optional[Any] = None
+        
+        if use_semantic_chunking:
+            try:
+                from skill_rag.semantic_chunking import create_chunker
+                self._semantic_chunker = create_chunker(
+                    chunk_size=chunk_size,
+                    chunk_overlap=chunk_overlap
+                )
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(
+                    f"Failed to initialize semantic chunker: {e}. Falling back to standard chunking."
+                )
+                self.use_semantic_chunking = False
+    
+    def _get_loader(self, extension: str) -> Any:
+        """Get or create loader for a file extension."""
+        if extension not in self._loaders:
+            loader_class = self.SUPPORTED_FORMATS.get(extension)
+            if loader_class:
+                self._loaders[extension] = loader_class(
+                    chunk_size=self.chunk_size,
+                    chunk_overlap=self.chunk_overlap
+                )
+        return self._loaders.get(extension)
+    
+    def load_file(self, file_path: Path) -> List[Document]:
+        """Load a file based on its extension.
+        
+        Args:
+            file_path: Path to file
+            
+        Returns:
+            List of Document chunks
+            
+        Raises:
+            ValueError: If file format is not supported
+        """
+        file_path = Path(file_path)
+        extension = file_path.suffix.lower()
+        
+        loader = self._get_loader(extension)
+        if loader:
+            return loader.load_file(file_path)
+        
+        raise ValueError(f"Unsupported file format: {extension}. "
+                        f"Supported: {list(self.SUPPORTED_FORMATS.keys())}")
+    
+    def load_directory(
+        self,
+        directory: Path,
+        pattern: str = "*"
+    ) -> List[Document]:
+        """Load all supported files from a directory.
+        
+        Args:
+            directory: Directory to search
+            pattern: File pattern (e.g., "*.md" or "*" for all supported)
+            
+        Returns:
+            List of all Document chunks
+        """
+        directory = Path(directory)
+        documents = []
+        
+        if pattern == "*":
+            # Load all supported formats
+            for ext in self.SUPPORTED_FORMATS.keys():
+                for file_path in sorted(directory.rglob(f"*{ext}")):
+                    try:
+                        docs = self.load_file(file_path)
+                        documents.extend(docs)
+                    except Exception as e:
+                        print(f"Warning: Failed to load {file_path}: {e}")
+        else:
+            # Load specific pattern
+            for file_path in sorted(directory.rglob(pattern)):
+                try:
+                    docs = self.load_file(file_path)
+                    documents.extend(docs)
+                except ValueError as e:
+                    # Skip unsupported formats
+                    pass
+                except Exception as e:
+                    print(f"Warning: Failed to load {file_path}: {e}")
+        
+        return documents
+    
+    def load_text(
+        self,
+        content: str,
+        source: str = "inline",
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> List[Document]:
+        """Load and chunk raw text content (treated as markdown).
+        
+        Args:
+            content: Text content
+            source: Source identifier
+            metadata: Optional metadata
+            
+        Returns:
+            List of Document chunks
+        """
+        loader = MarkdownLoader(
+            chunk_size=self.chunk_size,
+            chunk_overlap=self.chunk_overlap
+        )
+        return loader.load_text(content, source, metadata)
+    
+    @classmethod
+    def is_supported(cls, file_path: Path) -> bool:
+        """Check if a file format is supported.
+        
+        Args:
+            file_path: Path to file
+            
+        Returns:
+            True if supported
+        """
+        extension = Path(file_path).suffix.lower()
+        return extension in cls.SUPPORTED_FORMATS

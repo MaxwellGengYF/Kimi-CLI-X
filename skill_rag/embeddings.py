@@ -1,8 +1,12 @@
-"""Embedding service for text vectorization using Word2Vec/GloVe."""
+"""Embedding service for text vectorization using sentence-transformers with fallback."""
 
-from typing import List, Optional
+from typing import List, Optional, Union
+import hashlib
+import logging
 import numpy as np
 import re
+
+logger = logging.getLogger(__name__)
 
 
 class EmbeddingService:
@@ -73,6 +77,9 @@ class EmbeddingService:
     def _get_word_vectors(self, tokens: List[str]) -> List[np.ndarray]:
         """Get word vectors for a list of tokens.
         
+        Uses deterministic MD5 hash instead of Python's built-in hash() to ensure
+        consistent vectors across runs (Python 3.3+ randomizes hash by default).
+        
         Args:
             tokens: List of word tokens
             
@@ -85,7 +92,9 @@ class EmbeddingService:
         if not model:
             # Hash-based fallback: generate deterministic vectors from token hash
             for token in tokens:
-                np.random.seed(hash(token) % (2**31))
+                # Use MD5 for deterministic hashing (Python's hash() is randomized)
+                hash_val = int(hashlib.md5(token.encode('utf-8')).hexdigest(), 16)
+                np.random.seed(hash_val % (2**31))
                 vectors.append(np.random.randn(self._fallback_dim).astype(np.float32))
         else:
             for token in tokens:
@@ -204,3 +213,138 @@ class EmbeddingService:
             Size of embedding vectors
         """
         return self._dimension
+
+
+class SentenceTransformerEmbedder:
+    """High-quality embedding service using sentence-transformers."""
+    
+    # Default model: all-MiniLM-L6-v2 (384-dim, fast, good quality)
+    DEFAULT_MODEL = "all-MiniLM-L6-v2"
+    
+    def __init__(self, model_name: Optional[str] = None, device: Optional[str] = None):
+        """Initialize sentence-transformer embedder.
+        
+        Args:
+            model_name: Name of the sentence-transformer model to use.
+                       Defaults to 'all-MiniLM-L6-v2' (384-dim).
+            device: Device to run on ('cpu', 'cuda', or None for auto)
+        """
+        self._model_name = model_name or self.DEFAULT_MODEL
+        self._device = device
+        self._model = None
+        self._dimension = None
+        self._fallback_embedder = None
+    
+    def _get_model(self):
+        """Lazy load the sentence-transformer model."""
+        if self._model is None:
+            try:
+                from sentence_transformers import SentenceTransformer
+                
+                logger.info(f"Loading sentence-transformer model: {self._model_name}")
+                self._model = SentenceTransformer(self._model_name, device=self._device)
+                self._dimension = self._model.get_sentence_embedding_dimension()
+                logger.info(f"Model loaded successfully. Dimension: {self._dimension}")
+            except ImportError:
+                logger.warning(
+                    "sentence-transformers not available. "
+                    "Install with: pip install sentence-transformers"
+                )
+                self._init_fallback()
+            except Exception as e:
+                logger.error(f"Failed to load model {self._model_name}: {e}")
+                self._init_fallback()
+        return self._model
+    
+    def _init_fallback(self):
+        """Initialize fallback embedder."""
+        logger.warning("Using fallback EmbeddingService")
+        self._fallback_embedder = EmbeddingService(dimension=384)
+        self._dimension = self._fallback_embedder.dimension
+        self._model = None
+    
+    def embed(self, texts: List[str], batch_size: int = 32, show_progress: bool = False) -> List[List[float]]:
+        """Generate embeddings for a list of texts.
+        
+        Args:
+            texts: List of text strings to embed
+            batch_size: Batch size for encoding
+            show_progress: Whether to show progress bar
+            
+        Returns:
+            List of embedding vectors (each is a list of floats)
+        """
+        if not texts:
+            return []
+        
+        model = self._get_model()
+        
+        if model is None and self._fallback_embedder:
+            # Use fallback
+            return self._fallback_embedder.embed(texts, batch_size)
+        
+        # Clean texts
+        cleaned_texts = [self._clean_text(t) for t in texts]
+        
+        # Generate embeddings using sentence-transformers
+        embeddings = model.encode(
+            cleaned_texts,
+            batch_size=batch_size,
+            show_progress_bar=show_progress,
+            convert_to_numpy=True
+        )
+        
+        return embeddings.tolist()
+    
+    def embed_query(self, text: str) -> List[float]:
+        """Generate embedding for a single query text.
+        
+        Args:
+            text: Query text
+            
+        Returns:
+            Embedding vector as list of floats
+        """
+        embeddings = self.embed([text], batch_size=1)
+        return embeddings[0] if embeddings else []
+    
+    def _clean_text(self, text: str) -> str:
+        """Clean text for embedding.
+        
+        Args:
+            text: Raw text
+            
+        Returns:
+            Cleaned text
+        """
+        # Basic cleaning - sentence-transformers handles most preprocessing
+        # Just limit length to avoid issues
+        max_length = 10000
+        if len(text) > max_length:
+            text = text[:max_length]
+        return text.strip()
+    
+    @property
+    def dimension(self) -> int:
+        """Get the embedding dimension.
+        
+        Returns:
+            Size of embedding vectors
+        """
+        if self._dimension is None:
+            # Force model loading
+            self._get_model()
+        return self._dimension or 384
+    
+    @property
+    def model_name(self) -> str:
+        """Get the model name.
+        
+        Returns:
+            Name of the loaded model
+        """
+        return self._model_name
+
+
+# Type alias for embedder interface
+Embedder = Union[EmbeddingService, SentenceTransformerEmbedder]
