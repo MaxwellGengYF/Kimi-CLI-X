@@ -44,10 +44,12 @@ class SubAgent(CallableTool2):
             def prompt_func():
                 session = None
                 try:
+                    import agent_utils
                     _sub_agent_scope.active = True
                     session = create_session(
                         thinking=params.thinking,
-                        plan_mode=False)
+                        plan_mode=False,
+                        agent_file=agent_utils._default_agent_file_dir / 'agent_subagent.yaml')
                     prompt(prompt_str=params.prompt, session=session,
                            output_function=output_function)
                 except Exception as e:

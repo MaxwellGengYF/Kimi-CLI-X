@@ -333,7 +333,8 @@ _ralph_iterations = 0
 _default_thinking = False
 _default_plan_mode = False
 _default_yolo = True
-_default_agent_file = Path(__file__).parent / 'agent_worker.yaml'
+_default_agent_file_dir = Path(__file__).parent
+_default_agent_file = _default_agent_file_dir / 'agent_worker.yaml'
 _default_skill_dirs = []
 
 
