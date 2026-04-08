@@ -39,6 +39,8 @@ Available commands:
   /think:off      - Disable thinking mode
   /plan:on        - Enable plan mode
   /plan:off       - Disable plan mode
+  /ralph:on       - Enable Ralph auto-loop mode
+  /ralph:off      - Disable Ralph auto-loop mode
   /script         - Write python script
   /cmd            - Write cmd 
   /cd             - change dir
@@ -292,6 +294,23 @@ def _run_cli():
         clear_context(True, True)
         return None, False
 
+    def _cmd_ralph(task_split):
+        if len(task_split) < 2:
+            print_error('Command must be /ralph:on or /ralph:off')
+            return None, False
+        value = task_split[1].strip().lower()
+        if value == 'on':
+            agent_utils._ralph_iterations = -1
+            print_success('Ralph auto-loop mode enabled.')
+        elif value == 'off':
+            agent_utils._ralph_iterations = 0
+            print_success('Ralph auto-loop mode disabled.')
+        else:
+            print_error('Command must be /ralph:on or /ralph:off')
+            return None, False
+        clear_context(True, True)
+        return None, False
+
     def _cmd_txt(task_split):
         print('\n>>>> Start input multiple-lines, end with /end')
         text = []
@@ -384,6 +403,7 @@ def _run_cli():
         'validate': _cmd_validate,
         'think': _cmd_think,
         'plan': _cmd_plan,
+        'ralph': _cmd_ralph,
         'txt': _cmd_txt,
         'skill': _cmd_skill,
         'file': _cmd_file,

@@ -113,6 +113,8 @@ python kimi_agent_cli.py -c --ralph --no_yolo
 | `/fix:<command>` | 运行命令并自动修复错误 |
 | `/tool:<name>` | 运行 tools/ 目录下的脚本 |
 | `/think:on/off` | 开启/关闭思考模式 |
+| `/plan:on/off` | 开启/关闭计划模式 |
+| `/ralph:on/off` | 开启/关闭 Ralph 自动循环模式 |
 | `/md:on/off` | 开启/关闭读取 AGENTS.md |
 | `/cd:<path>` | 切换工作目录 |
 
