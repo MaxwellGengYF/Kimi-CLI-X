@@ -93,7 +93,7 @@ def get_final_output():
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(output_text)
         return f'exported to {output_path}'
-    return _maybe_export_output(output_text, _state.name)
+    return _maybe_export_output(output_text)
 
 
 def _read_streams_into_queue(process: subprocess.Popen, stream, q: queue.Queue, may_input: bool = False):
