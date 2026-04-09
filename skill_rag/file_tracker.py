@@ -4,6 +4,7 @@ Tracks file modification times and document ID mappings
 to enable efficient incremental re-indexing.
 """
 
+import asyncio
 import json
 import logging
 from dataclasses import dataclass, field, asdict
@@ -101,6 +102,65 @@ class FileTracker:
             logger.debug(f"Saved file tracker with {len(self._files)} entries")
         except Exception as e:
             logger.warning(f"Failed to save file tracker: {e}")
+    
+    async def aload(self) -> None:
+        """Async version of _load method.
+        
+        Loads the file index from disk in a non-blocking manner.
+        """
+        if not self.index_path or not self.index_path.exists():
+            return
+        
+        loop = asyncio.get_event_loop()
+        
+        try:
+            # Run file I/O in executor to avoid blocking
+            def _read_file():
+                with open(self.index_path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            
+            data = await loop.run_in_executor(None, _read_file)
+            
+            self._files = {
+                path: FileIndexEntry.from_dict(entry)
+                for path, entry in data.get("files", {}).items()
+            }
+            logger.debug(f"Async loaded file tracker with {len(self._files)} entries")
+        except Exception as e:
+            logger.warning(f"Failed to async load file tracker: {e}")
+            self._files = {}
+    
+    async def asave(self) -> None:
+        """Async version of save method.
+        
+        Saves the file index to disk in a non-blocking manner.
+        """
+        if not self.index_path:
+            return
+        
+        loop = asyncio.get_event_loop()
+        
+        try:
+            # Ensure directory exists
+            self.index_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            data = {
+                "version": 1,
+                "files": {
+                    path: entry.to_dict()
+                    for path, entry in self._files.items()
+                }
+            }
+            
+            # Run file I/O in executor to avoid blocking
+            def _write_file():
+                with open(self.index_path, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, indent=2)
+            
+            await loop.run_in_executor(None, _write_file)
+            logger.debug(f"Async saved file tracker with {len(self._files)} entries")
+        except Exception as e:
+            logger.warning(f"Failed to async save file tracker: {e}")
     
     def get_entry(self, file_path: Path) -> Optional[FileIndexEntry]:
         """Get the index entry for a file.

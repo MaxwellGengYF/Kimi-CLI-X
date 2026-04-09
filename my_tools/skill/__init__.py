@@ -60,9 +60,9 @@ class SkillAnalyzerParams(BaseModel):
     query: str = Field(
         description="Search query to find relevant skills. Use ONLY keywords to describe what you're looking for.",
     )
-    directory: str = Field(
+    file_path: Optional[str] = Field(
         default=None,
-        description="Directory to scan for skills. Defaults to current working directory. Skills are found in */SKILL.md pattern.",
+        description="Path to a file or directory to index and search. If a directory is provided, all text files within it will be indexed. Defaults to current working directory.",
     )
     top_k: int = Field(
         default=3,
@@ -222,16 +222,16 @@ class SkillAnalyzer(CallableTool2):
         """
         try:
             # Validate directory
-            if params.directory is None:
+            if params.file_path is None:
                 from agent_utils import _get_skill_dirs
                 lst = _get_skill_dirs(False)
                 if lst:
-                    params.directory = lst[0]
+                    params.file_path = lst[0]
                 else:
-                    params.directory = '.'
+                    params.file_path = '.'
             # Ensure directory is converted to string first to handle KaosPath
             # then convert to standard Path to avoid __fspath__ issues
-            dir_path = Path(str(params.directory))
+            dir_path = Path(str(params.file_path))
             if not dir_path.exists():
                 return ToolError(
                     message=f"Directory not found: {dir_path}",

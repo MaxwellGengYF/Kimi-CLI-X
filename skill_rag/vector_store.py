@@ -1,10 +1,14 @@
 """ChromaDB vector store implementation with full CRUD support."""
 
+import logging
 from typing import List, Optional, Dict, Any
 from pathlib import Path
 import threading
 import chromadb
 from chromadb.config import Settings
+
+
+logger = logging.getLogger(__name__)
 
 
 class ChromaVectorStore:
@@ -94,7 +98,7 @@ class ChromaVectorStore:
                 ids = [f"doc_{existing_count + i}" for i in range(len(documents))]
             
             # Add in batches to avoid memory issues
-            batch_size = 100
+            batch_size = 1000
             for i in range(0, len(documents), batch_size):
                 end_idx = min(i + batch_size, len(documents))
                 collection.add(
@@ -203,7 +207,7 @@ class ChromaVectorStore:
                 collection.update(**update_params)
                 return True
             except Exception as e:
-                print(f"Error updating document {id}: {e}")
+                logger.error(f"Error updating document {id}: {e}")
                 return False
     
     def upsert_document(
@@ -235,7 +239,7 @@ class ChromaVectorStore:
                 )
                 return True
             except Exception as e:
-                print(f"Error upserting document {id}: {e}")
+                logger.error(f"Error upserting document {id}: {e}")
                 return False
     
     def delete_by_id(self, doc_id: str) -> bool:
@@ -267,7 +271,7 @@ class ChromaVectorStore:
                 collection.delete(ids=doc_ids)
                 return True
             except Exception as e:
-                print(f"Error deleting documents: {e}")
+                logger.error(f"Error deleting documents: {e}")
                 return False
     
     def delete_by_filter(self, filter_dict: Dict[str, Any]) -> int:
@@ -290,7 +294,7 @@ class ChromaVectorStore:
                 collection.delete(where=filter_dict)
                 return count
             except Exception as e:
-                print(f"Error deleting by filter: {e}")
+                logger.error(f"Error deleting by filter: {e}")
                 return 0
     
     def query(
@@ -375,7 +379,7 @@ class ChromaVectorStore:
                 })
             return documents
         except Exception as e:
-            print(f"Error getting by metadata: {e}")
+            logger.error(f"Error getting by metadata: {e}")
             return []
     
     def delete_collection(self) -> None:

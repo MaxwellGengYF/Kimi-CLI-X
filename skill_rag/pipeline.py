@@ -12,12 +12,16 @@ from typing import List, Optional, Dict, Any, Tuple, Union
 from dataclasses import dataclass
 import warnings
 
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+
 from skill_rag.loader import MarkdownLoader, Document, UniversalDocumentLoader
 from skill_rag.embeddings import SimpleEmbedder
 from skill_rag.vector_store import ChromaVectorStore
 from skill_rag.hybrid_search import HybridSearcher, HybridSearchResult
 from skill_rag.query_optimizer import QueryOptimizer, create_optimizer
 from skill_rag.file_tracker import FileTracker, compute_file_hash
+from skill_rag.protocols import Embedder, VectorStore
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +65,9 @@ class RAGPipeline:
         use_query_optimizer: bool = False,
         query_optimizer_mode: str = "expansion",
         enable_file_tracking: bool = True,
-        use_semantic_chunking: bool = False
+        use_semantic_chunking: bool = False,
+        embedder: Optional[Embedder] = None,
+        store: Optional[VectorStore] = None
     ):
         """Initialize the RAG pipeline.
         
@@ -96,11 +102,11 @@ class RAGPipeline:
             use_semantic_chunking=use_semantic_chunking
         )
         
-        # Simple hash-based embedder (no external dependencies)
-        self.embedder = SimpleEmbedder(dimension=embedding_dimension)
+        # Simple hash-based embedder (no external dependencies) - injectable
+        self.embedder = embedder if embedder is not None else SimpleEmbedder(dimension=embedding_dimension)
         
-        # Vector store
-        self.store = ChromaVectorStore(
+        # Vector store - injectable
+        self.store = store if store is not None else ChromaVectorStore(
             collection_name=collection_name,
             persist_directory=persist_directory,
             embedding_dimension=embedding_dimension
@@ -750,6 +756,140 @@ class RAGPipeline:
             self.hybrid_searcher.clear()
         if self.file_tracker:
             self.file_tracker.clear()
+
+    # Async methods for I/O-bound operations
+    
+    async def aquery(
+        self,
+        query: str,
+        n_results: int = 5,
+        filter_dict: Optional[Dict[str, Any]] = None,
+        min_similarity: Optional[float] = None
+    ) -> List[QueryResult]:
+        """Async version of query method.
+        
+        Runs the sync query in a thread pool for non-blocking I/O.
+        
+        Args:
+            query: Query text
+            n_results: Number of results to return
+            filter_dict: Optional metadata filter
+            min_similarity: Optional minimum similarity threshold
+            
+        Returns:
+            List of QueryResult objects
+        """
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,  # Use default executor
+            self.query,
+            query,
+            n_results,
+            filter_dict,
+            min_similarity
+        )
+    
+    async def aindex_file(
+        self,
+        file_path: Path,
+        skip_duplicates: bool = True,
+        update_existing: bool = False,
+        use_file_tracking: bool = True
+    ) -> IndexingResult:
+        """Async version of index_file method.
+        
+        Runs the sync index_file in a thread pool for non-blocking I/O.
+        
+        Args:
+            file_path: Path to the file to index
+            skip_duplicates: Whether to skip duplicate content
+            update_existing: Whether to update existing documents
+            use_file_tracking: Whether to use file tracking
+            
+        Returns:
+            IndexingResult with indexing statistics
+        """
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            self.index_file,
+            file_path,
+            skip_duplicates,
+            update_existing,
+            use_file_tracking
+        )
+    
+    async def aindex_directory(
+        self,
+        directory: Path,
+        pattern: str = "*.md",
+        skip_duplicates: bool = True,
+        recursive: bool = True
+    ) -> List[Tuple[str, IndexingResult]]:
+        """Async version of index_directory method.
+        
+        Indexes files concurrently using asyncio.gather.
+        
+        Args:
+            directory: Directory to index
+            pattern: File pattern to match
+            skip_duplicates: Whether to skip duplicate content
+            recursive: Whether to search recursively
+            
+        Returns:
+            List of (file_path, IndexingResult) tuples
+        """
+        directory = Path(directory)
+        if not directory.is_dir():
+            return []
+        
+        # Collect all files to index
+        if recursive:
+            files = list(directory.rglob(pattern))
+        else:
+            files = list(directory.glob(pattern))
+        
+        # Index files concurrently
+        tasks = [
+            self.aindex_file(f, skip_duplicates=skip_duplicates, use_file_tracking=True)
+            for f in files
+            if f.is_file()
+        ]
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Combine results
+        output = []
+        for file_path, result in zip(files, results):
+            if isinstance(result, Exception):
+                error_result = IndexingResult(
+                    new_chunks=0,
+                    skipped_chunks=0,
+                    updated_chunks=0,
+                    total_chunks=0,
+                    errors=[str(result)]
+                )
+                output.append((str(file_path), error_result))
+            else:
+                output.append((str(file_path), result))
+        
+        return output
+    
+    async def aforce_reindex_file(self, file_path: Union[str, Path]) -> IndexingResult:
+        """Async version of force_reindex_file method.
+        
+        Args:
+            file_path: Path to the file to reindex
+            
+        Returns:
+            IndexingResult with indexing statistics
+        """
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            self.force_reindex_file,
+            file_path
+        )
 
     def close(self) -> None:
         """Close the pipeline and release resources."""
