@@ -122,9 +122,15 @@ class SkillAnalyzer(CallableTool2):
             )
 
         # Create unique collection name based on directory
+        # Replace all invalid characters with underscore, ensure starts/ends with alphanumeric
         safe_dir_name = str(dir_path).replace(
             "/", "_").replace("\\", "_").replace(":", "_")
-        collection_name = f"{self.COLLECTION_NAME}_{safe_dir_name[:50]}"
+        # Take first 50 chars and ensure it ends with alphanumeric
+        truncated = safe_dir_name[:50]
+        truncated = truncated.rstrip("._-")  # Remove trailing non-alphanumeric chars
+        if not truncated[-1:].isalnum():
+            truncated = truncated + "0"  # Ensure ends with alphanumeric
+        collection_name = f"{self.COLLECTION_NAME}_{truncated}"
 
         # Initialize pipeline
         pipeline = RAGPipeline(

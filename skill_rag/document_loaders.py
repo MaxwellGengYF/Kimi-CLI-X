@@ -306,7 +306,8 @@ class TextLoader(BaseLoader):
         '.py', '.js', '.ts', '.jsx', '.tsx', '.java', '.cpp', '.c', '.h', '.hpp',
         '.cs', '.go', '.rs', '.rb', '.php', '.swift', '.kt', '.scala', '.r',
         '.sql', '.sh', '.bash', '.ps1', '.yaml', '.yml', '.json', '.xml',
-        '.html', '.css', '.scss', '.sass', '.less', '.md', '.rst', '.txt'
+        '.html', '.css', '.scss', '.sass', '.less', '.md', '.markdown', '.rst', '.txt',
+        '.csv'
     }
     
     def _get_default_pattern(self) -> str:
@@ -355,8 +356,19 @@ class TextLoader(BaseLoader):
         return documents
     
     def _is_text_file(self, file_path: Path) -> bool:
-        """Check if file is a supported text/code file."""
-        return file_path.suffix.lower() in self.CODE_EXTENSIONS
+        """Check if file is a supported text/code file.
+        
+        Accepts:
+        - Files with known code/text extensions
+        - Files without extensions (treated as text files)
+        - Files with unknown extensions (attempted as text)
+        """
+        suffix = file_path.suffix.lower()
+        if suffix in self.CODE_EXTENSIONS:
+            return True
+        # Allow files without extension or with unknown extensions
+        # (will be validated during actual read)
+        return True
     
     def _detect_language(self, file_path: Path) -> Optional[str]:
         """Detect programming language from file extension."""
@@ -394,6 +406,7 @@ class TextLoader(BaseLoader):
             '.sass': 'sass',
             '.less': 'less',
             '.md': 'markdown',
+            '.markdown': 'markdown',
             '.rst': 'rst',
             '.txt': 'text',
         }

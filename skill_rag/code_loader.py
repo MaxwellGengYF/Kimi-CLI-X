@@ -353,7 +353,11 @@ class GenericCodeParser(LanguageParser):
                   '.go', '.rs', '.cs', '.kt', '.scala']
     
     patterns = {
-        'function': r'(?:^|\s)(?:\w+\s+)+(\w+)\s*\([^)]*\)\s*(?:\{|;)',
+        # Function pattern handles:
+        # - C-style: int func() { } or int func();
+        # - Rust/Go: fn func() -> Type { } or fn func() -> Type;
+        # - Modifiers: pub fn, async fn, etc.
+        'function': r'(?:^|\s)(?:\w+\s+)*(?:fn|func)?\s*(\w+)\s*\([^)]*\)\s*(?:->\s*\w+\s*)?(?:\{|;)',
         'class': r'(?:^|\s)(?:class|struct|interface)\s+(\w+)',
         'namespace': r'(?:^|\s)namespace\s+(\w+)',
         'import': r'^(?:#include|import|using|package|extern)\b',
@@ -408,21 +412,34 @@ class GenericCodeParser(LanguageParser):
                 i = end_line + 1
                 continue
             
-            # Function definition
+            # Function definition or declaration
             func_match = re.search(self.patterns['function'], line)
-            if func_match and '{' in line:
-                block_start = i
-                block_content, end_line = self._extract_block(lines, i, '{', '}')
-                
-                blocks.append(CodeBlock(
-                    name=func_match.group(1),
-                    type='function',
-                    content='\n'.join(block_content),
-                    start_line=block_start + 1,
-                    end_line=end_line + 1
-                ))
-                i = end_line + 1
-                continue
+            if func_match:
+                if '{' in line:
+                    # Function with body
+                    block_start = i
+                    block_content, end_line = self._extract_block(lines, i, '{', '}')
+                    
+                    blocks.append(CodeBlock(
+                        name=func_match.group(1),
+                        type='function',
+                        content='\n'.join(block_content),
+                        start_line=block_start + 1,
+                        end_line=end_line + 1
+                    ))
+                    i = end_line + 1
+                    continue
+                elif ';' in line:
+                    # Function declaration (e.g., in header files)
+                    blocks.append(CodeBlock(
+                        name=func_match.group(1),
+                        type='function',
+                        content=stripped,
+                        start_line=i + 1,
+                        end_line=i + 1
+                    ))
+                    i += 1
+                    continue
             
             i += 1
         
