@@ -17,7 +17,7 @@ class Params(BaseModel):
     """Parameters for the RAG tool."""
     
     query: str = Field(
-        description="Search query to find relevant content. Use natural language to describe what you're looking for.",
+        description="Search query to find relevant content. Use ONLY keywords to describe what you're looking for.",
     )
     file_path: Optional[str] = Field(
         default=None,
@@ -47,7 +47,7 @@ class RAG(CallableTool2):
     name: str = "RAG"
     description: str = (
         "Perform semantic search on a text file using RAG. "
-        "Indexes the file and allows natural language queries to find relevant content."
+        "Indexes the file and allows ONLY keywords queries to find relevant content."
     )
     params: type[Params] = Params
     

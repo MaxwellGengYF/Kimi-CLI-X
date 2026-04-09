@@ -16,7 +16,7 @@ class Params(BaseModel):
     """Parameters for the SkillAnalyzer tool."""
 
     query: str = Field(
-        description="Search query to find relevant skills. Use natural language to describe what you're looking for.",
+        description="Search query to find relevant skills. Use ONLY keywords to describe what you're looking for.",
     )
     directory: str = Field(
         default=None,
@@ -51,7 +51,7 @@ class SkillAnalyzer(CallableTool2):
     name: str = "SkillAnalyzer"
     description: str = (
         "Analyze and search skills in the current work directory using semantic search. "
-        "Indexes SKILL.md files and allows natural language queries to find relevant skills."
+        "Indexes SKILL.md files and allows ONLY keywords queries to find relevant skills."
     )
     params: type[Params] = Params
 
@@ -253,7 +253,10 @@ class SkillAnalyzer(CallableTool2):
             if params.directory is None:
                 from agent_utils import _get_skill_dirs
                 lst = _get_skill_dirs(False)
-                params.directory = lst[0]
+                if lst:
+                    params.directory = lst[0]
+                else:
+                    params.directory = '.'
             # Ensure directory is converted to string first to handle KaosPath
             # then convert to standard Path to avoid __fspath__ issues
             dir_path = Path(str(params.directory))
