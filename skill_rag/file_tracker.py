@@ -236,6 +236,18 @@ class FileTracker:
         entry = self._files.get(str(file_path))
         return entry.doc_ids if entry else []
     
+    def get_chunk_count_for_file(self, file_path: Path) -> int:
+        """Get chunk count for a specific file.
+        
+        Args:
+            file_path: Path to the file
+            
+        Returns:
+            Number of chunks for this file (0 if not tracked)
+        """
+        entry = self._files.get(str(file_path))
+        return entry.chunk_count if entry else 0
+    
     def get_stale_files(self, current_files: Set[Path]) -> Set[Path]:
         """Get files that are no longer present.
         

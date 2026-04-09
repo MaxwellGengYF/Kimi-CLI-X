@@ -244,8 +244,20 @@ class RAGPipeline:
         # Check file tracker for changes
         if use_file_tracking and self.file_tracker:
             if not self.file_tracker.needs_update(file_path, file_hash):
-                logger.debug(f"Skipping unchanged file: {file_path}")
-                return IndexingResult(0, 1, 0, 0, [])
+                # Verify that tracked documents actually exist in vector store
+                # (tracker may be stale if vector store was cleared externally)
+                tracked_ids = self.file_tracker.get_doc_ids_for_file(file_path)
+                if tracked_ids:
+                    # Check if at least one tracked document exists
+                    existing = self.store.get_documents(tracked_ids[:1])
+                    if existing:
+                        logger.debug(f"Skipping unchanged file: {file_path}")
+                        # Get the chunk count from tracker for accurate total
+                        chunk_count = self.file_tracker.get_chunk_count_for_file(file_path)
+                        return IndexingResult(0, 1, 0, chunk_count, [])
+                    # Documents not in vector store, tracker is stale - proceed with indexing
+                    logger.debug(f"Tracker stale for {file_path}, re-indexing")
+                # No tracked IDs or none exist, proceed with indexing
         
         # Load and index documents
         documents = self.loader.load_file(file_path)

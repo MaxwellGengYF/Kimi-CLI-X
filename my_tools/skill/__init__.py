@@ -274,11 +274,10 @@ class SkillAnalyzer(CallableTool2):
             # Index the directory
             # If path not in cache, force refresh to ensure it's indexed
             cache_key = self._get_cache_key(str(dir_path))
-            needs_refresh = cache_key not in self._collection_cache
             try:
                 indexed = self._index_directory(
                     str(dir_path),
-                    force_refresh=params.refresh or needs_refresh
+                    force_refresh=params.refresh
                 )
             except ValueError as e:
                 return ToolError(

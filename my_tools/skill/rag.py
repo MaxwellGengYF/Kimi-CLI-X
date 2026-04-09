@@ -266,14 +266,10 @@ class RAG(CallableTool2):
                     brief="Path is not a file",
                 )
             file_path_obj = file_path_obj.resolve()
-            # Index the file or directory
-            # If path not in cache, force refresh to ensure it's indexed
-            cache_key = self._get_cache_key(str(file_path_obj))
-            needs_refresh = cache_key not in self._file_cache
             try:
                 indexed = self._index_path(
                     file_path_obj, 
-                    force_refresh=params.refresh or needs_refresh
+                    force_refresh=params.refresh
                 )
             except ValueError as e:
                 error_msg = str(e)
