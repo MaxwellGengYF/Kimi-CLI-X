@@ -8,19 +8,19 @@ from pydantic import BaseModel, Field
 from my_tools.file._utils import get_state, get_final_output, _check_for_input_prompt, get_output_text
 
 
-class waitParams(BaseModel):
+class WaitParams(BaseModel):
     timeout: int | None = Field(
         default=3,
         description="Timeout in seconds (max 30, default: 3)."
     )
 
 
-class wait(CallableTool2):
-    name: str = "wait"
+class Wait(CallableTool2):
+    name: str = "Wait"
     description: str = "Wait for process completion."
-    params: type[waitParams] = waitParams
+    params: type[WaitParams] = WaitParams
 
-    async def __call__(self, params: waitParams) -> ToolReturnValue:
+    async def __call__(self, params: WaitParams) -> ToolReturnValue:
         """Wait for the running process to complete."""
         state = get_state()
         start_time = time.time()

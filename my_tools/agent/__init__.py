@@ -20,8 +20,8 @@ class SubAgentParams(BaseModel):
     # thinking:
 
 
-class spawn(CallableTool2):
-    name: str = "spawn"
+class Spawn(CallableTool2):
+    name: str = "Spawn"
     description: str = "Spawn an isolated sub-agent to handle a specific task."
     params: type[SubAgentParams] = SubAgentParams
 

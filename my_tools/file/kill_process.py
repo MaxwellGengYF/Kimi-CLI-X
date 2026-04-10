@@ -5,16 +5,16 @@ from pydantic import BaseModel
 from my_tools.file._utils import get_state, get_final_output
 
 
-class killParams(BaseModel):
+class KillParams(BaseModel):
     pass
 
 
-class kill(CallableTool2):
-    name: str = "kill"
+class Kill(CallableTool2):
+    name: str = "Kill"
     description: str = "Terminate the active process."
-    params: type[killParams] = killParams
+    params: type[KillParams] = KillParams
 
-    async def __call__(self, params: killParams) -> ToolReturnValue:
+    async def __call__(self, params: KillParams) -> ToolReturnValue:
         """Kill the running process."""
         state = get_state()
 

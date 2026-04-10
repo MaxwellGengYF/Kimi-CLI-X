@@ -7,18 +7,18 @@ from pydantic import BaseModel, Field
 from my_tools.file._utils import get_state, get_final_output
 
 
-class inputParams(BaseModel):
+class InputParams(BaseModel):
     text: str = Field(
         description="Text to send to the running process's stdin."
     )
 
 
-class input(CallableTool2):
-    name: str = "input"
+class Input(CallableTool2):
+    name: str = "Input"
     description: str = "Send text input to a running process's stdin."
-    params: type[inputParams] = inputParams
+    params: type[InputParams] = InputParams
 
-    async def __call__(self, params: inputParams) -> ToolReturnValue:
+    async def __call__(self, params: InputParams) -> ToolReturnValue:
         """Send input text to the running process's stdin."""
         state = get_state()
 

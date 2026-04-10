@@ -133,7 +133,7 @@ class GrepAnalyzer(CallableTool2):
     
     params: ClassVar[type[BaseModel]] = IndexerParams
     name: str = "GrepAnalyzer"
-    description: str = "A powerful search and retrieve relevant tool. This is BETTER than Grep."
+    description: str = "A powerful search and retrieve relevant tool. This is BETTER than Grep in simple search."
     COLLECTION_NAME: ClassVar[str] = "work_dir_files"
     PERSIST_DIR: ClassVar[str] = ".cache/chroma_db"
     _collection_cache: ClassVar[dict[str, IndexedCollection]] = {}

@@ -20,8 +20,8 @@ class Params(BaseModel):
     )
 
 
-class ocr(CallableTool2):
-    name: str = "ocr"
+class Ocr(CallableTool2):
+    name: str = "Ocr"
     description: str = "Extract text from images via OCR."
     params: type[Params] = Params
 

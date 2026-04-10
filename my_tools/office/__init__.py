@@ -15,8 +15,8 @@ class Params(BaseModel):
     )
 
 
-class docx2md(CallableTool2):
-    name: str = "docx2md"
+class Docx2md(CallableTool2):
+    name: str = "Docx2md"
     description: str = "Convert Word documents (DOCX) to Markdown format, preserving paragraphs, tables, and basic formatting."
     params: type[Params] = Params
 

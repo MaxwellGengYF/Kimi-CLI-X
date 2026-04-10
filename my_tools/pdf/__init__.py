@@ -28,8 +28,8 @@ class Params(BaseModel):
     )
 
 
-class pdf2md(CallableTool2):
-    name: str = "pdf2md"
+class Pdf2md(CallableTool2):
+    name: str = "Pdf2md"
     description: str = "Convert a PDF document to Markdown format, with optional image extraction, OCR, and table extraction."
     params: type[Params] = Params
 

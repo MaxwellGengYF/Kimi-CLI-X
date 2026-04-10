@@ -2,12 +2,12 @@ version: 1
 agent:
   extend: default
   tools:
-    - "my_tools.file:ls"
-    - "my_tools.office:docx2md"
-    - "my_tools.img:ocr"
-    - "my_tools.file:mkdir"
-    - "my_tools.file:rm"
-    - "my_tools.pdf:pdf2md"
+    - "my_tools.file:Ls"
+    - "my_tools.office:Docx2md"
+    - "my_tools.img:Ocr"
+    - "my_tools.file:Mkdir"
+    - "my_tools.file:Rm"
+    - "my_tools.pdf:Pdf2md"
     - "kimi_cli.tools.todo:SetTodoList"
     - "kimi_cli.tools.file:WriteFile"
     - "kimi_cli.tools.plan:ExitPlanMode"

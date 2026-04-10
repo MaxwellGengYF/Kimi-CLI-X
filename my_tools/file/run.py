@@ -13,7 +13,7 @@ from my_tools.file._utils import (
 )
 
 
-class runParams(BaseModel):
+class RunParams(BaseModel):
     path: str = Field(
         description="Executable path."
     )
@@ -39,12 +39,12 @@ class runParams(BaseModel):
     )
 
 
-class run(CallableTool2):
-    name: str = "run"
+class Run(CallableTool2):
+    name: str = "Run"
     description: str = "Execute a program."
-    params: type[runParams] = runParams
+    params: type[RunParams] = RunParams
 
-    async def __call__(self, params: runParams) -> ToolReturnValue:
+    async def __call__(self, params: RunParams) -> ToolReturnValue:
         """Run a process with real-time output collection using thread-safe queue.
 
         Both stdout and stderr are collected into a single thread-safe queue using
