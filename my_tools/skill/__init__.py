@@ -123,7 +123,7 @@ class IndexerParams(BaseModel):
         description="Force refresh the index."
     )
     hybrid_search: bool = Field(
-        default=False,
+        default=True,
         description="Enable hybrid search."
     )
 

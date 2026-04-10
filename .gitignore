@@ -6,4 +6,4 @@ kimi_cli/
 kosong/
 requirements.txt
 tests/
-.skill_cache
+.cache

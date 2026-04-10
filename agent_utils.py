@@ -159,7 +159,30 @@ def _process_lru():
         # Remove completed processes
         _threads = [p for p in _threads if p.is_alive()]
 
-
+_commands = {
+    'Python': 'code',
+    'Run': ('path', 'args', 'timeout', 'detect_input'),
+    'Rm': 'path',
+    'Mkdir': 'path',
+    'Ls': 'directory',
+    'Glob': ('pattern'),
+    'Grep': ('pattern', 'path'),
+    'ReadFile': ('path', 'line_offset', 'n_lines'),
+    'WriteFile': 'path',
+    'StrReplaceFile': 'path',
+    'Input': 'text',
+    'Wait': 'timeout',
+    'SetTodoList': 'todos',
+    'cpplint': ('file_path', 'project_root', 'verbose'),
+    'FetchURL': 'url',
+    'SearchWeb': ('query', 'limit', 'include_content'),
+    'spawn': ('prompt', 'thinking'),
+    'indexer': ('query', 'directory', 'top_k', 'refresh'),
+}
+_new_commands = dict()
+for k, v in _commands.items():
+    _new_commands[k.lower()] = v
+_commands = _new_commands
 def print_agent_json(get_message, output_function: Callable | None = None):
     json_str = None
     try:
@@ -168,34 +191,7 @@ def print_agent_json(get_message, output_function: Callable | None = None):
         print_debug('JSON error (possibly because streaming)...')
         return
     js = json.loads(json_str)
-    _commands = {
-        'Shell': 'command',
-        'Python': 'code',
-        'FileInfo': 'path',
-        'Run': ('path', 'args', 'timeout', 'detect_input'),
-        'Rm': 'path',
-        'Cp': ('src', 'dest'),
-        'Mv': ('src', 'dest'),
-        'Mkdir': 'path',
-        'Ls': 'directory',
-        'Glob': ('pattern'),
-        'Grep': ('pattern', 'path'),
-        'ReadFile': ('path', 'line_offset', 'n_lines'),
-        'WriteFile': 'path',
-        'StrReplaceFile': 'path',
-        'Input': 'text',
-        'WaitProcess': 'timeout',
-        'Cd': 'path',
-        'SetTodoList': 'todos',
-        'CppSyntaxCheck': ('file_path', 'project_root', 'verbose'),
-        'FetchURL': 'url',
-        'SearchWeb': ('query', 'limit', 'include_content'),
-        'PowerShell': ('command', 'timeout'),
-        'Bash': ('command', 'timeout'),
-        'SubAgent': ('prompt', 'thinking'),
-        'SkillAnalyzer': ('query', 'directory', 'top_k', 'refresh'),
-        'RAG': ('query', 'file_path', 'top_k', 'refresh')
-    }
+
 
     def print_item(item):
         import agent_utils
@@ -230,14 +226,14 @@ def print_agent_json(get_message, output_function: Callable | None = None):
                     return str(s)
             text = item.get("function", None)
             if text:
-                name = text.get("name")
+                name:str = text.get("name")
                 if name is not None:
                     args = text.get('arguments', '')
                     try:
                         args = json.loads(args)
                     except json.JSONDecodeError:
                         args = {}  # or handle it appropriately
-                    cmd_args = _commands.get(name)
+                    cmd_args = _commands.get(name.lower())
                     print_arg = ''
                     if cmd_args is not None:
                         if type(cmd_args) is tuple:

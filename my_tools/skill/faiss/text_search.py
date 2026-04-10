@@ -18,6 +18,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import multiprocessing as mp
 import numpy as np
 
+# Suppress SWIG-related deprecation warnings
+warnings.filterwarnings("ignore", message="builtin type swigvarlink has no __module__ attribute", category=DeprecationWarning)
+warnings.filterwarnings("ignore", message="builtin type SwigPyPacked has no __module__ attribute", category=DeprecationWarning)
+warnings.filterwarnings("ignore", message="builtin type SwigPyObject has no __module__ attribute", category=DeprecationWarning)
+
 import faiss
 
 # Delay sentence_transformers import until needed

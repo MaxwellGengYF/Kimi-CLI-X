@@ -11,7 +11,7 @@ agent:
     - "my_tools.file:mkdir"
     - "my_tools.file:rm"
     - "my_tools.flag:setflag"
-    - "my_tools.skill:indexer"
+    # - "my_tools.skill:indexer"
     - "kimi_cli.tools.todo:SetTodoList"
     - "kimi_cli.tools.file:WriteFile"
     - "kimi_cli.tools.file:ReadFile"
