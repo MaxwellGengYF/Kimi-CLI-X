@@ -46,6 +46,13 @@ def main():
         print(f"Loading cached index from {index_path}...")
         index.load(index_path)
         
+        # Remove entries for files that no longer exist
+        removed_files = index.remove_missing_files()
+        if removed_files:
+            print(f"Removed {len(removed_files)} deleted files from index")
+            for file_path in removed_files:
+                print(f"  - {Path(file_path)}")
+        
         # Check for new/modified files and update incrementally
         total_new_lines = 0
         for folder_path in folder_paths:
@@ -58,8 +65,9 @@ def main():
                     if lines_added > 0:
                         print(f"  + {lines_added} lines from {Path(file_path)}")
         
-        if total_new_lines > 0:
-            print(f"Incremental update: added {total_new_lines} lines")
+        if total_new_lines > 0 or removed_files:
+            if total_new_lines > 0:
+                print(f"Incremental update: added {total_new_lines} lines")
             # Save updated index
             index.save(index_path)
         else:

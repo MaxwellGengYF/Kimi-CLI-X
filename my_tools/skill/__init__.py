@@ -395,6 +395,10 @@ class GrepAnalyzer(CallableTool2):
             # Try to load existing index or create new one
             if os.path.exists(index_path) and not params.refresh:
                 index.load(index_path)
+                # Remove files that no longer exist
+                removed_files = index.remove_missing_files()
+                if removed_files:
+                    index.save(index_path)
                 
                 # Check for new/modified files and update incrementally
                 if os.path.isdir(search_path):
@@ -413,7 +417,6 @@ class GrepAnalyzer(CallableTool2):
                     index.add_folder(search_path, parallel=True)
                 elif os.path.isfile(search_path):
                     index.add_file(search_path)
-                
                 # Save the index
                 os.makedirs(os.path.dirname(index_path), exist_ok=True)
                 index.save(index_path)
@@ -430,7 +433,7 @@ class GrepAnalyzer(CallableTool2):
             if params.hybrid_search:
                 results = index.hybrid_search(params.query, top_k=params.top_k)
             else:
-                results = index.keyword_search(params.query, top_k=params.top_k)
+                results = index.search(params.query, top_k=params.top_k)
             
             if not results:
                 return ToolOk(

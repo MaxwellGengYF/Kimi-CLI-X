@@ -434,6 +434,22 @@ class TextSearchIndex:
             self._ensure_index()
             self._index.add(all_embeddings)
     
+    def remove_missing_files(self) -> List[str]:
+        """
+        Remove all entries for files that no longer exist on disk.
+        
+        Returns:
+            List of file paths that were removed from the index
+        """
+        # Find files in index that no longer exist
+        missing_files = [f for f in self.indexed_files if not os.path.exists(f)]
+        
+        if missing_files:
+            for file_path in missing_files:
+                self._remove_file_entries(file_path)
+        
+        return missing_files
+    
     def get_new_files(self, folder_path: str) -> List[str]:
         """
         Get list of files that are new or modified since last indexing.
@@ -710,7 +726,6 @@ class TextSearchIndex:
                     line_count=doc.line_count,
                     score=score
                 ))
-        
         # Sort by score and return top_k
         results.sort(key=lambda x: x.score, reverse=True)
         return results[:top_k]
@@ -795,7 +810,6 @@ class TextSearchIndex:
         # Save FAISS index
         self._ensure_index()
         faiss.write_index(self._index, str(save_path / 'faiss.index'))
-        
         # Save documents and metadata
         data = {
             'documents': [
