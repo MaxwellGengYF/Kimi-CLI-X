@@ -8,8 +8,8 @@ class MkdirParams(BaseModel):
     )
 
 
-class Mkdir(CallableTool2):
-    name: str = "Mkdir"
+class mkdir(CallableTool2):
+    name: str = "mkdir"
     description: str = "Create a directory at the specified path. Supports recursive creation. If the directory already exists, it is considered successful."
     params: type[MkdirParams] = MkdirParams
 
@@ -92,8 +92,8 @@ class RmParams(BaseModel):
     )
 
 
-class Rm(CallableTool2):
-    name: str = "Rm"
+class rm(CallableTool2):
+    name: str = "rm"
     description: str = "Delete a file or directory at the specified path. Supports recursive deletion of directories."
     params: type[RmParams] = RmParams
 

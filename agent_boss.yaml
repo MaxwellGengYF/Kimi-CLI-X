@@ -2,12 +2,12 @@ version: 1
 agent:
   extend: default
   tools:
-    - "my_tools.file:Ls"
-    - "my_tools.office:DocxToMarkdown"
-    - "my_tools.img:ImageToText"
-    - "my_tools.file:Mkdir"
-    - "my_tools.file:Rm"
-    - "my_tools.pdf:PdfToMarkdown"
+    - "my_tools.file:ls"
+    - "my_tools.office:docx2md"
+    - "my_tools.img:ocr"
+    - "my_tools.file:mkdir"
+    - "my_tools.file:rm"
+    - "my_tools.pdf:pdf2md"
     - "kimi_cli.tools.todo:SetTodoList"
     - "kimi_cli.tools.file:WriteFile"
     - "kimi_cli.tools.plan:ExitPlanMode"
@@ -18,4 +18,4 @@ agent:
     - "kimi_cli.tools.file:StrReplaceFile"
     - "kimi_cli.tools.web:SearchWeb"
     - "kimi_cli.tools.web:FetchURL"
-    - "my_tools.skill:SkillAnalyzer"
+    - "my_tools.skill:indexer"

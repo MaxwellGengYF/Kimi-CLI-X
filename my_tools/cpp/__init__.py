@@ -275,8 +275,8 @@ def find_clangd(clangd_path: str, project_root: str) -> str:
     return clangd_path
 
 
-class CppSyntaxCheck(CallableTool2):
-    name: str = "CppSyntaxCheck"
+class cpplint(CallableTool2):
+    name: str = "cpplint"
     description: str = "Validate C++ file syntax using clangd."
     params: type[Params] = Params
 

@@ -1,20 +1,20 @@
-"""KillProcess tool for terminating the currently running process."""
+"""kill tool for terminating the currently running process."""
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel
 
 from my_tools.file._utils import get_state, get_final_output
 
 
-class KillParams(BaseModel):
+class killParams(BaseModel):
     pass
 
 
-class KillProcess(CallableTool2):
-    name: str = "KillProcess"
+class kill(CallableTool2):
+    name: str = "kill"
     description: str = "Terminate the active process."
-    params: type[KillParams] = KillParams
+    params: type[killParams] = killParams
 
-    async def __call__(self, params: KillParams) -> ToolReturnValue:
+    async def __call__(self, params: killParams) -> ToolReturnValue:
         """Kill the running process."""
         state = get_state()
 

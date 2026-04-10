@@ -4,10 +4,10 @@ from pydantic import BaseModel, Field
 from my_tools.common import _maybe_export_output
 
 from my_tools.file.chdir import Cd
-from my_tools.file.kill_process import KillProcess, KillParams
-from my_tools.file.input import Input, InputParams
-from my_tools.file.run import Run, RunParams
-from my_tools.file.wait_process import WaitProcess, WaitParams
+from my_tools.file.kill_process import kill, killParams
+from my_tools.file.input import input, inputParams
+from my_tools.file.run import run, runParams
+from my_tools.file.wait_process import wait, waitParams
 
 
 class LsParams(BaseModel):
@@ -25,8 +25,8 @@ class LsParams(BaseModel):
     )
 
 
-class Ls(CallableTool2):
-    name: str = "Ls"
+class ls(CallableTool2):
+    name: str = "ls"
     description: str = "List directory contents."
     params: type[LsParams] = LsParams
 
@@ -91,8 +91,8 @@ class MkdirParams(BaseModel):
     )
 
 
-class Mkdir(CallableTool2):
-    name: str = "Mkdir"
+class mkdir(CallableTool2):
+    name: str = "mkdir"
     description: str = "Create a directory (including parent directories if needed)."
     params: type[MkdirParams] = MkdirParams
 
@@ -116,8 +116,8 @@ class RmParams(BaseModel):
     )
 
 
-class Rm(CallableTool2):
-    name: str = "Rm"
+class rm(CallableTool2):
+    name: str = "rm"
     description: str = "Delete a file or directory."
     params: type[RmParams] = RmParams
 

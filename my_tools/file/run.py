@@ -1,4 +1,4 @@
-"""Run tool for executing a process from a path."""
+"""run tool for executing a process from a path."""
 import asyncio
 import subprocess
 import threading
@@ -13,7 +13,7 @@ from my_tools.file._utils import (
 )
 
 
-class RunParams(BaseModel):
+class runParams(BaseModel):
     path: str = Field(
         description="Executable path."
     )
@@ -39,12 +39,12 @@ class RunParams(BaseModel):
     )
 
 
-class Run(CallableTool2):
-    name: str = "Run"
+class run(CallableTool2):
+    name: str = "run"
     description: str = "Execute a program."
-    params: type[RunParams] = RunParams
+    params: type[runParams] = runParams
 
-    async def __call__(self, params: RunParams) -> ToolReturnValue:
+    async def __call__(self, params: runParams) -> ToolReturnValue:
         """Run a process with real-time output collection using thread-safe queue.
 
         Both stdout and stderr are collected into a single thread-safe queue using
@@ -61,7 +61,7 @@ class Run(CallableTool2):
         if state.process and unfinished():
             return ToolError(
                 output=get_final_output(),
-                message='Process still running, use "WaitProcess" tool to wait, or use "KillProcess" to terminate.',
+                message='Process still running, use "wait" tool to wait, or use "kill" to terminate.',
                 brief="",
             )
         try:
@@ -113,7 +113,7 @@ class Run(CallableTool2):
                 if params.detect_input and (time.time() - state.last_write_time) > min(params.timeout, 3):
                     tex = get_output_text()
                     if _check_for_input_prompt(tex):
-                        message = f"Process still running, 'Input' tool may used to input to process."
+                        message = f"Process still running, 'input' tool may used to input to process."
                         return ToolError(
                             output=get_final_output(),
                             message=message,

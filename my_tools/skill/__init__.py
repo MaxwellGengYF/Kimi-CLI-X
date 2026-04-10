@@ -55,7 +55,7 @@ def _format_results(
 
 
 class IndexerParams(BaseModel):
-    """Parameters for the Indexer tool."""
+    """Parameters for the indexer tool."""
 
     query: str = Field(
         description="Search keywords (keywords only, not sentences)."
@@ -74,10 +74,10 @@ class IndexerParams(BaseModel):
         default=False,
         description="Return full content of matched skills."
     )
-    # refresh: bool = Field(
-    #     default=False,
-    #     description="Force re-indexing. Use when files have been added or modified.",
-    # )
+    refresh: bool = Field(
+        default=False,
+        description="Force re-indexing. Use when files have been added or modified.",
+    )
 
 
 @dataclass
@@ -89,9 +89,9 @@ class IndexedCollection:
     chunk_count: int
 
 
-class Indexer(CallableTool2):
-    name: str = "Indexer"
-    description: str = "Search and retrieve relevant skills using semantic similarity."
+class indexer(CallableTool2):
+    name: str = "indexer"
+    description: str = "Search and retrieve relevant text using semantic similarity."
     params: type[IndexerParams] = IndexerParams
 
     # Class-level cache for indexed collections
@@ -99,7 +99,7 @@ class Indexer(CallableTool2):
 
     # Default collection name and persist directory
     COLLECTION_NAME: ClassVar[str] = "work_dir_skills"
-    PERSIST_DIR: ClassVar[str] = ".skill_cache/chroma_db"
+    PERSIST_DIR: ClassVar[str] = ".cache/chroma_db"
 
     def _find_skill_files(self, directory: Path) -> list[Path]:
         """Find all SKILL.md files in the directory.
@@ -325,7 +325,7 @@ class Indexer(CallableTool2):
             try:
                 indexed = self._index_path(
                     file_path_obj,
-                    force_refresh=False #params.refresh
+                    force_refresh=params.refresh
                 )
             except ValueError as e:
                 return ToolError(

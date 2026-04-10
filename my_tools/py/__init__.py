@@ -29,8 +29,8 @@ class Params(BaseModel):
 os.environ['PYTHONIOENCODING'] = 'utf-8'
 
 
-class Python(CallableTool2):
-    name: str = "Python"
+class python(CallableTool2):
+    name: str = "python"
     description: str = "Execute Python code."
     params: type[Params] = Params
 

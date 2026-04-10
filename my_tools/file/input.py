@@ -7,25 +7,25 @@ from pydantic import BaseModel, Field
 from my_tools.file._utils import get_state, get_final_output
 
 
-class InputParams(BaseModel):
+class inputParams(BaseModel):
     text: str = Field(
         description="Text to send to the running process's stdin."
     )
 
 
-class Input(CallableTool2):
-    name: str = "Input"
+class input(CallableTool2):
+    name: str = "input"
     description: str = "Send text input to a running process's stdin."
-    params: type[InputParams] = InputParams
+    params: type[inputParams] = inputParams
 
-    async def __call__(self, params: InputParams) -> ToolReturnValue:
+    async def __call__(self, params: inputParams) -> ToolReturnValue:
         """Send input text to the running process's stdin."""
         state = get_state()
 
         if state.process is None:
             return ToolError(
                 output="",
-                message="No process is currently running. Use Run tool to start a process first.",
+                message="No process is currently running. Use run tool to start a process first.",
                 brief="No active process",
             )
 

@@ -1,4 +1,4 @@
-"""WaitProcess tool for waiting for a running process to complete."""
+"""wait tool for waiting for a running process to complete."""
 import asyncio
 import time
 
@@ -8,19 +8,19 @@ from pydantic import BaseModel, Field
 from my_tools.file._utils import get_state, get_final_output, _check_for_input_prompt, get_output_text
 
 
-class WaitParams(BaseModel):
+class waitParams(BaseModel):
     timeout: int | None = Field(
         default=3,
         description="Timeout in seconds (max 30, default: 3)."
     )
 
 
-class WaitProcess(CallableTool2):
-    name: str = "WaitProcess"
+class wait(CallableTool2):
+    name: str = "wait"
     description: str = "Wait for process completion."
-    params: type[WaitParams] = WaitParams
+    params: type[waitParams] = waitParams
 
-    async def __call__(self, params: WaitParams) -> ToolReturnValue:
+    async def __call__(self, params: waitParams) -> ToolReturnValue:
         """Wait for the running process to complete."""
         state = get_state()
         start_time = time.time()
@@ -53,7 +53,7 @@ class WaitProcess(CallableTool2):
                 if state.detect_input and (time.time() - state.last_write_time) > min(params.timeout, 3):
                     tex = get_output_text()
                     if _check_for_input_prompt(tex):
-                        message = f"Process still running, 'Input' tool may used to input to process."
+                        message = f"Process still running, 'input' tool may used to input to process."
                         return ToolError(
                             output=get_final_output(),
                             message=message,
