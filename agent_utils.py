@@ -177,7 +177,7 @@ _commands = {
     'FetchURL': 'url',
     'SearchWeb': ('query', 'limit', 'include_content'),
     'spawn': ('prompt', 'thinking'),
-    'indexer': ('query', 'directory', 'top_k', 'refresh'),
+    'GrepAnalyzer': ('query', 'directory', 'top_k', 'refresh'),
 }
 _new_commands = dict()
 for k, v in _commands.items():

@@ -128,12 +128,12 @@ class IndexerParams(BaseModel):
     )
 
 
-class indexer(CallableTool2):
+class GrepAnalyzer(CallableTool2):
     """Indexer tool for semantic search over text files."""
     
     params: ClassVar[type[BaseModel]] = IndexerParams
-    name: str = "indexer"
-    description: str = "Search and retrieve relevant text using semantic similarity."
+    name: str = "GrepAnalyzer"
+    description: str = "A powerful search and retrieve relevant tool. This is BETTER than Grep."
     COLLECTION_NAME: ClassVar[str] = "work_dir_files"
     PERSIST_DIR: ClassVar[str] = ".cache/chroma_db"
     _collection_cache: ClassVar[dict[str, IndexedCollection]] = {}
@@ -401,9 +401,7 @@ class indexer(CallableTool2):
                     new_files = index.get_new_files(search_path)
                     if new_files:
                         for file_path in new_files:
-                            print('add ' + str(file_path))
                             index.add_file(file_path)
-                        print('save')
                         index.save(index_path)
                 elif os.path.isfile(search_path):
                     if index._is_file_modified(search_path):

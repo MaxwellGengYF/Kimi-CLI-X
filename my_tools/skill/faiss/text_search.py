@@ -17,12 +17,10 @@ from typing import List, Union, Optional, Dict, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import multiprocessing as mp
 import numpy as np
-
 # Suppress SWIG-related deprecation warnings
 warnings.filterwarnings("ignore", message="builtin type swigvarlink has no __module__ attribute", category=DeprecationWarning)
 warnings.filterwarnings("ignore", message="builtin type SwigPyPacked has no __module__ attribute", category=DeprecationWarning)
 warnings.filterwarnings("ignore", message="builtin type SwigPyObject has no __module__ attribute", category=DeprecationWarning)
-
 import faiss
 
 # Delay sentence_transformers import until needed
@@ -479,7 +477,6 @@ class TextSearchIndex:
         for file_path in files:
             lines_added = self.add_file(file_path)
             total_lines += lines_added
-            print(f"Indexed {lines_added} lines from {file_path}")
         
         return total_lines
     
@@ -509,10 +506,8 @@ class TextSearchIndex:
                 files_to_process.append(file_path)
         
         if not files_to_process:
-            print("No new or modified files to index.")
             return 0
         
-        print(f"Processing {len(files_to_process)} files with {max_workers} workers...")
         
         # Phase 1: Parallel file reading
         def read_file_task(file_path: str) -> Optional[tuple]:
@@ -630,7 +625,6 @@ class TextSearchIndex:
                 self.indexed_files.add(file_path)
         
         total_lines = sum(len(file_contents[f][1]) for f in file_contents if file_contents[f][1])
-        print(f"Indexed {total_lines} lines from {len(file_contents)} files")
         return total_lines
     
     def add_path(self, path: str) -> int:
@@ -822,7 +816,6 @@ class TextSearchIndex:
         with open(save_path / 'metadata.pkl', 'wb') as f:
             pickle.dump(data, f)
         
-        print(f"Index saved to {save_path}")
     
     def load(self, save_path: str):
         """
@@ -856,7 +849,6 @@ class TextSearchIndex:
         # Reset model to trigger lazy loading
         self._model = None
         
-        print(f"Index loaded from {save_path}")
     
     def clear(self):
         """Clear the index and all data."""
@@ -866,91 +858,3 @@ class TextSearchIndex:
         self.file_metadata = {}
         self._model = None  # Reset model for lazy reload
 
-
-def main():
-    """Command-line interface for text search."""
-    import argparse
-    from pathlib import Path
-    
-    parser = argparse.ArgumentParser(
-        description='FAISS-based Text Search System',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Index a folder and search
-  python text_search.py --path .agents --search "neural network"
-  
-  # Index and save
-  python text_search.py --path .agents --save my_index
-  
-  # Load and search
-  python text_search.py --load my_index --search "volume rendering"
-  
-  # Keyword search
-  python text_search.py --path .agents --search "shader" --type keyword
-        """
-    )
-    
-    parser.add_argument('--path', type=str, help='File or folder path to index')
-    parser.add_argument('--search', type=str, help='Search query')
-    parser.add_argument('--type', type=str, default='semantic',
-                       choices=['semantic', 'keyword', 'hybrid'],
-                       help='Search type (default: semantic)')
-    parser.add_argument('--top-k', type=int, default=5,
-                       help='Number of results (default: 5)')
-    parser.add_argument('--save', type=str, metavar='DIR',
-                       help='Save index to directory')
-    parser.add_argument('--load', type=str, metavar='DIR',
-                       help='Load index from directory')
-    parser.add_argument('--stats', action='store_true',
-                       help='Show index statistics')
-    
-    args = parser.parse_args()
-    
-    # Create or load index
-    if args.load:
-        print(f"Loading index from {args.load}...")
-        index = TextSearchIndex()
-        index.load(args.load)
-    else:
-        index = TextSearchIndex()
-    
-    # Index path if provided
-    if args.path:
-        print(f"Indexing {args.path}...")
-        total_lines = index.add_path(args.path)
-        print(f"Indexed {total_lines} lines")
-    
-    # Show stats
-    if args.stats or (not args.search and not args.save):
-        stats = index.get_stats()
-        print("\nIndex Statistics:")
-        print(f"  Model: {stats['model_name']}")
-        print(f"  Dimension: {stats['dimension']}")
-        print(f"  Total files: {stats['total_files']}")
-        print(f"  Total lines: {stats['total_documents']}")
-    
-    # Save if requested
-    if args.save:
-        index.save(args.save)
-    
-    # Search if query provided
-    if args.search:
-        print(f"\nSearching for: '{args.search}' (type: {args.type})")
-        
-        if args.type == 'keyword':
-            results = index.keyword_search(args.search, top_k=args.top_k)
-        elif args.type == 'hybrid':
-            results = index.hybrid_search(args.search, top_k=args.top_k)
-        else:
-            results = index.search(args.search, top_k=args.top_k)
-        
-        print(f"\nFound {len(results)} results:")
-        for i, r in enumerate(results, 1):
-            filename = Path(r.file_path).name
-            print(f"\n{i}. [{r.score:.4f}] {filename}:{r.line_index + 1} (total lines: {r.line_count})")
-            print(f"   {r.line_text[:120]}{'...' if len(r.line_text) > 120 else ''}")
-
-
-if __name__ == '__main__':
-    main()
