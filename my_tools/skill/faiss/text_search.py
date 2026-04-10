@@ -661,13 +661,14 @@ class TextSearchIndex:
         else:
             raise ValueError(f"Path does not exist: {path}")
     
-    def search(self, query: str, top_k: int = 5) -> List[SearchResult]:
+    def search(self, query: str, top_k: int = 5, negative: Optional[str] = None) -> List[SearchResult]:
         """
         Search for similar lines using semantic similarity.
         
         Args:
             query: Search query (keyword or sentence)
             top_k: Number of top results to return
+            negative: Optional negative query to penalize similar results
             
         Returns:
             List of search results sorted by relevance
@@ -679,6 +680,10 @@ class TextSearchIndex:
         # Get query embedding
         query_embedding = self._get_embeddings([query])
         
+        # Get negative embedding if provided
+        negative_embedding = None
+        if negative is not None and negative.strip():
+            negative_embedding = self._get_embeddings([negative])
         # Search in FAISS
         scores, indices = self._index.search(query_embedding, min(top_k, self._index.ntotal))
         
@@ -689,28 +694,43 @@ class TextSearchIndex:
                 continue
             
             doc = self.documents[idx]
+            final_score = float(score)
+            
+            # Calculate negative distance and subtract from score
+            if negative_embedding is not None:
+                # Get the document embedding for this result
+                doc_embedding = self._index.reconstruct(int(idx))
+                # Calculate cosine similarity with negative query (both are normalized)
+                negative_sim = float(np.dot(doc_embedding, negative_embedding[0]))
+                # Subtract negative similarity from score
+                final_score = final_score - negative_sim
+            
             results.append(SearchResult(
                 file_path=doc.file_path,
                 line_index=doc.line_index,
                 line_text=doc.line_text,
                 line_count=doc.line_count,
-                score=float(score)
+                score=final_score
             ))
         
+        # Re-sort results by adjusted score
+        results.sort(key=lambda x: x.score, reverse=True)
         return results
     
-    def keyword_search(self, keyword: str, top_k: int = 5) -> List[SearchResult]:
+    def keyword_search(self, keyword: str, top_k: int = 5, negative: Optional[str] = None) -> List[SearchResult]:
         """
         Search for lines containing a keyword (case-insensitive).
         
         Args:
             keyword: Keyword to search for
             top_k: Maximum number of results to return
+            negative: Optional negative keyword to penalize results containing it
             
         Returns:
             List of search results
         """
         keyword_lower = keyword.lower()
+        negative_lower = negative.lower().strip() if negative else None
         results = []
         
         for doc in self.documents:
@@ -718,6 +738,12 @@ class TextSearchIndex:
                 # Calculate a simple relevance score based on occurrence
                 count = doc.line_text.lower().count(keyword_lower)
                 score = min(count * 0.3, 1.0)
+                
+                # Calculate negative distance and subtract from score
+                if negative_lower:
+                    negative_count = doc.line_text.lower().count(negative_lower)
+                    negative_score = min(negative_count * 0.3, 1.0)
+                    score = score - negative_score
                 
                 results.append(SearchResult(
                     file_path=doc.file_path,
@@ -730,7 +756,7 @@ class TextSearchIndex:
         results.sort(key=lambda x: x.score, reverse=True)
         return results[:top_k]
     
-    def hybrid_search(self, query: str, top_k: int = 5, semantic_weight: float = 0.7) -> List[SearchResult]:
+    def hybrid_search(self, query: str, top_k: int = 5, semantic_weight: float = 0.7, negative: Optional[str] = None) -> List[SearchResult]:
         """
         Perform hybrid search combining semantic and keyword matching.
         
@@ -738,15 +764,16 @@ class TextSearchIndex:
             query: Search query
             top_k: Number of results to return
             semantic_weight: Weight for semantic scores (0-1), keyword gets (1-weight)
+            negative: Optional negative query to penalize similar results
             
         Returns:
             List of search results
         """
-        # Get semantic results
-        semantic_results = self.search(query, top_k=top_k * 2)
+        # Get semantic results with negative query
+        semantic_results = self.search(query, top_k=top_k * 2, negative=negative)
         
-        # Get keyword results
-        keyword_results = self.keyword_search(query, top_k=top_k * 2)
+        # Get keyword results with negative keyword
+        keyword_results = self.keyword_search(query, top_k=top_k * 2, negative=negative)
         
         # Combine results
         all_results: Dict[str, SearchResult] = {}

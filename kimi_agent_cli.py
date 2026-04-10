@@ -28,6 +28,7 @@ Available commands:
   /file:<path>    - Load a file and execute its content line by line
   <path>          - Same as /file:<path>
   /clear          - Clear the conversation context
+  /compact        - Compact conversation context to memory
   /exit           - Exit the program
   /skill          - Load skills
   /help           - Show this help message
@@ -174,6 +175,14 @@ def _run_cli():
 
     def _cmd_clear(task_split):
         clear_context()
+        return None, False
+    
+    def _cmd_compact(task_split):
+        from builtin_prompts.compact import compact
+        tmp = None
+        if len(task_split) >= 2:
+            tmp = '_'.join(task_split[1:])
+        compact()
         return None, False
 
     def _cmd_exit(task_split):
@@ -394,6 +403,7 @@ def _run_cli():
     _command_map = {
         'help': _cmd_help,
         'clear': _cmd_clear,
+        'compact': _cmd_compact,
         'exit': _cmd_exit,
         'context': _cmd_context,
         'script': _cmd_script,

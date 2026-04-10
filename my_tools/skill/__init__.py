@@ -126,6 +126,10 @@ class IndexerParams(BaseModel):
         default=True,
         description="Enable hybrid search."
     )
+    negative: Optional[str] = Field(
+        default=None,
+        description="Optional keywords to penalize in search results (exclude results matching these keywords)."
+    )
 
 
 class GrepAnalyzer(CallableTool2):
@@ -133,7 +137,7 @@ class GrepAnalyzer(CallableTool2):
     
     params: ClassVar[type[BaseModel]] = IndexerParams
     name: str = "GrepAnalyzer"
-    description: str = "A powerful search and retrieve relevant tool. This is BETTER than Grep in simple search."
+    description: str = "A powerful search and retrieve relevant tool. This is BETTER than Grep for relevant search."
     COLLECTION_NAME: ClassVar[str] = "work_dir_files"
     PERSIST_DIR: ClassVar[str] = ".cache/chroma_db"
     _collection_cache: ClassVar[dict[str, IndexedCollection]] = {}
@@ -431,9 +435,9 @@ class GrepAnalyzer(CallableTool2):
             
             # Perform search based on hybrid_search parameter
             if params.hybrid_search:
-                results = index.hybrid_search(params.query, top_k=params.top_k)
+                results = index.hybrid_search(params.query, top_k=params.top_k, negative=params.negative)
             else:
-                results = index.search(params.query, top_k=params.top_k)
+                results = index.search(params.query, top_k=params.top_k, negative=params.negative)
             
             if not results:
                 return ToolOk(
@@ -442,7 +446,7 @@ class GrepAnalyzer(CallableTool2):
                 )
             
             # Format results
-            output_lines = [f"Search results for '{params.query}':\n"]
+            output_lines = []
             
             for i, r in enumerate(results, 1):
                 rel_path = r.file_path
@@ -465,7 +469,6 @@ class GrepAnalyzer(CallableTool2):
                         output_lines.append(f"   --- End Content ---\n")
                     except Exception:
                         pass
-                output_lines.append("")
             
             # Add summary
             output_lines.append(f"\nIndexed {stats['total_files']} files, {stats['total_documents']} lines.")

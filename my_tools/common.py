@@ -7,12 +7,20 @@ _temp_folder = Path.home() / '.kimi' / 'sessions'
 _temp_idx = 0
 _temp_set = dict()
 
+
 def _estimate_tokens(text: str) -> int:
     """Rough estimation of token count (approximately 4 characters per token)."""
     return len(text) // 4
 
 
-def _export_to_temp_file(key: Path | None, content: str) -> tuple[str, bool]:
+def _create_temp_file_name(ext:str = '.md') -> str:
+    global _temp_idx
+    id = _temp_idx
+    _temp_idx += 1
+    return str(_temp_folder / (str(id) + ext))
+
+
+def _export_to_temp_file(key: Path | None, content: str, ext:str='.txt') -> tuple[str, bool]:
     global _temp_idx
     """Export content to a temporary file and return the file path."""
     id = _temp_idx
@@ -27,7 +35,7 @@ def _export_to_temp_file(key: Path | None, content: str) -> tuple[str, bool]:
             _temp_set[key] = id
     if new_id:
         _temp_idx += 1
-    name = str(_temp_folder / str(id))
+    name = str(_temp_folder / (str(id) + ext))
     # Append content if key exists, otherwise overwrite/create
     mode = 'a' if not new_id else 'w'
     with open(name, mode, encoding='utf-8') as f:
@@ -37,11 +45,11 @@ def _export_to_temp_file(key: Path | None, content: str) -> tuple[str, bool]:
 
 def _maybe_export_output(output: str, key: Path | None = None) -> str:
     """Check if output is too large and export to temp file if needed.
-    
+
     Args:
         output: The output string to check.
         key: Optional Path to normalize and use in the output message.
-    
+
     Returns:
         The output string, or a message indicating it was exported to a temp file.
     """
