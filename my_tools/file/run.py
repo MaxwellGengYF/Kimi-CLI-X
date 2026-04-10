@@ -15,33 +15,33 @@ from my_tools.file._utils import (
 
 class RunParams(BaseModel):
     path: str = Field(
-        description="The path to the executable to run.",
+        description="Executable path."
     )
     args: list[str] = Field(
         default_factory=list,
-        description="List of arguments to pass to the executable.",
+        description="Command arguments."
     )
     timeout: int | None = Field(
         default=120,
-        description="Timeout in seconds. If not specified, no timeout is applied.",
+        description="Timeout in seconds (default: no timeout)."
     )
     cwd: str | None = Field(
         default=None,
-        description="Working directory to run the process in. If not specified, uses the current directory.",
+        description="Working directory (default: current directory)."
     )
     output_path: str | None = Field(
         default=None,
-        description="Destination path to save the output. If provided, output will be saved to this file.",
+        description="Output file path (optional)."
     )
     detect_input: bool = Field(
         default=False,
-        description="Enable Detect input mode, if process requires input, early return.",
+        description="Return early if process requires input."
     )
 
 
 class Run(CallableTool2):
     name: str = "Run"
-    description: str = "Run a process from a path."
+    description: str = "Execute a program."
     params: type[RunParams] = RunParams
 
     async def __call__(self, params: RunParams) -> ToolReturnValue:

@@ -9,13 +9,13 @@ from my_tools.file._utils import get_state, get_final_output
 
 class InputParams(BaseModel):
     text: str = Field(
-        description="The string to send to the process's stdin.",
+        description="Text to send to the running process's stdin."
     )
 
 
 class Input(CallableTool2):
     name: str = "Input"
-    description: str = "Send input to a running process."
+    description: str = "Send text input to a running process's stdin."
     params: type[InputParams] = InputParams
 
     async def __call__(self, params: InputParams) -> ToolReturnValue:

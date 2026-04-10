@@ -4,33 +4,33 @@ from pydantic import BaseModel, Field
 
 class Params(BaseModel):
     pdf_path: str = Field(
-        description="Path to the PDF file to convert.",
+        description="Path to the PDF file to convert."
     )
     output_path: str = Field(
         default="",
-        description="Path for the output markdown file (optional). If not provided, returns markdown content directly.",
+        description="Optional path to save the output markdown file."
     )
     extract_images: bool = Field(
         default=False,
-        description="Whether to extract images from the PDF.",
+        description="Whether to extract images from the PDF."
     )
     ocr: bool = Field(
         default=False,
-        description="Whether to run OCR on extracted images (requires pytesseract).",
+        description="Whether to run OCR on extracted images."
     )
     extract_tables: bool = Field(
         default=True,
-        description="Whether to extract tables from the PDF.",
+        description="Whether to extract tables from the PDF."
     )
     page_range: str = Field(
         default="",
-        description="Page range to convert (e.g., '0-5' for pages 1-6, or '3' for single page). Empty means all pages.",
+        description="Page range to convert (e.g., '0-5' for pages 1-6, '3' for single page). Empty means all pages."
     )
 
 
 class PdfToMarkdown(CallableTool2):
     name: str = "PdfToMarkdown"
-    description: str = "Convert PDF documents to Markdown format with support for text, table, and image extraction."
+    description: str = "Convert a PDF document to Markdown format, with optional image extraction, OCR, and table extraction."
     params: type[Params] = Params
 
     async def __call__(self, params: Params) -> ToolReturnValue:

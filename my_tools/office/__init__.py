@@ -7,17 +7,17 @@ from my_tools.common import _maybe_export_output
 
 class Params(BaseModel):
     docx_path: str = Field(
-        description="Path to the DOCX file to convert.",
+        description="Path to the DOCX file to convert."
     )
     output_path: str = Field(
         default="",
-        description="Path for the output markdown file (optional). If not provided, returns markdown content directly.",
+        description="Optional path to save the output markdown file. If not provided, returns content directly."
     )
 
 
 class DocxToMarkdown(CallableTool2):
     name: str = "DocxToMarkdown"
-    description: str = "Convert Word documents (DOCX) to Markdown format."
+    description: str = "Convert Word documents (DOCX) to Markdown format, preserving paragraphs, tables, and basic formatting."
     params: type[Params] = Params
 
     async def __call__(self, params: Params) -> ToolReturnValue:

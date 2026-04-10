@@ -11,13 +11,13 @@ from my_tools.file._utils import get_state, get_final_output, _check_for_input_p
 class WaitParams(BaseModel):
     timeout: int | None = Field(
         default=3,
-        description="Timeout in seconds. If not specified, no timeout is applied. Should be less than 30",
+        description="Timeout in seconds (max 30, default: 3)."
     )
 
 
 class WaitProcess(CallableTool2):
     name: str = "WaitProcess"
-    description: str = "Wait for the global variable 'process' to finish. Timeout should be less than 30"
+    description: str = "Wait for process completion."
     params: type[WaitParams] = WaitParams
 
     async def __call__(self, params: WaitParams) -> ToolReturnValue:

@@ -54,30 +54,30 @@ def _format_results(
     return "\n".join(output_lines)
 
 
-class SkillAnalyzerParams(BaseModel):
-    """Parameters for the SkillAnalyzer tool."""
+class IndexerParams(BaseModel):
+    """Parameters for the Indexer tool."""
 
     query: str = Field(
-        description="Search query to find relevant skills. Use ONLY keywords to describe what you're looking for.",
+        description="Search keywords (keywords only, not sentences)."
     )
     file_path: Optional[str] = Field(
         default=None,
-        description="Path to a file or directory to index and search. If a directory is provided, all SKILL.md files within it will be indexed. If a file is provided, that specific file will be indexed. Defaults to current working directory.",
+        description="Directory or file path to search within."
     )
     top_k: int = Field(
         default=3,
         ge=1,
         le=10,
-        description="Number of top matching skills to return (1-10).",
+        description="Number of top results to return."
     )
     content: bool = Field(
         default=False,
-        description="Return content in output.",
+        description="Return full content of matched skills."
     )
-    refresh: bool = Field(
-        default=False,
-        description="Force re-indexing of skills. Use when skills have been added or modified.",
-    )
+    # refresh: bool = Field(
+    #     default=False,
+    #     description="Force re-indexing. Use when files have been added or modified.",
+    # )
 
 
 @dataclass
@@ -89,13 +89,10 @@ class IndexedCollection:
     chunk_count: int
 
 
-class SkillAnalyzer(CallableTool2):
-    name: str = "SkillAnalyzer"
-    description: str = (
-        "Analyze and search skills in the current work directory using semantic search. "
-        "Indexes SKILL.md files and allows ONLY keywords queries to find relevant skills."
-    )
-    params: type[SkillAnalyzerParams] = SkillAnalyzerParams
+class Indexer(CallableTool2):
+    name: str = "Indexer"
+    description: str = "Search and retrieve relevant skills using semantic similarity."
+    params: type[IndexerParams] = IndexerParams
 
     # Class-level cache for indexed collections
     _collection_cache: ClassVar[Dict[str, IndexedCollection]] = {}
@@ -308,24 +305,11 @@ class SkillAnalyzer(CallableTool2):
 
         return collection
 
-    async def __call__(self, params: SkillAnalyzerParams) -> ToolReturnValue:
-        """Execute the skill analyzer tool.
-
-        Args:
-            params: Tool parameters
-
-        Returns:
-            ToolOk with formatted results or ToolError on failure
-        """
+    async def __call__(self, params: IndexerParams) -> ToolReturnValue:
         try:
             # Validate file_path
             if params.file_path is None:
-                from agent_utils import _get_skill_dirs
-                lst = _get_skill_dirs(False)
-                if lst:
-                    params.file_path = lst[0]
-                else:
-                    params.file_path = '.'
+                params.file_path = '.'
 
             # Ensure path is converted to string first to handle KaosPath
             # then convert to standard Path to avoid __fspath__ issues
@@ -341,7 +325,7 @@ class SkillAnalyzer(CallableTool2):
             try:
                 indexed = self._index_path(
                     file_path_obj,
-                    force_refresh=params.refresh
+                    force_refresh=False #params.refresh
                 )
             except ValueError as e:
                 return ToolError(

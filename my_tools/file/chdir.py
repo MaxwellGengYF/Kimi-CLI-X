@@ -7,13 +7,13 @@ from pydantic import BaseModel, Field
 
 class CdParams(BaseModel):
     path: str = Field(
-        description="The directory path to change to.",
+        description="Target directory."
     )
 
 
 class Cd(CallableTool2):
     name: str = "Cd"
-    description: str = "Change the current working directory."
+    description: str = "Change working directory."
     params: type[CdParams] = CdParams
 
     async def __call__(self, params: CdParams) -> ToolReturnValue:

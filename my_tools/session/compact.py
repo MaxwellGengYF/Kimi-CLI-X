@@ -46,17 +46,17 @@ def _get_key_path(key: str) -> Path:
 class StoreSessionParam(BaseModel):
     key: str = Field(
         default=None,
-        description="The content key to save",
+        description="Key to store data under."
     )
     value: str = Field(
         default=None,
-        description="The content",
+        description="Data to store."
     )
 
 
 class StoreSession(CallableTool2):
     name: str = "StoreSession"
-    description: str = "Store content."
+    description: str = "Store session data."
     params: type[StoreSessionParam] = StoreSessionParam
 
     async def __call__(self, params: StoreSessionParam) -> ToolReturnValue:
@@ -78,13 +78,13 @@ class StoreSession(CallableTool2):
 class LoadSessionParam(BaseModel):
     key: str = Field(
         default=None,
-        description="The content key to load",
+        description="Key to load data from."
     )
 
 
 class LoadSession(CallableTool2):
     name: str = "LoadSession"
-    description: str = "Load content."
+    description: str = "Load session data."
     params: type[LoadSessionParam] = LoadSessionParam
 
     @staticmethod
@@ -121,7 +121,7 @@ class LsSessionParam(BaseModel):
 
 class LsSession(CallableTool2):
     name: str = "LsSession"
-    description: str = "List all stored session keys."
+    description: str = "List session keys."
     params: type[LsSessionParam] = LsSessionParam
 
     async def __call__(self, params: LsSessionParam) -> ToolReturnValue:

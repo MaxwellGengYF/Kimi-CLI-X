@@ -12,16 +12,16 @@ from .check import PySyntaxCheck
 
 class Params(BaseModel):
     code: str = Field(
-        description="The Python code.",
+        description="Python code to execute.",
     )
     dest: str | None = Field(
         default=None,
-        description="The destination path to save the output. If provided, output will be saved to this file.",
+        description="Output file path (optional)."
     )
     timeout: float | None = Field(
         default=None,
         ge=0,
-        description="Timeout in seconds. If not specified, no timeout is applied.",
+        description="Timeout in seconds (default: no timeout)."
     )
 
 
@@ -31,7 +31,7 @@ os.environ['PYTHONIOENCODING'] = 'utf-8'
 
 class Python(CallableTool2):
     name: str = "Python"
-    description: str = "Execute Python code"
+    description: str = "Execute Python code."
     params: type[Params] = Params
 
     async def __call__(self, params: Params) -> ToolReturnValue:

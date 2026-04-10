@@ -13,21 +13,21 @@ from my_tools.file.wait_process import WaitProcess, WaitParams
 class LsParams(BaseModel):
     directory: str = Field(
         default=".",
-        description="The directory to list files from.",
+        description="Target directory path."
     )
     long_format: bool = Field(
         default=False,
-        description="If True, display detailed file information including permissions, owner, size, and modification time.",
+        description="Show detailed file information."
     )
     recursive: bool = Field(
         default=False,
-        description="If True, list files recursively including subdirectories.",
+        description="List subdirectories recursively."
     )
 
 
 class Ls(CallableTool2):
     name: str = "Ls"
-    description: str = "List files in a directory."
+    description: str = "List directory contents."
     params: type[LsParams] = LsParams
 
     async def __call__(self, params: LsParams) -> ToolReturnValue:
@@ -87,13 +87,13 @@ class Ls(CallableTool2):
 
 class MkdirParams(BaseModel):
     path: str = Field(
-        description="The directory path to create.",
+        description="Directory path to create."
     )
 
 
 class Mkdir(CallableTool2):
     name: str = "Mkdir"
-    description: str = "Create a directory at the specified path. Supports recursive creation. If the directory already exists, it is considered successful."
+    description: str = "Create a directory (including parent directories if needed)."
     params: type[MkdirParams] = MkdirParams
 
     async def __call__(self, params: MkdirParams) -> ToolReturnValue:
@@ -112,13 +112,13 @@ class Mkdir(CallableTool2):
 
 class RmParams(BaseModel):
     path: str = Field(
-        description="The file or directory path to delete.",
+        description="Path to the file or directory to delete."
     )
 
 
 class Rm(CallableTool2):
     name: str = "Rm"
-    description: str = "Delete a file or directory at the specified path. Supports recursive deletion of directories."
+    description: str = "Delete a file or directory."
     params: type[RmParams] = RmParams
 
     async def __call__(self, params: RmParams) -> ToolReturnValue:

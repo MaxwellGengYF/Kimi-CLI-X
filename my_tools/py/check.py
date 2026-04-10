@@ -9,13 +9,13 @@ from pathlib import Path
 
 class Params(BaseModel):
     file_path: str = Field(
-        description="The path to the Python file to analyze.",
+        description="Python file path to check."
     )
 
 
 class PySyntaxCheck(CallableTool2):
     name: str = "PySyntaxCheck"
-    description: str = "Check Python code syntax and style using ruff, returns errors, warnings, and hints"
+    description: str = "Check Python syntax with ruff."
     params: type[Params] = Params
 
     async def __call__(self, params: Params) -> ToolReturnValue:

@@ -11,19 +11,19 @@ from my_tools.common import _maybe_export_output
 
 class Params(BaseModel):
     file_path: str = Field(
-        description="The path to the C++ file to check.",
+        description="Path to the C++ file to validate."
     )
     project_root: str = Field(
         default=".",
-        description="Project root directory (default: current directory).",
+        description="Root directory of the project (default: current directory)."
     )
     clangd_path: str = Field(
         default="clangd",
-        description="Path to clangd executable (default: clangd).",
+        description="Path to the clangd executable (default: 'clangd')."
     )
     verbose: bool = Field(
         default=False,
-        description="Get verbose compile arguments for the file",
+        description="Include verbose compilation arguments in output."
     )
 
 
@@ -277,7 +277,7 @@ def find_clangd(clangd_path: str, project_root: str) -> str:
 
 class CppSyntaxCheck(CallableTool2):
     name: str = "CppSyntaxCheck"
-    description: str = "Check C++ file syntax using clangd LSP."
+    description: str = "Validate C++ file syntax using clangd."
     params: type[Params] = Params
 
     async def __call__(self, params: Params) -> ToolReturnValue:

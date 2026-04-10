@@ -11,18 +11,18 @@ _sub_agent_scope = threading.local()
 
 class SubAgentParams(BaseModel):
     prompt: str = Field(
-        description="The prompt to send to the sub-agent",
+        description="Task instructions for the sub-agent."
     )
     thinking: bool = Field(
         default=False,
-        description='Enable deep-thinking mode, default false'
+        description="Enable deep-thinking mode for complex tasks."
     )
     # thinking:
 
 
 class SubAgent(CallableTool2):
     name: str = "SubAgent"
-    description: str = "Create a sub-agent."
+    description: str = "Spawn an isolated sub-agent to handle a specific task."
     params: type[SubAgentParams] = SubAgentParams
 
     async def __call__(self, params: SubAgentParams) -> ToolReturnValue:

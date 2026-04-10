@@ -13,10 +13,10 @@ def _format_size(size: int) -> str:
 
 class Params(BaseModel):
     source: str = Field(
-        description="The file or directory path to compress.",
+        description="Path to file or directory to compress.",
     )
     destination: str = Field(
-        description="The output 7z file path. If not specified, will use the source name with .7z extension.",
+        description="Output 7z file path (default: source name + .7z)."
         default="",
     )
     password: str = Field(
@@ -27,7 +27,7 @@ class Params(BaseModel):
 
 class Zip(CallableTool2):
     name: str = "Zip"
-    description: str = "Zip a file or directory as 7z archive."
+    description: str = "Compress files to 7z archive."
     params: type[Params] = Params
 
     async def __call__(self, params: Params) -> ToolReturnValue:
@@ -167,10 +167,10 @@ class Zip(CallableTool2):
 
 class UnzipParams(BaseModel):
     source: str = Field(
-        description="The archive file path to extract.",
+        description="Archive file path to extract."
     )
     destination: str = Field(
-        description="The output directory path. If not specified, will extract to the same directory as the archive.",
+        description="Output directory (default: same as archive)."
         default="",
     )
     password: str = Field(
@@ -181,7 +181,7 @@ class UnzipParams(BaseModel):
 
 class Unzip(CallableTool2):
     name: str = "Unzip"
-    description: str = "Extract a 7z/zip/rar/tar/gz archive."
+    description: str = "Extract archive files."
     params: type[UnzipParams] = UnzipParams
 
     async def __call__(self, params: UnzipParams) -> ToolReturnValue:

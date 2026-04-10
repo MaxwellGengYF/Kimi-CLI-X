@@ -11,7 +11,7 @@ class KillParams(BaseModel):
 
 class KillProcess(CallableTool2):
     name: str = "KillProcess"
-    description: str = "Kill the currently running process."
+    description: str = "Terminate the active process."
     params: type[KillParams] = KillParams
 
     async def __call__(self, params: KillParams) -> ToolReturnValue:

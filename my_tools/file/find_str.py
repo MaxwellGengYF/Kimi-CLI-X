@@ -6,20 +6,20 @@ from my_tools.common import _maybe_export_output
 
 class FindStrParams(BaseModel):
     content: str = Field(
-        description="The string content to search for.",
+        description="Text to search for."
     )
     path: str = Field(
-        description="The target path (directory or file). Supports glob patterns: '*.ext' for files in the directory, '**.ext' for recursive search.",
+        description="Target path. Supports glob patterns: '*.ext', '**.ext'."
     )
     case_sensitive: bool = Field(
         default=False,
-        description="If True, perform case-sensitive search. Default is case-insensitive.",
+        description="Enable case-sensitive search."
     )
 
 
 class FindStr(CallableTool2):
     name: str = "FindStr"
-    description: str = "Find string content position in files. Supports glob patterns like '*.ext' for single directory or '**.ext' for recursive search."
+    description: str = "Search text in files."
     params: type[FindStrParams] = FindStrParams
 
     async def __call__(self, params: FindStrParams) -> ToolReturnValue:

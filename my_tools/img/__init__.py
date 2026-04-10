@@ -4,25 +4,25 @@ from pydantic import BaseModel, Field
 
 class Params(BaseModel):
     image_path: str = Field(
-        description="Path to the image file to extract text from.",
+        description="Image file path."
     )
     output_path: str = Field(
         default="",
-        description="Path for the output text file (optional). If not provided, returns text content directly.",
+        description="Output text file path (optional)."
     )
     language: str = Field(
         default="eng",
-        description="Language code for OCR (e.g., 'eng' for English, 'chi_sim' for Simplified Chinese). Default is 'eng'.",
+        description="Language code for OCR (default: eng)."
     )
     preprocess: bool = Field(
         default=False,
-        description="Whether to apply image preprocessing (grayscale and contrast enhancement) to improve OCR accuracy.",
+        description="Apply preprocessing to improve OCR accuracy."
     )
 
 
 class ImageToText(CallableTool2):
     name: str = "ImageToText"
-    description: str = "Extract text from images."
+    description: str = "Extract text from images via OCR."
     params: type[Params] = Params
 
     async def __call__(self, params: Params) -> ToolReturnValue:
