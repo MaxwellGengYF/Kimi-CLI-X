@@ -48,7 +48,7 @@ class TaskOutputParams(BaseModel):
     block: bool = Field(
         description='block and wait task.'
     )
-    wait_time: int = Field(
+    wait_time: float = Field(
         default=0,
         description="Time to wait before capturing output in seconds."
     )

@@ -156,14 +156,13 @@ class Run(CallableTool2):
                 # Start reader threads
                 stdout_thread = threading.Thread(
                     target=read_stream_one, args=(
-                        process.stdout), daemon=True
+                        process.stdout, ), daemon=True
                 )
                 stderr_thread = threading.Thread(
                     target=read_stream, args=(process.stderr, True), daemon=True
                 )
                 stdout_thread.start()
                 stderr_thread.start()
-
                 # Wait for process completion with periodic stop checking
                 while process.poll() is None:
                     if _stop_event.is_set():
@@ -179,7 +178,19 @@ class Run(CallableTool2):
                 # Wait for readers to finish
                 stdout_thread.join(timeout=1)
                 stderr_thread.join(timeout=1)
-
+                # Read any remaining data from stdout and stderr
+                try:
+                    remaining_stdout = process.stdout.read()
+                    if remaining_stdout:
+                        q.put_nowait(remaining_stdout)
+                except (IOError, OSError, ValueError):
+                    pass
+                try:
+                    remaining_stderr = process.stderr.read()
+                    if remaining_stderr:
+                        q.put_nowait("[stderr] " + remaining_stderr)
+                except (IOError, OSError, ValueError):
+                    pass
                 # Report completion status
                 return_code = process.poll()
                 if _stop_event.is_set():

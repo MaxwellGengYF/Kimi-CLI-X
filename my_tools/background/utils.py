@@ -38,7 +38,7 @@ class BackgroundStream:
 
     def input(self, data: str) -> bool:
         if self._input_function:
-            self._input_function(data)
+            return self._input_function(data)
             return True
         return False
 

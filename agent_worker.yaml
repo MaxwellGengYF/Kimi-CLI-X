@@ -3,8 +3,8 @@ agent:
   extend: default
   tools:
     - "my_tools.py:Python"
-    # - "my_tools.file.run:Run"
-    # - "my_tools.file.input:Input"
+    - "my_tools.file.run:Run"
+    - "my_tools.file.input:Input"
     - "my_tools.file:Ls"
     - "my_tools.file:Mkdir"
     - "my_tools.file:Rm"
