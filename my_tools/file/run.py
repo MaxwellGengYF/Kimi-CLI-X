@@ -1,16 +1,16 @@
 """run tool for executing a process from a path."""
 import asyncio
+import os
+import queue
 import subprocess
 import threading
 import time
+from pathlib import Path
 
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 from my_tools.common import _maybe_export_output
-from my_tools.file._utils import (
-    get_state,
-    get_final_output, get_output_text, _check_for_input_prompt, _read_streams_into_queue
-)
+from my_tools.background.utils import BackgroundStream, generate_task_id, add_task
 
 
 class RunParams(BaseModel):
@@ -33,9 +33,9 @@ class RunParams(BaseModel):
         default=None,
         description="Output file path (optional)."
     )
-    detect_input: bool = Field(
+    run_in_background: bool = Field(
         default=False,
-        description="Return early if process requires input."
+        description="Run in an independent background process. Returns immediately with a task_id. Use TaskList, TaskOutput, and TaskWait to manage."
     )
 
 
@@ -45,114 +45,222 @@ class Run(CallableTool2):
     params: type[RunParams] = RunParams
 
     async def __call__(self, params: RunParams) -> ToolReturnValue:
-        """Run a process with real-time output collection using thread-safe queue.
-
-        Both stdout and stderr are collected into a single thread-safe queue using
-        one reader thread for efficient output handling.
-        """
-        state = get_state()
-
-        def unfinished():
-            if state.process.poll() is not None:
-                return False
-            time.sleep(0.5)
-            return state.process.poll() is None
-
-        if state.process and unfinished():
-            return ToolError(
-                output=get_final_output(),
-                message='Process still running, use "wait" tool to wait, or use "kill" to terminate.',
-                brief="",
-            )
+        # Handle background execution
+        if params.run_in_background:
+            return await self._run_in_background(params)
+        output = ''
         try:
-            start_time = time.time()
-            return_code = None
-            state.set_stdout_lines()
-            # Start the process
-            state.set_process(subprocess.Popen(
+            # Run the command using subprocess.run
+            result = subprocess.run(
                 [params.path] + params.args,
                 cwd=params.cwd,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
                 text=True,
                 encoding='utf-8',
-                errors='replace'
-            ), params.detect_input)
-            state.name = params.path
-            state.output_path = params.output_path
-            state.set_reader_threads([
-                threading.Thread(
-                target=_read_streams_into_queue,
-                args=(state.process, state.process.stdout, state.output_queue, params.detect_input),
-                daemon=True
-            ),
-                threading.Thread(
-                target=_read_streams_into_queue,
-                args=(state.process, state.process.stderr, state.output_queue, False),
-                daemon=True
+                errors='replace',
+                timeout=params.timeout
             )
-            ])
-            state.start()
 
-            # Wait for process to complete with timeout
+            # Combine stdout and stderr
+            output_parts = []
+            if result.stdout:
+                output_parts.append(result.stdout)
+            if result.stderr:
+                output_parts.append(f"[stderr] {result.stderr}")
+            output = "\n".join(output_parts)
 
-            # if params.input_text:
-            #     if not params.input_text.endswith('\n'):
-            #         params.input_text += '\n'
-            #     state.process.stdin.write(params.input_text)
-            #     state.process.stdin.flush()
-            while return_code is None:
-                # Check if process has finished
-                return_code = state.process.poll()
-                if return_code is not None:
-                    break
-
-                # Check timeout
-                elapsed = time.time() - start_time
-                if params.detect_input and (time.time() - state.last_write_time) > min(params.timeout, 3):
-                    tex = get_output_text()
-                    if _check_for_input_prompt(tex):
-                        message = f"Process still running, 'input' tool may used to input to process."
-                        return ToolError(
-                            output=get_final_output(),
-                            message=message,
-                            brief="",
-                        )
-                if params.timeout is not None and elapsed > params.timeout:
-                    state.process.kill()
-                    state.process.wait()
-                    state.join(timeout=1)
-                    state.set_process(None)
-                    output = get_final_output()
-                    message = f"Process timed out after {params.timeout} seconds"
-                    return ToolError(
-                        output=output,
-                        message=message,
-                        brief="Process timed out",
-                    )
-
-                # Yield control to allow other async tasks to run
-                await asyncio.sleep(0.05)
-
-            # Collect all output from queue
-            output = get_final_output()
-            state.join(timeout=1)
-            state.set_process(None)
-            if return_code != 0:
+            # Handle output export if needed
+            if params.output_path:
+                Path(params.output_path).write_text(
+                    output, encoding='utf-8', errors='replace')
+                output = f'saved to {params.output_path}'
+            else:
+                output = _maybe_export_output(output)
+            # Return error if command failed
+            if result.returncode != 0:
                 return ToolError(
                     output=output,
-                    message=f"Process exited with non-zero return code: {return_code}",
-                    brief="Process failed",
+                    message=f"Command failed with exit code {result.returncode}",
+                    brief="Command execution failed"
                 )
-
             return ToolOk(output=output)
 
         except Exception as exc:
             # Clean up
-            state.set_process(None)
             return ToolError(
-                output=get_final_output(),
+                output=output,
                 message=str(exc),
                 brief="Failed to run process",
+            )
+
+    async def _run_in_background(self, params: RunParams) -> ToolReturnValue:
+        """Run a process in the background and register it as a background task.
+
+        Args:
+            params: The run parameters.
+
+        Returns:
+            ToolOk with task_id on success, ToolError on failure.
+        """
+        # Shared state for stopping the process
+        _stop_event = threading.Event()
+        _process_ref = [None]  # Use list to hold reference in nested function
+
+        def run_process_bg(q: queue.Queue[str]) -> None:
+            """Run the process and collect output into the queue."""
+            process = None
+            try:
+                if _stop_event.is_set():
+                    return
+                # Start the process
+                process = subprocess.Popen(
+                    [params.path] + params.args,
+                    cwd=params.cwd,
+                    stdin=subprocess.PIPE,  # Allow input via input_function
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    encoding='utf-8',
+                    errors='replace'
+                )
+                _process_ref[0] = process
+                # Read stdout and stderr concurrently with stop checking
+
+                def read_stream(stream, is_stderr: bool = False):
+                    try:
+                        while True:
+                            if stream.closed or _stop_event.is_set():
+                                break
+                            data = stream.read()
+                            if data:
+                                prefix = "[stderr] " if is_stderr else ""
+                                q.put_nowait(prefix + data)
+                            else:
+                                time.sleep(0.01)
+                    except (IOError, OSError, ValueError):
+                        pass
+
+                def read_stream_one(stream):
+                    try:
+                        while True:
+                            if stream.closed or _stop_event.is_set():
+                                break
+                            data = stream.read(1)
+                            if data:
+                                q.put_nowait(data)
+                            else:
+                                time.sleep(0.01)
+                    except (IOError, OSError, ValueError):
+                        pass
+
+                # Start reader threads
+                stdout_thread = threading.Thread(
+                    target=read_stream_one, args=(
+                        process.stdout), daemon=True
+                )
+                stderr_thread = threading.Thread(
+                    target=read_stream, args=(process.stderr, True), daemon=True
+                )
+                stdout_thread.start()
+                stderr_thread.start()
+
+                # Wait for process completion with periodic stop checking
+                while process.poll() is None:
+                    if _stop_event.is_set():
+                        process.terminate()
+                        try:
+                            process.wait(timeout=2)
+                        except subprocess.TimeoutExpired:
+                            process.kill()
+                            process.wait()
+                        break
+                    time.sleep(0.1)
+
+                # Wait for readers to finish
+                stdout_thread.join(timeout=1)
+                stderr_thread.join(timeout=1)
+
+                # Report completion status
+                return_code = process.poll()
+                if _stop_event.is_set():
+                    q.put_nowait("\n[Process stopped by user]")
+                elif return_code is not None and return_code != 0:
+                    q.put_nowait(f"\n[Process exited with code {return_code}]")
+                else:
+                    q.put_nowait("\n[Process completed successfully]")
+
+            except Exception as e:
+                q.put_nowait(f"\n[Error: {str(e)}]")
+            finally:
+                _stop_event.set()
+                if process is not None and process.poll() is None:
+                    try:
+                        process.kill()
+                        process.wait()
+                    except:
+                        pass
+
+        def stop_function():
+            """Signal the background process to stop."""
+            _stop_event.set()
+            # Also try to terminate the process directly if it's running
+            proc: subprocess.Popen = _process_ref[0]
+            if proc is not None and proc.poll() is None:
+                try:
+                    proc.terminate()
+                except Exception:
+                    pass
+
+        def input_function(data: str) -> bool:
+            """Push data to the process's stdin.
+            
+            Args:
+                data: The string data to write to stdin.
+                
+            Returns:
+                True if data was written successfully, False otherwise.
+            """
+            proc: subprocess.Popen = None
+            # Wait for the process to be available
+            while True:
+                if _stop_event.is_set():
+                    return False
+                proc = _process_ref[0]
+                if proc is None:
+                    time.sleep(0.05)
+                else:
+                    break
+            
+            # Write data to stdin
+            try:
+                if proc.stdin is not None and proc.poll() is None:
+                    proc.stdin.write(data)
+                    proc.stdin.flush()
+                    return True
+            except (IOError, OSError, ValueError):
+                # Process may have terminated or stdin is closed
+                pass
+            return False
+
+        try:
+            # Create and start the background stream
+            stream = BackgroundStream()
+
+            # Generate a task ID based on the executable name
+            exe_name = Path(params.path).stem
+            task_id = generate_task_id("run", exe_name)
+            stream.start(run_process_bg, stop_function, input_function)
+            # Register the task
+            add_task(task_id, stream)
+
+            # Return success with task_id
+            return ToolOk(
+                output=f"Process started in background.\nTask ID: {task_id}\n\nUse 'TaskList' to view all tasks, 'TaskOutput' to get output. 'TaskStop' to kill process., 'Input' to input to process"
+            )
+
+        except Exception as exc:
+            return ToolError(
+                output="",
+                message=f"Failed to start background process: {str(exc)}",
+                brief="Failed to start background task"
             )

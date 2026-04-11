@@ -1,9 +1,11 @@
 """Background task management tools."""
+import asyncio
+
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 
-from .utils import generate_task_id, remove_task_id, add_task, join_task, get_all_tasks
-
+from .utils import generate_task_id, remove_task_id, add_task, get_all_tasks, BackgroundStream
+from my_tools.common import _maybe_export_output
 
 class TaskListParams(BaseModel):
     """Parameters for TaskList tool."""
@@ -43,6 +45,13 @@ class TaskOutputParams(BaseModel):
     task_id: str = Field(
         description="Task ID to get output from."
     )
+    block: bool = Field(
+        description='block and wait task.'
+    )
+    wait_time: int = Field(
+        default=0,
+        description="Time to wait before capturing output in seconds."
+    )
 
 
 class TaskOutput(CallableTool2):
@@ -55,15 +64,24 @@ class TaskOutput(CallableTool2):
         """Return the output of a task_id."""
         try:
             tasks = get_all_tasks()
-            if params.task_id not in tasks:
+            stream: BackgroundStream | None = None
+            if params.block:
+                stream = tasks.pop(params.task_id)
+            else:
+                stream = tasks.get(params.task_id)
+            if stream is None:
                 return ToolError(
                     message=f"Task '{params.task_id}' not found",
                     output="",
                     brief=f"Task '{params.task_id}' not found"
                 )
-            
-            stream = tasks[params.task_id]
-            output = stream.pop_output()
+            if params.block:
+                stream.wait()
+            else:
+                # Wait before capturing output
+                if params.wait_time > 0:
+                    await asyncio.sleep(params.wait_time)
+            output = _maybe_export_output(stream.pop_output())
             return ToolOk(output=output if output else "(no output)")
         except Exception as e:
             return ToolError(
@@ -73,37 +91,43 @@ class TaskOutput(CallableTool2):
             )
 
 
-class TaskWaitParams(BaseModel):
-    """Parameters for TaskWait."""
+class TaskStopParams(BaseModel):
+    """Parameters for TaskStop tool."""
     task_id: str = Field(
-        description="Task ID to wait for."
+        description="Task ID to stop and cancel."
     )
 
 
-class TaskWait(CallableTool2):
-    """Wait for a background task to complete."""
-    name: str = "TaskWait"
-    description: str = "Wait for a background task to complete."
-    params: type[BaseModel] = TaskWaitParams
+class TaskStop(CallableTool2):
+    """Stop and cancel a background task."""
+    name: str = "TaskStop"
+    description: str = "Stop and cancel a background task by its task ID."
+    params: type[BaseModel] = TaskStopParams
 
-    async def __call__(self, params: TaskWaitParams) -> ToolReturnValue:
-        """Wait for a specific task_id."""
+    async def __call__(self, params: TaskStopParams) -> ToolReturnValue:
+        """Stop and cancel the task with the given task_id."""
         try:
-            # join_task returns True if task was found and joined, False otherwise
-            success = join_task(params.task_id)
-            if not success:
+            tasks = get_all_tasks()
+            if params.task_id not in tasks:
                 return ToolError(
                     message=f"Task '{params.task_id}' not found",
                     output="",
                     brief=f"Task '{params.task_id}' not found"
                 )
             
-            return ToolOk(output=f"Task '{params.task_id}' completed.")
+            stream = tasks.pop(params.task_id)
+            stopped = stream.stop()
+            remove_task_id(params.task_id)
+            
+            if stopped:
+                return ToolOk(output=f"Task '{params.task_id}' has been stopped.")
+            else:
+                return ToolOk(output=f"Task '{params.task_id}' was not running or already stopped.")
         except Exception as e:
             return ToolError(
                 message=str(e),
-                output="Failed to wait for task",
-                brief="Task wait error"
+                output="Failed to stop task",
+                brief="Task stop error"
             )
 
 
@@ -113,12 +137,11 @@ __all__ = [
     "TaskListParams",
     "TaskOutput",
     "TaskOutputParams",
-    "TaskWait",
-    "TaskWaitParams",
+    "TaskStop",
+    "TaskStopParams",
     # Utility functions
     "generate_task_id",
     "remove_task_id",
     "add_task",
-    "join_task",
     "get_all_tasks",
 ]

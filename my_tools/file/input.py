@@ -3,11 +3,12 @@ import asyncio
 
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
-
-from my_tools.file._utils import get_state, get_final_output
-
+from my_tools.background.utils import BackgroundStream, get_all_tasks
 
 class InputParams(BaseModel):
+    task_id: str = Field(
+        description="Task ID to input to."
+    )
     text: str = Field(
         description="Text to send to the running process's stdin."
     )
@@ -19,60 +20,18 @@ class Input(CallableTool2):
     params: type[InputParams] = InputParams
 
     async def __call__(self, params: InputParams) -> ToolReturnValue:
-        """Send input text to the running process's stdin."""
-        state = get_state()
-
-        if state.process is None:
+        tasks = get_all_tasks()
+        task = tasks.get(params.task_id)
+        if task is None:
             return ToolError(
                 output="",
-                message="No process is currently running. Use run tool to start a process first.",
-                brief="No active process",
+                message=f"Task not found: {params.task_id}",
+                brief="Task not found"
             )
-
-        if state.process.poll() is not None:
+        if not task.input(params.text):
             return ToolError(
-                output=get_final_output(),
-                message=f"Process has already exited with return code: {state.process.returncode}",
-                brief="Process not running",
+                output="",
+                message="Failed to send input to process",
+                brief="Input failed"
             )
-
-        try:
-            # Ensure the input ends with a newline
-            input_text = params.text
-            if not input_text.endswith('\n'):
-                input_text += '\n'
-
-            state.process.stdin.write(input_text)
-            state.process.stdin.flush()
-            import time
-            start_time = time.time()
-            return_value = state.process.poll()
-            while (time.time() - start_time) < 3.0 and return_value is None:
-                time.sleep(0.05)
-                return_value = state.process.poll()
-            
-            if return_value is None:
-                return ToolOk(
-                    output=get_final_output(),
-                    message=f"Input sent to process: {repr(params.text)}, process still running...",
-                    brief="Input sent",
-                )
-            else:
-                if return_value == 0:
-                    return ToolOk(
-                        output=get_final_output(),
-                        message=f"Input sent to process: {repr(params.text)}, process run success",
-                        brief="Input sent",
-                    )
-                else:
-                    return ToolError(
-                        output=get_final_output(),
-                        message=f"Input sent to process: {repr(params.text)}, process failed with {return_value}",
-                        brief="Input sent, Run failed",
-                    )
-        except Exception as exc:
-            return ToolError(
-                output=get_final_output(),
-                message=f"Failed to send input: {str(exc)}",
-                brief="Input failed",
-            )
+        return ToolOk(output=f"Input sent to task {params.task_id}")

@@ -3,12 +3,14 @@ agent:
   extend: default
   tools:
     - "my_tools.py:Python"
-    - "my_tools.file:Run"
-    - "my_tools.file:Wait"
-    - "my_tools.file:Input"
+    # - "my_tools.file.run:Run"
+    # - "my_tools.file.input:Input"
     - "my_tools.file:Ls"
     - "my_tools.file:Mkdir"
     - "my_tools.file:Rm"
+    - "my_tools.background:TaskOutput"
+    - "my_tools.background:TaskList"
+    - "my_tools.background:TaskStop"
     - "my_tools.flag:Setflag"
     - "my_tools.skill:GrepAnalyzer"
     - "kimi_cli.tools.todo:SetTodoList"

@@ -231,3 +231,50 @@ Place your tool in the appropriate module:
 - `my_tools/py/__init__.py` - Python execution tools
 - `my_tools/file/run.py` - File/process tools
 - `my_tools/<category>/<tool_name>.py` - Organize by category
+
+## Background Task Tools Reference
+
+The `my_tools/background/` module provides tools for managing background tasks:
+
+### Tool Classes
+
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `TaskList` | List all background tasks with their status | None |
+| `TaskOutput` | Get accumulated output from a background task | `task_id: str` |
+| `TaskWait` | Wait for a background task to complete | `task_id: str` |
+
+### Utility Classes and Functions
+
+**BackgroundStream** (`utils.py`)
+A wrapper for background thread execution with a thread-safe queue:
+- `start(function)` - Start the background thread with a given function that accepts a `queue.Queue[str]`
+- `wait()` - Wait for the background thread to complete
+- `pop_output()` - Retrieve and clear all output from the queue
+- `get_queue()` - Get the thread-safe queue for retrieving messages
+- `is_started()` - Check if the stream has been started
+
+**Task Management Functions** (`utils.py`)
+- `generate_task_id(kind, name=None)` - Generate a unique task ID
+- `add_task(task_id, stream)` - Register a task with its BackgroundStream
+- `remove_task_id(task_id)` - Remove a task ID from the global registry
+- `get_all_tasks()` - Get all registered tasks as a dict
+
+### Usage Example
+
+```python
+from my_tools.background.utils import (
+    generate_task_id, add_task, BackgroundStream
+)
+
+# Create and start a background task
+stream = BackgroundStream()
+task_id = generate_task_id("download", "file1")
+stream.start(my_background_function, stop_function)
+add_task(task_id, stream)
+
+# Later, use tools to interact with the task:
+# - TaskList: List all running tasks
+# - TaskOutput: Get output from a specific task
+# - TaskWait: Wait for a task to complete
+```

@@ -12,9 +12,12 @@ class BackgroundStream:
         self._thread: threading.Thread | None = None
         self._queue: queue.Queue[str] | None = None
         self._started: bool = False
+        self._stopped: bool = False
+        self._stop_function: Callable = None
+        self._input_function: Callable = None
         self._lock = threading.Lock()
 
-    def start(self, function: Callable[[queue.Queue[str]], None]) -> None:
+    def start(self, function: Callable[[queue.Queue[str]], None], stop_function: Callable, input_function: Callable | None = None) -> None:
         """Start the background thread with the given function.
 
         Args:
@@ -29,7 +32,15 @@ class BackgroundStream:
             self._thread = threading.Thread(
                 target=function, args=(self._queue,), daemon=True)
             self._thread.start()
+            self._stop_function = stop_function
+            self._input_function = input_function
             self._started = True
+
+    def input(self, data: str) -> bool:
+        if self._input_function:
+            self._input_function(data)
+            return True
+        return False
 
     def wait(self) -> None:
         """Wait for the background thread to complete."""
@@ -67,6 +78,29 @@ class BackgroundStream:
         """Check if the stream has been started."""
         return self._started
 
+    def is_stopped(self) -> bool:
+        """Check if the stream has been stopped."""
+        return self._stopped
+
+    def stop(self) -> bool:
+        """Stop the background thread.
+
+        Returns:
+            True if the thread was stopped, False if it was not running.
+        """
+        with self._lock:
+            if not self._started or self._stopped:
+                return False
+            self._stopped = True
+            if self._thread is not None and self._thread.is_alive():
+                if self._stop_function is not None:
+                    try:
+                        self._stop_function()
+                    except Exception:
+                        pass
+                return True
+            return False
+
 
 _ALL_TASK: dict[str, BackgroundStream] = dict()
 
@@ -87,13 +121,18 @@ def generate_task_id(kind: str, name: str | None = None) -> str:
     return task_id
 
 
-def remove_task_id(task_id: str) -> None:
+def remove_task_id(task_id: str) -> BackgroundStream:
     """Remove a task_id from the global task names set.
 
     Args:
         task_id: The task identifier to remove.
     """
-    _ALL_TASK_NAMES.discard(task_id)
+    try:
+        _ALL_TASK_NAMES.discard(task_id)
+        return _ALL_TASK.pop(task_id)
+    except:
+        pass
+    return None
 
 
 def add_task(task_id: str, stream: BackgroundStream) -> None:
@@ -105,6 +144,10 @@ def add_task(task_id: str, stream: BackgroundStream) -> None:
     """
     _ALL_TASK[task_id] = stream
     _ALL_TASK_NAMES.add(task_id)
+
+
+def get_all_tasks():
+    return _ALL_TASK
 
 
 def join_task(task_id: str) -> bool:
@@ -123,7 +166,3 @@ def join_task(task_id: str) -> bool:
     stream.wait()
     _ALL_TASK_NAMES.discard(task_id)
     return True
-
-
-def get_all_tasks():
-    return _ALL_TASK
