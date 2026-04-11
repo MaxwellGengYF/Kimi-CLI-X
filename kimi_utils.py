@@ -206,26 +206,29 @@ def print_usage(session=None):
     )
 
 
-def clear_context(force_create: bool = False, resume: bool = False):
+def clear_context(force_create: bool = False, resume: bool = False, print_info: bool = True):
     global _default_session
     if _default_session:
         if not force_create and _default_session.status.context_usage < 1e-8:
-            _print_usage(_default_session)
+            if print_info:
+                _print_usage(_default_session)
             return
         elif _default_session is not None:
             asyncio.run(_default_session.close())
         _default_session = None
     _create_default_session(resume)
-    _print_usage(_default_session)
+    if print_info:
+        _print_usage(_default_session)
 
 
 def prompt(
     prompt_str: str,
     session=None,
     # settings
-    read_agents_md: bool = True,
+    read_agents_md: bool = False,
     skill_name: str | None = None,
-    output_function: Callable | None = None
+    output_function: Callable | None = None,
+    info_print: bool = True
 ):
     _temp_create_session = False
     if session is None:
@@ -259,7 +262,8 @@ def prompt(
         prompt_str = f'Read AGENTS.md.\n' + prompt_str
 
     global _default_session
-    print_debug(f'Start...', end='\n\n')
+    if info_print:
+        print_debug(f'Start...', end='\n\n')
     async def func():
         nonlocal session, _temp_create_session
         max_retries = 5
@@ -270,7 +274,8 @@ def prompt(
                     merge_wire_messages=True,
                 ):
                     print_agent_json(lambda: message.model_dump_json(), output_function)
-                _print_usage(session)
+                if info_print:
+                    _print_usage(session)
                 max_retries = 0
             except Exception as e:
                 print_error(str(e))
@@ -342,7 +347,7 @@ def fix_error(
     for i in range(max_loop):
         result = _run_process_with_error(
             command, keycode, skip_success=skip_success)
-        if result is None:
+        if i == 0 and result is None:
             print_success('No error.')
             return True
         error_keyword = None
@@ -383,3 +388,9 @@ def read_file(path: Path, split_word: str = None):
     if split_word:
         return s.split(split_word)
     return s
+
+def set_plan_mode(value: bool = True):
+    agent_utils._default_plan_mode = value == True
+    if not _default_session:
+        return
+    clear_context(True, True)

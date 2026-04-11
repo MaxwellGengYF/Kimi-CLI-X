@@ -16,6 +16,7 @@ read '${memory_file}' and remember.
 def compact(temp_file: str | None = None) -> None:
     from pathlib import Path
     from kimi_utils import prompt, get_default_session, print_warning, clear_context
+    from agent_utils import _percentage_str, print_success, print_error
     from my_tools.common import _create_temp_file_name
     if not get_default_session() or get_default_session().status.context_usage <= 1e-5:
         print_warning('Context is empty.')
@@ -26,6 +27,11 @@ def compact(temp_file: str | None = None) -> None:
         Path(temp_file).unlink(missing_ok=True)
     except:
         pass
-    prompt(generate_memory.substitute(memory_file=temp_file))
-    clear_context()
-    prompt(read_memory.substitute(memory_file=temp_file))
+    last_usage = get_default_session().status.context_usage
+    prompt(generate_memory.substitute(
+        memory_file=temp_file), info_print=False)
+    clear_context(print_info=False)
+    prompt(read_memory.substitute(memory_file=temp_file), info_print=False)
+    new_usage = get_default_session().status.context_usage
+    print_success(
+        f'Compact from {_percentage_str(last_usage)} to {_percentage_str(new_usage)}')

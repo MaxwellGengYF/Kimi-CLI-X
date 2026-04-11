@@ -297,10 +297,16 @@ def _run_process_with_log(command: str):
     import subprocess
     print_info(f'Shell: {command}')
     result = subprocess.run(command, shell=True,
-                            capture_output=True, text=True)
-    output = result.stdout
+                            capture_output=True, text=False)
+    # Decode stdout with UTF-8, handle decode errors
+    if result.stdout:
+        output = result.stdout.decode('utf-8', errors='replace')
+    else:
+        output = ""
+    # Decode stderr with UTF-8, handle decode errors
     if result.stderr:
-        output += "\n" + result.stderr
+        stderr = result.stderr.decode('utf-8', errors='replace')
+        output += "\n" + stderr
     return output, result.returncode
 
 

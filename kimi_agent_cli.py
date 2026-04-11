@@ -227,7 +227,8 @@ def _run_cli():
         try:
             os.chdir(path)
             agent_utils._default_skill_dirs = []
-            clear_context(True, True)
+            if get_default_session():
+                clear_context(True, True)
             print_success(f'Changed directory to: {Path(".").resolve()}')
         except Exception as e:
             print_error(f'Failed to change directory: {e}')
@@ -283,7 +284,8 @@ def _run_cli():
         else:
             print_error('Command must be /think:on or /think:off')
             return None, False
-        clear_context(True, True)
+        if get_default_session():
+            clear_context(True, True)
         return None, False
 
     def _cmd_plan(task_split):
@@ -300,7 +302,8 @@ def _run_cli():
         else:
             print_error('Command must be /plan:on or /plan:off')
             return None, False
-        clear_context(True, True)
+        if get_default_session():
+            clear_context(True, True)
         return None, False
 
     def _cmd_ralph(task_split):
@@ -317,7 +320,8 @@ def _run_cli():
         else:
             print_error('Command must be /ralph:on or /ralph:off')
             return None, False
-        clear_context(True, True)
+        if get_default_session():
+            clear_context(True, True)
         return None, False
 
     def _cmd_txt(task_split):
