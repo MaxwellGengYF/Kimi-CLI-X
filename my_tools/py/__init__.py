@@ -134,8 +134,6 @@ class Python(CallableTool2):
 
             if _stop_event.is_set():
                 q.put_nowait("\n[Process stopped by user]")
-            else:
-                q.put_nowait("\n[Process completed]")
 
         def stop_function():
             """Signal the background thread to stop."""

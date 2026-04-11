@@ -79,8 +79,14 @@ class TaskOutput(CallableTool2):
                 stream.wait()
             else:
                 # Wait before capturing output
-                if params.wait_time > 0:
-                    await asyncio.sleep(params.wait_time)
+                last_time = params.wait_time
+                while last_time > 0:
+                    if not stream.thread_is_alive():
+                        break
+                    sleep_time = min(last_time, 0.05)
+                    last_time -= sleep_time
+                    await asyncio.sleep(sleep_time)
+                    
             output = _maybe_export_output(stream.pop_output())
             return ToolOk(output=output if output else "(no output)")
         except Exception as e:

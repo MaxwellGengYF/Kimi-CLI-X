@@ -35,7 +35,7 @@ class RunParams(BaseModel):
     )
     run_in_background: bool = Field(
         default=False,
-        description="Run in an independent background process. Returns immediately with a task_id. Use TaskList, TaskOutput, and TaskWait to manage."
+        description="Run in an independent background process. Returns immediately with a task_id. Use TaskList, TaskOutput, and TaskWait to manage. ALWAYS set to True with input detection use `Input` tool."
     )
 
 
@@ -197,8 +197,6 @@ class Run(CallableTool2):
                     q.put_nowait("\n[Process stopped by user]")
                 elif return_code is not None and return_code != 0:
                     q.put_nowait(f"\n[Process exited with code {return_code}]")
-                else:
-                    q.put_nowait("\n[Process completed successfully]")
 
             except Exception as e:
                 q.put_nowait(f"\n[Error: {str(e)}]")

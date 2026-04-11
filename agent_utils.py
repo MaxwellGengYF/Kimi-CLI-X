@@ -160,8 +160,10 @@ def _process_lru():
         _threads = [p for p in _threads if p.is_alive()]
 
 _commands = {
-    'Python': 'code',
-    'Run': ('path', 'args', 'timeout', 'detect_input'),
+    'Python': ('code', 'run_in_background'),
+    'Run': ('path', 'args', 'timeout', 'run_in_background'),
+    'TaskOutput': ('task_id', 'block', 'wait_time'),
+    'TaskStop': 'task_id',
     'Rm': 'path',
     'Mkdir': 'path',
     'Ls': 'directory',

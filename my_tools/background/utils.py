@@ -42,10 +42,13 @@ class BackgroundStream:
             return True
         return False
 
+    def thread_is_alive(self) -> None:
+        return self._thread is not None and self._thread.is_alive()
+
     def wait(self) -> None:
         """Wait for the background thread to complete."""
         with self._lock:
-            if self._thread is not None and self._thread.is_alive():
+            if self.thread_is_alive():
                 self._thread.join()
                 self._thread = None
 
