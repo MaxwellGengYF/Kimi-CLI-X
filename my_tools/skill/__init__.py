@@ -4,6 +4,7 @@ import hashlib
 import os
 import sys
 import re
+from collections import OrderedDict
 from pathlib import Path
 from typing import Optional, Dict, Any, ClassVar
 from dataclasses import dataclass
@@ -141,6 +142,8 @@ class GrepAnalyzer(CallableTool2):
     COLLECTION_NAME: ClassVar[str] = "work_dir_files"
     PERSIST_DIR: ClassVar[str] = ".cache/chroma_db"
     _collection_cache: ClassVar[dict[str, IndexedCollection]] = {}
+    _index_cache: ClassVar[OrderedDict[str, TextSearchIndex]] = OrderedDict()
+    _MAX_INDEX_CACHE_SIZE: ClassVar[int] = 3
 
     def _is_text_file(self, file_path: Path) -> bool:
         """Check if a file is a supported text file.
@@ -393,16 +396,31 @@ class GrepAnalyzer(CallableTool2):
             index_path = f".index_cache/{cache_key}"
             cache_dir = ".cache/text_search"
             
-            # Create index with lazy loading and embedding cache
-            index = TextSearchIndex(cache_dir=cache_dir, lazy_load=True)
+            # Use cached index if available and not refreshing (LRU cache)
+            index_cache_key = f"{cache_dir}:{index_path}"
+            cached = False
+            if not params.refresh and index_cache_key in self._index_cache:
+                # Move to end (most recently used)
+                index = self._index_cache.pop(index_cache_key)
+                self._index_cache[index_cache_key] = index
+                cached = True
+            else:
+                # Evict oldest entry if cache is full
+                if len(self._index_cache) >= self._MAX_INDEX_CACHE_SIZE:
+                    oldest_key, _ = self._index_cache.popitem(last=False)
+                # Create index with lazy loading and embedding cache
+                index = TextSearchIndex(cache_dir=cache_dir, lazy_load=True)
+                self._index_cache[index_cache_key] = index
             
             # Try to load existing index or create new one
             if os.path.exists(index_path) and not params.refresh:
-                index.load(index_path)
+                save = False
+                if not cached:
+                    index.load(index_path)
                 # Remove files that no longer exist
                 removed_files = index.remove_missing_files()
                 if removed_files:
-                    index.save(index_path)
+                    save = True
                 
                 # Check for new/modified files and update incrementally
                 if os.path.isdir(search_path):
@@ -410,11 +428,11 @@ class GrepAnalyzer(CallableTool2):
                     if new_files:
                         for file_path in new_files:
                             index.add_file(file_path)
-                        index.save(index_path)
+                        save = True
                 elif os.path.isfile(search_path):
                     if index._is_file_modified(search_path):
                         index.add_file(search_path)
-                        index.save(index_path)
+                        save = True
             else:
                 # Fresh indexing (or forced refresh)
                 if os.path.isdir(search_path):
@@ -423,6 +441,8 @@ class GrepAnalyzer(CallableTool2):
                     index.add_file(search_path)
                 # Save the index
                 os.makedirs(os.path.dirname(index_path), exist_ok=True)
+                save = True
+            if save:
                 index.save(index_path)
             
             # Check if index is empty

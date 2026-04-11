@@ -470,7 +470,7 @@ class TextSearchIndex:
         
         return new_files
     
-    def add_folder(self, folder_path: str, parallel: bool = False, 
+    def add_folder(self, folder_path: str, parallel: bool = True, 
                    max_workers: Optional[int] = None, batch_size: int = 256) -> int:
         """
         Add all text files from a folder to the index.
