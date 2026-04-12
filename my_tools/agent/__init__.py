@@ -1,9 +1,11 @@
 import asyncio
+import queue
 import threading
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 from kimi_utils import prompt, create_session, close_session
 from my_tools.common import _maybe_export_output
+from my_tools.background.utils import BackgroundStream, generate_task_id, add_task
 
 # Thread-local storage to track SubAgentScope context
 _sub_agent_scope = threading.local()
@@ -17,7 +19,10 @@ class SubAgentParams(BaseModel):
         default=False,
         description="Enable deep-thinking mode for complex tasks."
     )
-    # thinking:
+    run_in_background: bool = Field(
+        default=False,
+        description="Run in an independent background process. Returns immediately with a task_id. Use TaskList, TaskOutput, and TaskWait to manage."
+    )
 
 
 class Spawn(CallableTool2):
@@ -26,6 +31,10 @@ class Spawn(CallableTool2):
     params: type[SubAgentParams] = SubAgentParams
 
     async def __call__(self, params: SubAgentParams) -> ToolReturnValue:
+        # Handle background execution
+        if params.run_in_background:
+            return await self._run_in_background(params)
+
         # Check if already inside a SubAgentScope
         if getattr(_sub_agent_scope, 'active', False):
             return ToolError(
@@ -70,4 +79,95 @@ class Spawn(CallableTool2):
                 output="",
                 message=str(exc),
                 brief="Failed to create session",
+            )
+
+    async def _run_in_background(self, params: SubAgentParams) -> ToolReturnValue:
+        """Run the sub-agent in the background and register it as a background task.
+
+        Args:
+            params: The sub-agent parameters.
+
+        Returns:
+            ToolOk with task_id on success, ToolError on failure.
+        """
+        # Check if already inside a SubAgentScope
+        if getattr(_sub_agent_scope, 'active', False):
+            return ToolError(
+                output="",
+                message="You are a sub-agent, SubAgent cannot be called within this scope.",
+                brief="Nested SubAgent call detected",
+            )
+
+        # Shared state for stopping the task
+        _stop_event = threading.Event()
+
+        def run_agent_bg(q: queue.Queue[str]) -> None:
+            """Run the sub-agent and collect output into the queue."""
+            try:
+                if _stop_event.is_set():
+                    return
+
+                output_strs = []
+
+                def output_function(fn):
+                    if fn:
+                        output_strs.append(fn)
+
+                def prompt_func():
+                    session = None
+                    try:
+                        import agent_utils
+                        _sub_agent_scope.active = True
+                        session = create_session(
+                            thinking=params.thinking,
+                            plan_mode=False,
+                            agent_file=agent_utils._default_agent_file_dir / 'agent_subagent.yaml')
+                        prompt(prompt_str=params.prompt, session=session,
+                               output_function=output_function)
+                    except Exception as e:
+                        return str(e)
+                    finally:
+                        if session:
+                            close_session(session)
+                        _sub_agent_scope.active = False
+                    return None
+
+                err_msg = prompt_func()
+
+                # Collect output
+                output = '\n'.join(output_strs)
+                if output:
+                    q.put_nowait(output)
+
+                if err_msg:
+                    q.put_nowait(f"\n[Error: {err_msg}]")
+                else:
+                    q.put_nowait("\n[Sub-agent completed]")
+
+            except Exception as e:
+                q.put_nowait(f"\n[Error: {str(e)}]")
+            finally:
+                _stop_event.set()
+
+        def stop_function():
+            """Signal the background task to stop."""
+            _stop_event.set()
+
+        try:
+            # Create and start the background stream
+            stream = BackgroundStream()
+            task_id = generate_task_id("agent", "subagent")
+            stream.start(run_agent_bg, stop_function)
+            # Register the task
+            add_task(task_id, stream)
+
+            return ToolOk(
+                output=f"Sub-agent started in background.\nTask ID: {task_id}\n\nUse 'TaskList' to view all tasks, 'TaskOutput' to get output, 'TaskWait' to wait for completion, 'TaskStop' to stop the sub-agent."
+            )
+
+        except Exception as exc:
+            return ToolError(
+                output="",
+                message=f"Failed to start background sub-agent: {str(exc)}",
+                brief="Failed to start background task"
             )
