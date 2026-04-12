@@ -1,5 +1,5 @@
 from string import Template
-generate_memory = Template('''Please compact our session with:
+generate_memory = Template('''Please summarize our session with:
 1. **Project Overview**: Brief description of the project and its purpose
 2. **Key Decisions**: Important decisions made during our session
 3. **Current State**: What has been completed so far
@@ -13,7 +13,7 @@ read '${memory_file}' and remember.
 '''.strip())
 
 
-def compact(temp_file: str | None = None) -> None:
+def summarize(temp_file: str | None = None) -> None:
     from pathlib import Path
     from kimi_utils import prompt, get_default_session, print_warning, clear_context
     from agent_utils import _percentage_str, print_success, print_error

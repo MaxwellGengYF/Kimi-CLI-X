@@ -200,7 +200,7 @@ def print_agent_json(get_message, output_function: Callable | None = None):
         if type(item) == str:
             if not (item.find('<choice>') >= 0 and item.find('</choice>') >= 0):
                 if _print_func:
-                    _print_func(text, '\n')
+                    _print_func(item, '\n')
                 else:
                     print(item, end='\n')
         elif item.get("type") == "think" and not _quiet:
@@ -218,38 +218,43 @@ def print_agent_json(get_message, output_function: Callable | None = None):
                         _print_func(f"\n{text_content}", '\n')
                     else:
                         print(f"\n{text_content}", end='\n')
-        elif item.get("type") == "function" and not _quiet:
-            def to_str(s):
-                if isinstance(s, str):
-                    return s
-                try:
-                    return ' '.join(str(x) for x in s)
-                except TypeError:
-                    return str(s)
-            text = item.get("function", None)
-            if text:
-                name:str = text.get("name")
-                if name is not None:
-                    args = text.get('arguments', '')
-                    try:
-                        args = json.loads(args)
-                    except json.JSONDecodeError:
-                        args = {}  # or handle it appropriately
-                    cmd_args = _commands.get(name.lower())
-                    print_arg = ''
-                    if cmd_args is not None:
-                        if type(cmd_args) is tuple:
-                            print_args = []
-                            for i in cmd_args:
-                                v = args.get(i)
-                                if v is not None:
-                                    print_args.append(f'{i}: {to_str(v)}')
-                            print_arg = ' '.join(print_args)
-                        else:
-                            v = args.get(cmd_args)
-                            if v is not None:
-                                print_arg = to_str(v)
-                    print_info(f"{name}: {print_arg}")
+        # print in kimi-cli
+        # elif item.get("type") == "function" and not _quiet:
+        #     def to_str(s):
+        #         if isinstance(s, str):
+        #             return s
+        #         try:
+        #             return ' '.join(str(x) for x in s)
+        #         except TypeError:
+        #             return str(s)
+        #     text = item.get("function", None)
+        #     if text:
+        #         name:str = text.get("name")
+        #         if name is not None:
+        #             args: str = text.get('arguments', '')
+        #             if not args.endswith('"}'):
+        #                 args += '"}'
+        #             elif not args.endswith('}'):
+        #                 args += '}'
+        #             try:
+        #                 args = json.loads(args)
+        #             except json.JSONDecodeError as e:
+        #                 args = {}  # or handle it appropriately
+        #             cmd_args = _commands.get(name.lower())
+        #             print_arg = ''
+        #             if cmd_args is not None:
+        #                 if type(cmd_args) is tuple:
+        #                     print_args = []
+        #                     for i in cmd_args:
+        #                         v = args.get(i)
+        #                         if v is not None:
+        #                             print_args.append(f'{i}: {to_str(v)}')
+        #                     print_arg = ' '.join(print_args)
+        #                 else:
+        #                     v = args.get(cmd_args)
+        #                     if v is not None:
+        #                         print_arg = to_str(v)
+        #             print_info(f"{name}: {print_arg}")
     if js.get("role") == "assistant":
         content = js.get("content", [])
         if type(content) == str:

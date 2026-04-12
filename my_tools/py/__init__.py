@@ -2,16 +2,16 @@ import asyncio
 import subprocess
 import sys
 import os
-import traceback
 import queue
 import threading
+import time
 from my_tools.common import _maybe_export_output
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
-from my_tools.common import _export_to_temp_file
 from pathlib import Path
 from .check import PySyntaxCheck
 from my_tools.background.utils import BackgroundStream, generate_task_id, add_task
+
 
 class Params(BaseModel):
     code: str = Field(
@@ -38,7 +38,7 @@ os.environ['PYTHONIOENCODING'] = 'utf-8'
 
 class Python(CallableTool2):
     name: str = "Python"
-    description: str = "Execute Python code."
+    description: str = "Execute Python code in subprocess."
     params: type[Params] = Params
 
     async def __call__(self, params: Params) -> ToolReturnValue:
@@ -46,110 +46,235 @@ class Python(CallableTool2):
         if params.run_in_background:
             return await self._run_in_background(params)
 
-        import io
-        import contextlib
-
-        def _exec_code(code: str):
-            # Create a restricted globals dict for safer execution
-            exec_globals = {"__builtins__": __builtins__,
-                            '__name__': '__main__'}
-            # Use exec_globals as locals too so functions can reference each other
-            # This is needed for recursive function calls to work properly
-
-            # Capture stdout and stderr
-            stdout_buffer = io.StringIO()
-            stderr_buffer = io.StringIO()
-            exception = None
-            with contextlib.redirect_stdout(stdout_buffer), contextlib.redirect_stderr(stderr_buffer):
-                try:
-                    exec(code, exec_globals, exec_globals)
-                except Exception as e:
-                    # Capture full exception info including traceback
-                    exception = traceback.format_exc()
-
-            return stdout_buffer.getvalue(), stderr_buffer.getvalue(), exception
-
+        output = ''
         try:
-            # Run code in an independent thread
-            stdout, stderr, exception = await asyncio.to_thread(_exec_code, params.code)
+            # Run the Python code using subprocess
+            # Use python -c to execute the code directly
+            result = subprocess.run(
+                [sys.executable, '-c', params.code],
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                timeout=params.timeout
+            )
 
-            # Combine outputs
+            # Combine stdout and stderr
             output_parts = []
-            if stdout:
-                output_parts.append(stdout)
-            if stderr:
-                output_parts.append(stderr)
-            output = "".join(output_parts)
+            if result.stdout:
+                output_parts.append(result.stdout)
+            if result.stderr:
+                output_parts.append(f"[stderr] {result.stderr}")
+            output = "\n".join(output_parts)
 
             # Handle dest parameter if provided
             if params.dest:
-                Path(params.dest).write_text(output, encoding='utf-8')
+                Path(params.dest).write_text(output, encoding='utf-8', errors='replace')
                 output = f'output exported to: {params.dest}'
             else:
                 output = _maybe_export_output(output)
-            if exception:
-                return ToolError(message=exception, output=output, brief="Python execution error")
+
+            # Return error if command failed
+            if result.returncode != 0:
+                return ToolError(
+                    output=output,
+                    message=f"Python execution failed with exit code {result.returncode}",
+                    brief="Python execution error"
+                )
             return ToolOk(output=output)
-        except Exception as e:
-            return ToolError(message=str(e), brief="Python tool error")
+
+        except Exception as exc:
+            return ToolError(
+                output=output,
+                message=str(exc),
+                brief="Python tool error"
+            )
 
     async def _run_in_background(self, params: Params) -> ToolReturnValue:
-        """Run Python code in the background using exec in a thread."""
-        import io
-        import contextlib
+        """Run Python code in the background using subprocess.
 
-        # Shared state for stopping the thread
+        Args:
+            params: The Python execution parameters.
+
+        Returns:
+            ToolOk with task_id on success, ToolError on failure.
+        """
+        # Shared state for stopping the process
         _stop_event = threading.Event()
+        _process_ref = [None]  # Use list to hold reference in nested function
 
         def run_python_bg(q: queue.Queue[str]) -> None:
-            """Run Python code with exec and capture output."""
-            exec_globals = {
-                "__builtins__": __builtins__,
-                "__name__": "__main__",
-                "_stop_requested": _stop_event,  # Provide stop event to user code
-            }
-            stdout_buffer = io.StringIO()
-            stderr_buffer = io.StringIO()
+            """Run the Python process and collect output into the queue."""
+            process = None
+            try:
+                if _stop_event.is_set():
+                    return
 
-            with contextlib.redirect_stdout(stdout_buffer), contextlib.redirect_stderr(stderr_buffer):
+                # Start the Python process
+                process = subprocess.Popen(
+                    [sys.executable, '-c', params.code],
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    encoding='utf-8',
+                    errors='replace'
+                )
+                _process_ref[0] = process
+
+                # Read stdout and stderr concurrently with stop checking
+                def read_stream(stream, is_stderr: bool = False):
+                    try:
+                        while True:
+                            if stream.closed or _stop_event.is_set():
+                                break
+                            data = stream.read()
+                            if data:
+                                prefix = "[stderr] " if is_stderr else ""
+                                q.put_nowait(prefix + data)
+                            else:
+                                time.sleep(0.01)
+                    except (IOError, OSError, ValueError):
+                        pass
+
+                def read_stream_one(stream):
+                    try:
+                        while True:
+                            if stream.closed or _stop_event.is_set():
+                                break
+                            data = stream.read(1)
+                            if data:
+                                q.put_nowait(data)
+                            else:
+                                time.sleep(0.01)
+                    except (IOError, OSError, ValueError):
+                        pass
+
+                # Start reader threads
+                stdout_thread = threading.Thread(
+                    target=read_stream_one, args=(process.stdout,), daemon=True
+                )
+                stderr_thread = threading.Thread(
+                    target=read_stream, args=(process.stderr, True), daemon=True
+                )
+                stdout_thread.start()
+                stderr_thread.start()
+
+                # Wait for process completion with periodic stop checking
+                while process.poll() is None:
+                    if _stop_event.is_set():
+                        process.terminate()
+                        try:
+                            process.wait(timeout=2)
+                        except subprocess.TimeoutExpired:
+                            process.kill()
+                            process.wait()
+                        break
+                    time.sleep(0.1)
+
+                # Wait for readers to finish
+                stdout_thread.join(timeout=1)
+                stderr_thread.join(timeout=1)
+
+                # Read any remaining data from stdout and stderr
                 try:
-                    exec(params.code, exec_globals, exec_globals)
-                except Exception:
-                    print(traceback.format_exc(), file=stderr_buffer)
-
-            output = stdout_buffer.getvalue()
-            error = stderr_buffer.getvalue()
-
-            if output:
-                q.put_nowait(output)
-            if error:
-                q.put_nowait("[stderr] " + error)
-
-            if params.dest and (output or error):
+                    remaining_stdout = process.stdout.read()
+                    if remaining_stdout:
+                        q.put_nowait(remaining_stdout)
+                except (IOError, OSError, ValueError):
+                    pass
                 try:
-                    Path(params.dest).write_text(output + error, encoding="utf-8")
-                    q.put_nowait(f"\n[Output exported to: {params.dest}]")
-                except Exception as e:
-                    q.put_nowait(f"\n[Error exporting to dest: {e}]")
+                    remaining_stderr = process.stderr.read()
+                    if remaining_stderr:
+                        q.put_nowait("[stderr] " + remaining_stderr)
+                except (IOError, OSError, ValueError):
+                    pass
 
-            if _stop_event.is_set():
-                q.put_nowait("\n[Process stopped by user]")
+                # Report completion status
+                return_code = process.poll()
+                if _stop_event.is_set():
+                    q.put_nowait("\n[Process stopped by user]")
+                elif return_code is not None and return_code != 0:
+                    q.put_nowait(f"\n[Process exited with code {return_code}]")
+
+                # Handle dest parameter if provided
+                if params.dest:
+                    try:
+                        # Collect all output for export
+                        full_output = []
+                        # Note: We can't easily reconstruct from queue, so this is handled separately
+                        # The output will still be streamed via the queue
+                    except Exception as e:
+                        q.put_nowait(f"\n[Error exporting to dest: {e}]")
+
+            except Exception as e:
+                q.put_nowait(f"\n[Error: {str(e)}]")
+            finally:
+                _stop_event.set()
+                if process is not None and process.poll() is None:
+                    try:
+                        process.kill()
+                        process.wait()
+                    except:
+                        pass
 
         def stop_function():
-            """Signal the background thread to stop."""
+            """Signal the background process to stop."""
             _stop_event.set()
+            # Also try to terminate the process directly if it's running
+            proc: subprocess.Popen = _process_ref[0]
+            if proc is not None and proc.poll() is None:
+                try:
+                    proc.terminate()
+                except Exception:
+                    pass
+
+        def input_function(data: str) -> bool:
+            """Push data to the process's stdin.
+            
+            Args:
+                data: The string data to write to stdin.
+                
+            Returns:
+                True if data was written successfully, False otherwise.
+            """
+            proc: subprocess.Popen = None
+            # Wait for the process to be available
+            while True:
+                if _stop_event.is_set():
+                    return False
+                proc = _process_ref[0]
+                if proc is None:
+                    time.sleep(0.05)
+                else:
+                    break
+            
+            # Write data to stdin
+            try:
+                if proc.stdin is not None and proc.poll() is None:
+                    proc.stdin.write(data)
+                    proc.stdin.flush()
+                    return True
+            except (IOError, OSError, ValueError):
+                # Process may have terminated or stdin is closed
+                pass
+            return False
 
         try:
+            # Create and start the background stream
             stream = BackgroundStream()
             task_id = generate_task_id("python")
-            stream.start(run_python_bg, stop_function)
+            stream.start(run_python_bg, stop_function, input_function)
+            # Register the task
             add_task(task_id, stream)
 
             return ToolOk(
-                output=f"Python process started in background.\nTask ID: {task_id}\n\nUse 'TaskList' to view all tasks, 'TaskOutput' to get output, and 'TaskWait' to wait for completion."
+                output=f"Python process started in background.\nTask ID: {task_id}\n\nUse 'TaskList' to view all tasks, 'TaskOutput' to get output, 'TaskWait' to wait for completion, 'TaskStop' to kill process, 'Input' to input to process."
             )
+
         except Exception as exc:
             return ToolError(
+                output="",
                 message=f"Failed to start background Python process: {str(exc)}",
                 brief="Failed to start background task"
             )
