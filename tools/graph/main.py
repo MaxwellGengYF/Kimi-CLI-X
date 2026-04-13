@@ -22,11 +22,173 @@ from graph.analysis_engine import AnalysisEngine
 from graph.output_manager import OutputManager
 
 from agent_utils import print_success, print_error, print_info, print_warning, print_debug
+from kimi_utils import create_session, prompt, close_session
+from kaos.path import KaosPath
+
+
+def verify_output(output_dir: Path, project_path: Path) -> bool:
+    """
+    Verify generated analysis output by cross-referencing with the codebase.
+    
+    Args:
+        output_dir: Path to the output directory containing analysis results
+        project_path: Path to the original project directory
+    
+    Returns:
+        True if verification passed, False otherwise
+    """
+    from datetime import datetime
+    import json
+    
+    print_info("")
+    print_info("=" * 60)
+    print_info("Step 6: Verifying analysis output...")
+    print_info("=" * 60)
+    
+    # Create a new independent session for verification
+    session_id = f"verify_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    session = create_session(
+        session_id=session_id,
+        work_dir=KaosPath(str(project_path)),
+        thinking=True,
+        yolo=True
+    )
+    
+    try:
+        # Read the generated files
+        mindmap_file = output_dir / 'mindmap.md'
+        keywords_file = output_dir / 'keywords.json'
+        api_file = output_dir / 'api_reference.json'
+        index_file = output_dir / 'index.json'
+        
+        verification_results = []
+        
+        # Check if files exist
+        for f in [mindmap_file, keywords_file, api_file, index_file]:
+            if f.exists():
+                verification_results.append(f"✓ {f.name} exists")
+            else:
+                verification_results.append(f"✗ {f.name} missing")
+        
+        # Read keywords for validation
+        keywords_data = {}
+        if keywords_file.exists():
+            try:
+                with open(keywords_file, 'r', encoding='utf-8') as f:
+                    keywords_data = json.load(f)
+                verification_results.append(f"✓ Loaded {len(keywords_data.get('keywords', []))} keywords")
+            except Exception as e:
+                verification_results.append(f"✗ Error loading keywords: {e}")
+        
+        # Read APIs for validation
+        api_data = {}
+        if api_file.exists():
+            try:
+                with open(api_file, 'r', encoding='utf-8') as f:
+                    api_data = json.load(f)
+                verification_results.append(f"✓ Loaded {len(api_data.get('apis', []))} APIs")
+            except Exception as e:
+                verification_results.append(f"✗ Error loading APIs: {e}")
+        
+        # Build verification prompt
+        verification_prompt = f'''Verify the following analysis output against the project codebase.
+
+## Generated Files Location
+{output_dir}
+
+## Verification Tasks
+
+1. **Validate Keywords**: Check if extracted keywords are relevant to the project
+   - Use GrepAnalyzer to search for key terms in the codebase
+   - Verify they appear in actual source files
+
+2. **Validate APIs**: Cross-check extracted APIs
+   - Use GrepAnalyzer to search for function/class definitions
+   - Verify they exist in the codebase
+
+3. **Validate File Paths**: Check if referenced files exist
+   - Verify paths mentioned in the analysis exist in the project
+
+## Keywords to Validate
+{json.dumps(keywords_data.get('keywords', [])[:20], indent=2)}
+
+## APIs to Validate
+{json.dumps([api.get('name', '') for api in api_data.get('apis', [])[:20]], indent=2)}
+
+## Instructions
+- Use GrepAnalyzer tool to search for patterns and validate information
+- Report any discrepancies found
+- Provide confidence score for the analysis accuracy
+
+## Output Format
+
+```markdown
+# Verification Report
+
+## Summary
+- Total keywords checked: X
+- Total APIs checked: X
+- Files validated: X
+
+## Keyword Validation
+| Keyword | Found in Codebase | Confidence |
+|---------|-------------------|------------|
+| keyword | Yes/No | High/Medium/Low |
+
+## API Validation
+| API | Found | Location | Confidence |
+|-----|-------|----------|------------|
+| api_name | Yes/No | file_path | High/Medium/Low |
+
+## Issues Found
+List any discrepancies or errors found.
+
+## Overall Assessment
+Overall confidence score and recommendations.
+```
+'''
+        
+        # Run verification
+        verification_output = []
+        def capture_output(text):
+            verification_output.append(text)
+        
+        print_info("Running verification with GrepAnalyzer...")
+        prompt(verification_prompt, session=session, output_function=capture_output)
+        
+        verification_text = '\n'.join(verification_output)
+        
+        # Save verification report
+        report_file = output_dir / 'VERIFICATION_REPORT.md'
+        with open(report_file, 'w', encoding='utf-8') as f:
+            f.write("# Analysis Verification Report\n\n")
+            f.write(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+            f.write("## File Status\n\n")
+            for result in verification_results:
+                f.write(f"- {result}\n")
+            f.write("\n## Detailed Verification\n\n")
+            f.write(verification_text)
+        
+        print_success(f"Verification report saved: {report_file}")
+        
+        # Print summary
+        print_info("")
+        print_info("Verification Summary:")
+        for result in verification_results:
+            print_info(f"  {result}")
+        
+        return True
+        
+    except Exception as e:
+        print_error(f"Verification failed: {e}")
+        return False
+    finally:
+        close_session(session)
 
 
 def analyze_project(project_path: str, output_dir: str = None, 
                    batch_size: int = 5, max_lines: int = 500,
-                   analyze_mode: str = 'batch') -> bool:
+                   analyze_mode: str = 'batch', verify: bool = True) -> bool:
     """
     Analyze a project and generate mind-map documentation.
     
@@ -186,6 +348,10 @@ def analyze_project(project_path: str, output_dir: str = None,
     print_info("  - keywords_rag.json - RAG-friendly keyword index")
     print_info("  - ANALYSIS_REPORT.md - Summary report")
     
+    # Step 6: Verify output if requested
+    if verify:
+        verify_output(engine.output_dir, project_path)
+    
     return True
 
 
@@ -240,6 +406,12 @@ Examples:
         help='Enable verbose output'
     )
     
+    parser.add_argument(
+        '--no-verify',
+        action='store_true',
+        help='Skip verification step after generation'
+    )
+    
     args = parser.parse_args(args)
     
     # Set verbose mode
@@ -252,7 +424,8 @@ Examples:
         output_dir=args.output,
         batch_size=args.batch_size,
         max_lines=args.max_lines,
-        analyze_mode=args.mode
+        analyze_mode=args.mode,
+        verify=not args.no_verify
     )
     
     sys.exit(0 if success else 1)

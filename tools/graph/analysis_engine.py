@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 from typing import List, Dict, Callable, Optional
 from dataclasses import dataclass, asdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -82,6 +84,55 @@ class AnalysisEngine:
         except Exception as e:
             print_error(f"Error reading {file_path}: {e}")
             return ""
+    
+    def _read_files_parallel(self, files: List[FileInfo], max_workers: int = 8) -> List[Dict]:
+        """
+        Read multiple files in parallel using thread pool.
+        
+        Args:
+            files: List of FileInfo objects to read
+            max_workers: Maximum number of threads for parallel reading
+            
+        Returns:
+            List of file data dictionaries with path, language, and content
+        """
+        # Handle empty file list
+        if not files:
+            return []
+        
+        file_data = []
+        file_data_lock = threading.Lock()
+        
+        def read_single_file(file_info: FileInfo) -> None:
+            """Read a single file and add to results."""
+            content = self._read_file_content(file_info.path)
+            if content:
+                with file_data_lock:
+                    file_data.append({
+                        'path': file_info.relative_path,
+                        'language': file_info.language,
+                        'content': content
+                    })
+        
+        # Use thread pool for parallel file reading
+        with ThreadPoolExecutor(max_workers=min(max_workers, len(files))) as executor:
+            # Submit all file reading tasks
+            future_to_file = {
+                executor.submit(read_single_file, f): f 
+                for f in files
+            }
+            
+            # Process completed tasks (optional progress tracking)
+            completed = 0
+            for future in as_completed(future_to_file):
+                file_info = future_to_file[future]
+                try:
+                    future.result()
+                    completed += 1
+                except Exception as e:
+                    print_error(f"Error reading {file_info.relative_path}: {e}")
+        
+        return file_data
     
     def _extract_keywords_from_analysis(self, analysis_text: str) -> List[str]:
         """Extract keywords from analysis text."""
@@ -165,11 +216,11 @@ class AnalysisEngine:
         """
         # Create new session if not provided
         created_session = False
-        if session is None:
-            session = self._create_analysis_session(f"file_{file_info.relative_path.replace('/', '_').replace('\\', '_')}")
-            created_session = True
         
         try:
+            if session is None:
+                session = self._create_analysis_session(f"file_{file_info.relative_path.replace('/', '_').replace('\\', '_')}")
+                created_session = True
             # Read file content
             content = self._read_file_content(file_info.path)
             if not content:
@@ -226,7 +277,7 @@ class AnalysisEngine:
             print_error(f"Error analyzing {file_info.relative_path}: {e}")
             return None
         finally:
-            if created_session:
+            if created_session and 'session' in locals() and session is not None:
                 close_session(session)
     
     def analyze_batch(self, files: List[FileInfo], component_name: str) -> Optional[AnalysisResult]:
@@ -245,21 +296,15 @@ class AnalysisEngine:
         
         # Create new session for this batch
         session_id = f"batch_{component_name.replace('/', '_').replace('\\', '_')}"
-        session = self._create_analysis_session(session_id)
+        session = None
         
         try:
+            session = self._create_analysis_session(session_id)
             print_info(f"Analyzing batch: {component_name} ({len(files)} files)")
             
-            # Prepare file data
-            file_data = []
-            for f in files:
-                content = self._read_file_content(f.path)
-                if content:
-                    file_data.append({
-                        'path': f.relative_path,
-                        'language': f.language,
-                        'content': content
-                    })
+            # Prepare file data using parallel reading
+            print_debug(f"Reading {len(files)} files in parallel...")
+            file_data = self._read_files_parallel(files, max_workers=8)
             
             if not file_data:
                 print_warning(f"No readable content for batch: {component_name}")
@@ -306,7 +351,8 @@ class AnalysisEngine:
             print_error(f"Error analyzing batch {component_name}: {e}")
             return None
         finally:
-            close_session(session)
+            if session is not None:
+                close_session(session)
     
     def analyze_config_file(self, file_info: FileInfo) -> Optional[AnalysisResult]:
         """Analyze a configuration file."""
@@ -360,9 +406,10 @@ class AnalysisEngine:
         """Generate project-wide summary using analyzed results."""
         print_info("Generating project summary...")
         
-        session = self._create_analysis_session("project_summary")
+        session = None
         
         try:
+            session = self._create_analysis_session("project_summary")
             # Prepare component data
             components = []
             for result in self.all_results:
@@ -398,7 +445,8 @@ class AnalysisEngine:
             print_error(f"Error generating summary: {e}")
             return f"# Project Summary: {self.project_name}\n\nError generating summary: {e}"
         finally:
-            close_session(session)
+            if session is not None:
+                close_session(session)
     
     def save_results(self):
         """Save all analysis results to output directory."""
@@ -408,9 +456,12 @@ class AnalysisEngine:
         analyses_dir = self.output_dir / 'analyses'
         analyses_dir.mkdir(exist_ok=True)
         
+        import re
         for result in self.all_results:
-            # Create safe filename
+            # Create safe filename - replace all path separators and special characters
             safe_name = result.file_path.replace('/', '_').replace('\\', '_').replace(':', '_')
+            # Remove any other invalid filename characters
+            safe_name = re.sub(r'[<>"|?*]', '_', safe_name)
             output_file = analyses_dir / f"{safe_name}.md"
             
             with open(output_file, 'w', encoding='utf-8') as f:
