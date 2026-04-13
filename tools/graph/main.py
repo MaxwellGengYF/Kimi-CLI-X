@@ -51,7 +51,9 @@ def verify_output(output_dir: Path, project_path: Path) -> bool:
         session_id=session_id,
         work_dir=KaosPath(str(project_path)),
         thinking=True,
-        yolo=True
+        yolo=True,
+        agent_file=Path('agent_subagent.yaml'),
+        plan_mode=True
     )
     
     try:
@@ -188,7 +190,7 @@ Overall confidence score and recommendations.
 
 def analyze_project(project_path: str, output_dir: str = None, 
                    batch_size: int = 5, max_lines: int = 500,
-                   analyze_mode: str = 'batch', verify: bool = True) -> bool:
+                   analyze_mode: str = 'mixed', verify: bool = True) -> bool:
     """
     Analyze a project and generate mind-map documentation.
     
@@ -396,8 +398,8 @@ Examples:
     parser.add_argument(
         '--mode', '-m',
         choices=['single', 'batch', 'mixed'],
-        default='batch',
-        help='Analysis mode: single, batch, or mixed (default: batch)'
+        default='mixed',
+        help='Analysis mode: single, batch, or mixed (default: mixed)'
     )
     
     parser.add_argument(

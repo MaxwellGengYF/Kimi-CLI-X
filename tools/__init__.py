@@ -1,2 +1,2 @@
 from .summarize import *
-from .graph import *
+import graph

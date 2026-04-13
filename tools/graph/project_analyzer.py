@@ -289,7 +289,7 @@ class ProjectAnalyzer:
             ]
             
             for filename in filenames:
-                file_path = root_path / filename
+                file_path: Path = root_path / filename
                 rel_path = file_path.relative_to(self.project_path)
                 rel_path_str = str(rel_path).replace('\\', '/')
                 

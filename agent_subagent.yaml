@@ -5,7 +5,6 @@ agent:
     - "my_tools.file:Ls"
     - "my_tools.file:Mkdir"
     - "my_tools.file:Rm"
-    - "my_tools.skill:GrepAnalyzer"
     - "kimi_cli.tools.file:WriteFile"
     - "kimi_cli.tools.file:ReadFile"
     - "kimi_cli.tools.file:Glob"

@@ -72,7 +72,9 @@ class AnalysisEngine:
             session_id=session_id,
             work_dir=KaosPath(str(self.project_path)),
             thinking=True,  # Enable deep thinking for better analysis
-            yolo=True       # Auto-approve for batch processing
+            yolo=True,       # Auto-approve for batch processing
+            agent_file=Path('agent_subagent.yaml'),
+            plan_mode=True
         )
         return session
     
@@ -412,10 +414,11 @@ class AnalysisEngine:
             session = self._create_analysis_session("project_summary")
             # Prepare component data
             components = []
+            from my_tools import common
             for result in self.all_results:
                 components.append({
                     'name': result.component,
-                    'description': result.analysis_text[:200] + '...' if len(result.analysis_text) > 200 else result.analysis_text
+                    'description': common._maybe_export_output(result.analysis_text)
                 })
             
             # Get analyses texts

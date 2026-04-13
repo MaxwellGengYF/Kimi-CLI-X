@@ -47,13 +47,6 @@ For each significant API or complex logic, provide:
 ### 5. Usage Examples
 Show practical usage examples in code blocks where applicable.
 
-### 6. RAG Information Validation
-If you need to validate or cross-reference information about this code:
-- Use the `GrepAnalyzer` tool to search for related code patterns, function usages, or definitions
-- Search for keywords extracted from the analysis to find related files
-- Validate API usage patterns across the codebase
-- Cross-check dependencies and imports
-
 ## Output Format
 
 Return your analysis in this structured format:
@@ -133,11 +126,6 @@ Consolidated list of keywords for RAG indexing (30-50 terms).
 - Main configuration files
 - Important scripts/commands
 
-### 6. RAG Information Validation
-If you need to validate project-wide information:
-- Use the `GrepAnalyzer` tool to verify key APIs exist and are correctly documented
-- Search for keywords to validate their relevance to the project
-- Cross-check module relationships and dependencies
 
 ## Output Format
 
@@ -199,12 +187,6 @@ Extract keywords for RAG matching covering:
 - Cross-file function calls
 - Shared data structures
 - Component-level concepts
-
-### RAG Information Validation
-If you need to validate or cross-reference information about these files:
-- Use the `GrepAnalyzer` tool to search for related code patterns across the project
-- Validate shared APIs and data structures by searching for their usage
-- Cross-check component relationships with GrepAnalyzer
 
 ## Output Format
 
