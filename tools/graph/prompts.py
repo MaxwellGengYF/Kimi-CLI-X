@@ -3,6 +3,7 @@ Prompt templates for project analysis.
 """
 
 from string import Template
+from my_tools.common import _maybe_export_output
 
 # Main analysis prompt for code files
 CODE_ANALYSIS_PROMPT = Template('''
@@ -282,7 +283,7 @@ def build_code_analysis_prompt(file_path: str, language: str, code_content: str,
     return CODE_ANALYSIS_PROMPT.substitute(
         file_info=info_str,
         language=language,
-        code_content=code_content[:8000] if len(code_content) > 8000 else code_content,
+        code_content=_maybe_export_output(code_content),
         file_path=file_path
     )
 
@@ -294,9 +295,7 @@ def build_batch_analysis_prompt(component_name: str, files: list) -> str:
     code_contents = ""
     for f in files:
         content = f.get('content', '')
-        if len(content) > 3000:
-            content = content[:3000] + "\n... (truncated)"
-        code_contents += f"\n### File: {f['path']}\n```{f.get('language', 'text')}\n{content}\n```\n"
+        code_contents += f"\n### File: {f['path']}\n```{f.get('language', 'text')}\n{_maybe_export_output(content)}\n```\n"
     
     return BATCH_ANALYSIS_PROMPT.substitute(
         component_name=component_name,
@@ -309,13 +308,16 @@ def build_summary_prompt(project_name: str, components: list, analyses: list) ->
     """Build the summary prompt for project-wide analysis."""
     components_str = "\n".join([f"- {c['name']}: {c.get('description', 'N/A')}" for c in components])
     
-    # Truncate analyses to avoid overwhelming the context
+    # Export analyses if too large to avoid overwhelming the context
     analyses_str = ""
     for i, analysis in enumerate(analyses[:10]):  # Limit to first 10
-        analyses_str += f"\n### Analysis {i+1}\n{analysis[:500]}...\n"
+        analyses_str += f"\n### Analysis {i+1}\n{_maybe_export_output(analysis)}\n"
     
     if len(analyses) > 10:
-        analyses_str += f"\n... and {len(analyses) - 10} more analyses\n"
+        remaining_analyses = analyses[10:]
+        analyses_str += f"\n... and {len(remaining_analyses)} more analyses\n"
+        for i, analysis in enumerate(remaining_analyses):
+            analyses_str += f"\n### Analysis {i+11}\n{_maybe_export_output(analysis)}\n"
     
     return SUMMARY_PROMPT.substitute(
         project_name=project_name,
@@ -332,5 +334,5 @@ def build_config_analysis_prompt(file_path: str, config_type: str, content: str)
         file_path=file_path,
         file_name=file_name,
         config_type=config_type,
-        content=content[:5000] if len(content) > 5000 else content
+        content=_maybe_export_output(content)
     )

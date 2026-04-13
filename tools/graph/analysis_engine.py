@@ -16,7 +16,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from kimi_utils import create_session, prompt, close_session, get_default_session
 from kaos.path import KaosPath
 from agent_utils import print_success, print_error, print_info, print_debug, print_warning
-from tools.summarize import summarize_session
 
 from .project_analyzer import FileInfo, ProjectAnalyzer
 from .prompts import (
@@ -74,7 +73,6 @@ class AnalysisEngine:
             thinking=True,  # Enable deep thinking for better analysis
             yolo=True,       # Auto-approve for batch processing
             agent_file=Path('agent_subagent.yaml'),
-            plan_mode=True
         )
         return session
     
@@ -246,11 +244,6 @@ class AnalysisEngine:
             
             # Run analysis prompt
             prompt(prompt_text, session=session, output_function=capture_output)
-            
-            # Summarize session to compact context
-            if created_session:
-                summarize_session(session)
-            
             # Combine output
             analysis_text = '\n'.join(analysis_output)
             
@@ -323,9 +316,6 @@ class AnalysisEngine:
             # Run analysis
             prompt(prompt_text, session=session, output_function=capture_output)
             
-            # Summarize session
-            summarize_session(session)
-            
             # Combine output
             analysis_text = '\n'.join(analysis_output)
             
@@ -378,7 +368,6 @@ class AnalysisEngine:
                 analysis_output.append(text)
             
             prompt(prompt_text, session=session, output_function=capture_output)
-            summarize_session(session)
             
             analysis_text = '\n'.join(analysis_output)
             keywords = self._extract_keywords_from_analysis(analysis_text)
@@ -414,11 +403,10 @@ class AnalysisEngine:
             session = self._create_analysis_session("project_summary")
             # Prepare component data
             components = []
-            from my_tools import common
             for result in self.all_results:
                 components.append({
                     'name': result.component,
-                    'description': common._maybe_export_output(result.analysis_text)
+                    'description': result.analysis_text[:200] + '...' if len(result.analysis_text) > 200 else result.analysis_text
                 })
             
             # Get analyses texts
@@ -437,7 +425,6 @@ class AnalysisEngine:
                 summary_output.append(text)
             
             prompt(prompt_text, session=session, output_function=capture_output)
-            summarize_session(session)
             
             summary_text = '\n'.join(summary_output)
             print_success("Project summary generated")
