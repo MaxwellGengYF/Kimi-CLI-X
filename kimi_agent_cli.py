@@ -206,16 +206,19 @@ def _run_cli():
         global globals_dict, locals_dict
         try:
             exec(text, globals_dict, locals_dict)
-            print_success('Finished.')
+            print_success('Done.')
         except Exception as e:
             print_error(str(e))
         return None, False
 
     def _cmd_cmd(task_split):
-        s = _input('>>>> Input cmd:\n', text_arr)
+        if len(task_split) < 2:
+            print_error('Command must be /cmd:xx yy')
+            return None, False
+        cmd = ':'.join(task_split[1:])
         try:
-            os.system(s)
-            print_success('Finished.')
+            os.system(cmd)
+            print_success('Done.')
         except Exception as e:
             print_error(str(e))
         return None, False

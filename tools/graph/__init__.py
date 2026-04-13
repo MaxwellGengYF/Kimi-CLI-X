@@ -13,9 +13,9 @@ from .output_manager import OutputManager
 __all__ = ['ProjectAnalyzer', 'AnalysisEngine', 'OutputManager']
 
     
+from .main import main as _main
 if __name__ == '__main__':
     if not args:
         args: str = ''
     args = args.split(' ')
-    from .main import main as _main
     _main(args)
