@@ -19,8 +19,8 @@ if not curr_dir.is_absolute():
 HELP_STR = '''Command line options:
   -c, --clean         - Delete cache file after quit
   --ralph             - Continue work until done (auto-loop)
-  --think          - Enable thinking mode
-  --plan           - Enable plan mode
+  --think             - Enable thinking mode
+  --plan              - Enable plan mode
   --no_yolo           - Disable YOLO mode
   -s, --skill-dir     - Specify custom skill directory
 
@@ -28,7 +28,7 @@ Available commands:
   /file:<path>    - Load a file and execute its content line by line
   <path>          - Same as /file:<path>
   /clear          - Clear the conversation context
-  /summarize       - Summarize conversation context to memory
+  /summarize      - Summarize conversation context to memory
   /exit           - Exit the program
   /skill          - Load skills
   /help           - Show this help message
@@ -47,6 +47,7 @@ Available commands:
   /cd             - change dir
   /tool:<name>    - Run script from tools/ directory
   /tool:help      - List all available tools
+  /tool:graph     - Generate project analysis graph (mindmap, docs)
   /md:on          - Enable read AGENTS.md
   /md:off         - Disable read AGENTS.md
 
@@ -178,7 +179,7 @@ def _run_cli():
         return None, False
     
     def _cmd_summarize(task_split):
-        from builtin_prompts.summarize import summarize
+        from tools.summarize import summarize
         tmp = None
         if len(task_split) >= 2:
             tmp = '_'.join(task_split[1:])
@@ -356,8 +357,10 @@ def _run_cli():
             print_error('Command must be /tool:<script_name> or /tool:help')
             return None, False
 
-        tool_name = task_split[1].strip()
-
+        sentence = ':'.join(task_split[1:])
+        args = sentence.split(' ')
+        tool_name = args[0]
+        args = ' '.join(args[1:])
         # Handle help command
         if tool_name == 'help':
             if not tools_dir.exists():
@@ -377,27 +380,48 @@ def _run_cli():
         # Remove .py extension if present
         if tool_name.endswith('.py'):
             tool_name = tool_name[:-3]
-
-        tool_path = tools_dir / f'{tool_name}.py'
+        tool_path = tools_dir / tool_name
+        is_file = False
+        if not tool_path.exists():
+            tool_path = tools_dir / f'{tool_name}.py'
+            is_file = True
 
         if not tool_path.exists():
-            print_error(f'Tool not found: {tool_name}.py')
+            print_error(f'Tool not found: {tool_name} or {tool_name}.py')
             return None, False
-
+        # Add tools_dir to sys.path so tool packages can import from other tools (e.g., 'graph')
+        tools_dir_str = str(tools_dir)
+        if tools_dir_str not in sys.path:
+            sys.path.insert(0, tools_dir_str)
         try:
-            print_info(f'Running tool: {tool_name}.py')
-            # Read and execute the tool script
-            with open(tool_path, 'r', encoding='utf-8') as f:
-                script_content = f.read()
-
-            # Create a clean execution context
-            exec(script_content, {
-                '__name__': '__main__',
-                '__file__': str(tool_path),
-            })
-            print_success(f'Tool {tool_name}.py finished.')
+            if is_file:
+                print_info(f'Running tool: {tool_name}.py')
+                # Read and execute the tool script
+                script_content = tool_path.read_text(encoding='utf-8')
+                # Create a clean execution context
+                exec(script_content, {
+                    '__name__': '__main__',
+                    '__file__': str(tool_path),
+                    'args': args,
+                })
+                print_success(f'Tool {tool_name}.py finished.')
+            else:
+                print_info(f'Running tool: {tool_name}')
+                # Execute package's __init__.py
+                init_file = tool_path / '__init__.py'
+                if init_file.exists():
+                    script_content = init_file.read_text(encoding='utf-8')
+                    exec(script_content, {
+                        '__name__': '__main__',
+                        '__file__': str(init_file),
+                        '__package__': tool_name,
+                        'args': args,
+                    })
+                else:
+                    print_error(f'Tool package {tool_name} has no __init__.py')
+                print_success(f'Tool {tool_name} finished.')
         except Exception as e:
-            print_error(f'Failed to run tool {tool_name}.py: {e}')
+            print_error(f'Failed to run tool {tool_name}: {e}')
         return None, False
 
     def _cmd_unknown(task_split):

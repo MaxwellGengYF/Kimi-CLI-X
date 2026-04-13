@@ -1,4 +1,5 @@
 from string import Template
+from kimi_utils import *
 generate_memory = Template('''Please summarize our session with:
 1. **Project Overview**: Brief description of the project and its purpose
 2. **Key Decisions**: Important decisions made during our session
@@ -35,3 +36,34 @@ def summarize(temp_file: str | None = None) -> None:
     new_usage = get_default_session().status.context_usage
     print_success(
         f'Compact from {_percentage_str(last_usage)} to {_percentage_str(new_usage)}')
+
+
+def summarize_session(old_session, temp_file: str | None = None, create_session_func: Callable | None = None):
+    from pathlib import Path
+    from kimi_utils import prompt, get_default_session, print_warning, clear_context
+    from agent_utils import _percentage_str, print_success, print_error
+    from my_tools.common import _create_temp_file_name
+    if old_session.status.context_usage <= 1e-5:
+        print_warning('Context is empty.')
+        return
+    if temp_file is None:
+        temp_file = _create_temp_file_name()
+    try:
+        Path(temp_file).unlink(missing_ok=True)
+    except:
+        pass
+    last_usage = old_session.status.context_usage
+    prompt(generate_memory.substitute(
+        memory_file=temp_file), info_print=False, session=old_session)
+    close_session(old_session)
+    if create_session_func:
+        new_session = create_session_func()
+    else:
+        new_session = create_session()
+    prompt(read_memory.substitute(memory_file=temp_file), info_print=False, session=new_session)
+    new_usage = new_session.status.context_usage
+    print_success(
+        f'Compact from {_percentage_str(last_usage)} to {_percentage_str(new_usage)}')
+
+if __name__ == '__main__':
+    summarize()

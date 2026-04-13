@@ -240,6 +240,101 @@ python toolbox_build_cli.py package ./dist --output-name myproject-v1.0
 
 ---
 
+## Project Analysis & Mind-Map Generation System
+
+The `graph/` module provides an automated project analysis system that generates comprehensive mind-maps, API documentation, and RAG-friendly keyword indices from codebases.
+
+### Features
+
+- **Multi-Language Support**: Python, C++, C, Lua, CMake, JSON, YAML, TOML
+- **Gitignore-Aware**: Respects `.gitignore` patterns during traversal
+- **Batch Analysis**: Processes files in batches with isolated sessions for efficient context management
+- **Smart Output**: Generates mind-maps, API references, and keyword indices
+
+### Generated Outputs
+
+| File | Description |
+|------|-------------|
+| `mindmap.md` | Hierarchical project architecture visualization |
+| `project_summary.md` | Detailed project overview with APIs and entry points |
+| `ANALYSIS_REPORT.md` | Analysis statistics and language distribution |
+| `keywords.json` / `keywords_rag.json` | Extracted keywords for RAG systems |
+| `api_reference.json` | API documentation index |
+| `index.json` | Master index of all analyses |
+| `analyses/` | Individual file analysis results |
+
+### Usage
+
+#### Using `/tool:graph` command (Recommended)
+
+```
+>>>>>>>>> Enter your prompt or command:
+/tool:graph /path/to/project --batch-size 5
+```
+
+Or inside the CLI:
+```
+/tool:graph
+>>>> Input cmd:
+/path/to/project --batch-size 5 --mode batch
+```
+
+#### Using Python module directly
+
+```bash
+# Basic usage - analyze current directory
+python -m graph.main /path/to/project
+
+# Specify batch size (files per analysis batch)
+python -m graph.main /path/to/project --batch-size 5
+
+# Use different analysis modes
+python -m graph.main /path/to/project --mode single    # Analyze files individually
+python -m graph.main /path/to/project --mode batch     # Analyze in batches (default)
+python -m graph.main /path/to/project --mode mixed     # Mixed strategy
+
+# Custom output directory
+python -m graph.main /path/to/project --output ./my-docs
+
+# Adjust batch line limit
+python -m graph.main /path/to/project --batch-size 3 --max-lines 500
+
+# Example: Analyze RoboCute project
+python -m graph.main D:/RoboCute --batch-size 5 --mode batch
+```
+
+### Command-Line Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `project_path` | Path to project directory to analyze | (required) |
+| `--output, -o` | Output directory for analysis results | `[project]/agent_doc` |
+| `--batch-size, -b` | Maximum files per batch | 5 |
+| `--max-lines, -l` | Maximum lines per batch | 500 |
+| `--mode, -m` | Analysis mode: `single`, `batch`, `mixed` | `batch` |
+| `--verbose, -v` | Enable verbose output | False |
+
+### Architecture
+
+```
+graph/
+├── main.py              # CLI entry point
+├── project_analyzer.py  # Gitignore-aware project traversal
+├── analysis_engine.py   # Core analysis with session management
+├── output_manager.py    # Result formatting and output
+└── prompts.py           # Analysis prompt templates
+```
+
+### How It Works
+
+1. **Project Traversal**: Scans the project directory, respecting `.gitignore` patterns
+2. **File Classification**: Separates config files (CMakeLists.txt, pyproject.toml, etc.) from code files
+3. **Batch Processing**: Creates independent sessions for each batch to manage context
+4. **Context Compaction**: Uses `summarize_session()` after each batch to prevent context overflow
+5. **Output Generation**: Saves results to `[project]/agent_doc/` directory
+
+---
+
 ## 注意事项
 
 - 只有 `.py` 文件可以通过 `/file` 命令直接执行

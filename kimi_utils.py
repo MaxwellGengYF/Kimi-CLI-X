@@ -176,7 +176,8 @@ def create_session(
 
 
 def close_session(session):
-    asyncio.run(session.close())
+    if session:
+        asyncio.run(session.close())
 
 
 def get_default_session():
