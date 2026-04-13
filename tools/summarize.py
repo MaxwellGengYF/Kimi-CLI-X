@@ -37,7 +37,30 @@ def summarize(temp_file: str | None = None) -> None:
     print_success(
         f'Compact from {_percentage_str(last_usage)} to {_percentage_str(new_usage)}')
 
+summarize_mistakes_prompt = Template('''Please analyze and summarize the following tool call errors:
 
+$errors
+
+Provide a structured summary with:
+1. **Error Patterns**: Common types of errors and their causes
+2. **Root Causes**: Underlying reasons for the mistakes
+3. **Corrective Actions**: How to avoid or fix these errors
+4. **Key Learnings**: Important takeaways for future interactions
+
+Save this summary to: $result_file''')
+
+def summarize_mistake(result_file: str, session = None) -> None:
+    errors = get_tool_call_errors(session)
+    if not errors:
+        print_warning('No errors.')
+        return
+    from kimi_utils import prompt
+    from my_tools.common import _maybe_export_output
+    prompt(_maybe_export_output(summarize_mistakes_prompt.substitute(
+        errors='\n'.join(str(e) for e in errors),
+        result_file=result_file
+    )), session=session, info_print=False)
+    
 def summarize_session(old_session, temp_file: str | None = None, create_session_func: Callable | None = None):
     from pathlib import Path
     from kimi_utils import prompt, get_default_session, print_warning, clear_context

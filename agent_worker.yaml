@@ -12,7 +12,6 @@ agent:
     - "my_tools.background:TaskList"
     - "my_tools.background:TaskStop"
     - "my_tools.flag:Setflag"
-    - "my_tools.skill:GrepAnalyzer"
     - "kimi_cli.tools.todo:SetTodoList"
     - "kimi_cli.tools.file:WriteFile"
     - "kimi_cli.tools.file:ReadFile"
