@@ -103,6 +103,8 @@ async def _create_session_async(
     if session_id is None:
         session_id = str(_session_idx)
         _session_idx += 1
+    tool_call_failed_list = list()
+    agent_utils._tool_call_failed_lists[session_id] = tool_call_failed_list
     cfg = _create_config()
 
     # No ralph mode defaultly, manually do validate please
@@ -131,7 +133,8 @@ async def _create_session_async(
             plan_mode=plan_mode if plan_mode is not None else agent_utils._default_plan_mode,
             thinking=thinking if thinking is not None else agent_utils._default_thinking,
             config=cfg,
-            agent_file=agent_file
+            agent_file=agent_file,
+            tool_call_failed_list=tool_call_failed_list,
         )
         if not session:
             print_debug(f'Session {session_id} not found.')
@@ -145,7 +148,8 @@ async def _create_session_async(
             plan_mode=plan_mode if plan_mode is not None else agent_utils._default_plan_mode,
             thinking=thinking if thinking is not None else agent_utils._default_thinking,
             config=cfg,
-            agent_file=agent_file
+            agent_file=agent_file,
+            tool_call_failed_list=tool_call_failed_list,
         )
     return session
 
@@ -175,8 +179,29 @@ def create_session(
     ))
 
 
+def get_tool_call_errors(session = None):
+    if session is None:
+        id = 'default'
+    elif type(session) == str:
+        id = session
+    else:
+        id = session.id
+    lst = agent_utils._tool_call_failed_lists.get(id, None)
+    s = ''
+    if lst:
+        for i in lst:
+            # tuple: function-name, arguments, output, message
+            s += f'- function: {i[0]}\n- arguments: {i[1]}\n- output: {i[2]}\n- message: {i[3]}'
+        lst.clear()
+    return s
+
+
 def close_session(session):
     if session:
+        try:
+            del agent_utils._tool_call_failed_lists[session.id]
+        except:
+            pass
         asyncio.run(session.close())
 
 
@@ -273,6 +298,7 @@ def prompt(
     global _default_session
     if info_print:
         print_debug(f'Start...', end='\n\n')
+
     async def func():
         nonlocal session, _temp_create_session
         max_retries = 5
@@ -282,7 +308,8 @@ def prompt(
                     prompt_str,
                     merge_wire_messages=True,
                 ):
-                    print_agent_json(lambda: message.model_dump_json(), output_function)
+                    print_agent_json(
+                        lambda: message.model_dump_json(), output_function)
                 if info_print:
                     _print_usage(session)
                 max_retries = 0
@@ -317,6 +344,7 @@ def validate(
         return flag.check_flag() is not None
     else:
         return False
+
 
 def prompt_path(path: Path, split_word: str = None, session=None, after_prompt_coro=None):
     f = open(path, 'r', encoding='utf-8')
@@ -398,6 +426,7 @@ def read_file(path: Path, split_word: str = None):
         return s.split(split_word)
     return s
 
+
 def set_plan_mode(value: bool = True):
     agent_utils._default_plan_mode = value == True
     if not _default_session:
@@ -415,9 +444,9 @@ def rag(
     negative: Optional[str] = None
 ) -> List[SearchResult]:
     """Perform semantic search using TextSearchIndex.
-    
+
     This function uses an LRU cache to avoid re-indexing the same paths.
-    
+
     Args:
         query: Search keywords (keywords only, not sentences)
         file_path: Directory or file path to search within (default: current directory)
@@ -426,41 +455,42 @@ def rag(
         refresh: Force refresh the index (default: False)
         hybrid_search: Enable hybrid search combining semantic and keyword matching (default: True)
         negative: Optional keywords to penalize in search results
-        
+
     Returns:
         List of SearchResult objects. Returns empty list if TextSearchIndex is not
         available, path does not exist, no documents found, or no results found.
     """
     global _index_cache
-    
+
     if TextSearchIndex is None:
-        print_warning("TextSearchIndex not available. Please check dependencies.")
+        print_warning(
+            "TextSearchIndex not available. Please check dependencies.")
         return []
-    
+
     # Determine the path to search
     search_path = file_path
     if search_path is None:
         search_path = "."
-    
+
     # Resolve the path
     search_path = str(Path(search_path).resolve())
-    
+
     # Check if path exists
     if not os.path.exists(search_path):
         print_warning(f"Path does not exist: {file_path}")
         return []
-    
+
     # Create cache key from path
     normalized = os.path.abspath(search_path)
     cache_key_hash = hashlib.md5(normalized.encode()).hexdigest()[:12]
     index_path = f".index_cache/{cache_key_hash}"
     cache_dir = ".cache/text_search"
-    
+
     # Use cached index if available and not refreshing (LRU cache)
     index_cache_key = f"{cache_dir}:{index_path}"
     cached = False
     index = None
-    
+
     if not refresh and index_cache_key in _index_cache:
         # Move to end (most recently used)
         index = _index_cache.pop(index_cache_key)
@@ -473,7 +503,7 @@ def rag(
         # Create index with lazy loading and embedding cache
         index = TextSearchIndex(cache_dir=cache_dir, lazy_load=True)
         _index_cache[index_cache_key] = index
-    
+
     # Try to load existing index or create new one
     save = False
     if os.path.exists(index_path) and not refresh:
@@ -483,7 +513,7 @@ def rag(
         removed_files = index.remove_missing_files()
         if removed_files:
             save = True
-        
+
         # Check for new/modified files and update incrementally
         if os.path.isdir(search_path):
             new_files = index.get_new_files(search_path)
@@ -504,26 +534,26 @@ def rag(
         # Save the index
         os.makedirs(os.path.dirname(index_path), exist_ok=True)
         save = True
-    
+
     if save:
         index.save(index_path)
-    
+
     # Check if index is empty
     stats = index.get_stats()
     if stats['total_documents'] == 0:
         print_warning("No documents found to index.")
         return []
-    
+
     # Perform search based on hybrid_search parameter
     if hybrid_search:
         results = index.hybrid_search(query, top_k=top_k, negative=negative)
     else:
         results = index.search(query, top_k=top_k, negative=negative)
-    
+
     if not results:
         print_warning(f"No results found for query: '{query}'")
         return []
-    
+
     # If content flag is True, include full file content in results
     if content:
         for r in results:
@@ -532,5 +562,5 @@ def rag(
                     r.full_content = f.read()
             except Exception:
                 r.full_content = None
-    
+
     return results

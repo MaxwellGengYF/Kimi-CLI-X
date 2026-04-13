@@ -345,6 +345,9 @@ _default_yolo = True
 _default_agent_file_dir = Path(__file__).parent
 _default_agent_file = _default_agent_file_dir / 'agent_worker.yaml'
 _default_skill_dirs = []
+# The failed-list for tool call that 
+# tuple: function-name, arguments, output, message
+_tool_call_failed_lists: dict[str, list[tuple[str, str, str, str]]] = dict()
 
 
 def _get_skill_dirs(use_kaos_path=True) -> list:
