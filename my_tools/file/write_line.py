@@ -16,9 +16,9 @@ from kimi_cli.tools.file.plan_mode import inspect_plan_edit_target
 
 
 _BASE_DESCRIPTION = (
-    "Write content to a specific line in a file. "
-    "Supports `overwrite` (replace the line) and `append` (insert at the line) modes. "
-    "If `line` exceeds file length or is less than 0, content is appended to end or prepended to start respectively."
+    "Write content to a specific line. "
+    "Modes: `overwrite` (replace) or `append` (insert). "
+    "Line <1 prepends to start; line > file length appends to end."
 )
 
 
@@ -138,7 +138,7 @@ class WriteLine(CallableTool2[Params]):
 
             # Adjust for negative or out-of-bounds line numbers
             if target_line < 1:
-                target_line = 1
+                target_line = 0  # Special value to indicate prepend to start
                 effective_mode = "append"  # Prepend to file
             elif target_line > line_count:
                 if line_count == 0:
@@ -147,8 +147,8 @@ class WriteLine(CallableTool2[Params]):
                     target_line = line_count + 1
                 effective_mode = "append"  # Append to file
 
-            # Convert to 0-based index
-            idx = target_line - 1
+            # Convert to 0-based index (unless prepending)
+            idx = target_line - 1 if target_line > 0 else 0
 
             # Prepare content with newline if it doesn't have one
             content = params.content
@@ -157,8 +157,12 @@ class WriteLine(CallableTool2[Params]):
 
             # Perform the write operation
             if effective_mode == "append":
-                # Insert at the specified position
-                lines.insert(idx, content)
+                if target_line == 0:
+                    # Prepend to start of file
+                    lines.insert(0, content)
+                else:
+                    # Insert at the specified position
+                    lines.insert(idx, content)
             else:  # overwrite
                 if line_count == 0:
                     # Empty file, just append the content
@@ -190,11 +194,17 @@ class WriteLine(CallableTool2[Params]):
                     brief="Format validation failed",
                 )
 
-            action_desc = "overwritten" if effective_mode == "overwrite" else "appended"
+            if effective_mode == "overwrite":
+                action_desc = "overwritten"
+            elif target_line == 0:
+                action_desc = "prepended"
+            else:
+                action_desc = "appended"
+            line_desc = target_line if target_line > 0 else 1
             return ToolOk(
                 output="",
                 message=(
-                    f"Line {target_line} successfully {action_desc}. Current size: {file_size} bytes."),
+                    f"Line {line_desc} successfully {action_desc}. Current size: {file_size} bytes."),
                 brief=f"Line {action_desc}",
             )
 
