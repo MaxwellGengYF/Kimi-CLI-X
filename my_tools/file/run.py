@@ -9,7 +9,7 @@ from pathlib import Path
 
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
-from my_tools.common import _maybe_export_output_async
+from my_tools.common import _maybe_export_output_async, _export_to_temp_file_async
 from my_tools.background.utils import BackgroundStream, generate_task_id, add_task
 
 
@@ -83,28 +83,45 @@ class Run(CallableTool2):
                 Path(params.output_path).write_text(
                     output, encoding='utf-8', errors='replace'
                 )
-                output = f'saved to {params.output_path}'
-            else:
-                output = await _maybe_export_output_async(output)
+                output = f'saved to file `{params.output_path}`'
             # Return error if command failed
             if proc.returncode != 0:
+                if output:
+                    if not params.output_path:
+                        temp_path, _ = await _export_to_temp_file_async(key=None, content=output, ext='.txt')
+                        temp_path = f'saved to file `{temp_path}`'
+                else:
+                    temp_path = ''
                 return ToolError(
-                    output=output,
+                    output=temp_path,
                     message=f"Command failed with exit code {proc.returncode}",
                     brief="Command execution failed"
                 )
+            output = await _maybe_export_output_async(output)
             return ToolOk(output=output)
 
         except asyncio.TimeoutError:
+            if output:
+                if not params.output_path:
+                    temp_path, _ = await _export_to_temp_file_async(key=None, content=output, ext='.txt')
+                    temp_path = f'saved to file `{temp_path}`'
+            else:
+                temp_path = ''
             return ToolError(
-                output=output,
+                output=temp_path,
                 message=f"Command timed out after {params.timeout} seconds",
                 brief="Command execution timeout"
             )
         except Exception as exc:
             # Clean up
+            if output:
+                if not params.output_path:
+                    temp_path, _ = await _export_to_temp_file_async(key=None, content=output, ext='.txt')
+                    temp_path = f'saved to file `{temp_path}`'
+            else:
+                temp_path = ''
             return ToolError(
-                output=output,
+                output=temp_path,
                 message=str(exc),
                 brief="Failed to run process",
             )

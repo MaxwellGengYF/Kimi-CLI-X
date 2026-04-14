@@ -85,7 +85,7 @@ def _maybe_export_output(output: str, key: Path | None = None) -> str:
                 key = Path(key)
             key = key.resolve()
         temp_path, new_id = _export_to_temp_file(key, output)
-        return f"[Output too large, {'exported' if new_id else 'added'} to file: {temp_path}]"
+        return f"Output too large, {'exported' if new_id else 'added'} to file `{temp_path}`"
     return output
 
 
