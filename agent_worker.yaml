@@ -8,7 +8,6 @@ agent:
     - "my_tools.file:Ls"
     - "my_tools.file:Mkdir"
     - "my_tools.file:Rm"
-    - "my_tools.file.write_line:WriteLine"
     - "my_tools.background:TaskOutput"
     - "my_tools.background:TaskList"
     - "my_tools.background:TaskStop"

@@ -342,7 +342,7 @@ def _percentage_str(num: float) -> str:
 
 
 _ralph_iterations = 0
-_default_thinking = False
+_default_thinking = True
 _default_plan_mode = False
 _default_yolo = True
 _default_agent_file_dir = Path(__file__).parent

@@ -19,7 +19,7 @@ if not curr_dir.is_absolute():
 HELP_STR = '''Command line options:
   -c, --clean         - Delete cache file after quit
   --ralph             - Continue work until done (auto-loop)
-  --think             - Enable thinking mode
+  --no_think          - Disable thinking mode
   --plan              - Enable plan mode
   --no_yolo           - Disable YOLO mode
   -s, --skill-dir     - Specify custom skill directory
@@ -69,8 +69,8 @@ def set_arg():
                         help='Disable colorful print')
     parser.add_argument('-ralph', '--ralph', action='store_true',
                         help='Continue work until done (auto-loop)')
-    parser.add_argument('-think', '--think', action='store_true',
-                        help='Enable thinking mode')
+    parser.add_argument('-no_think', '--no_think', action='store_true',
+                        help='Disable thinking mode')
     parser.add_argument('-plan', '--plan', action='store_true',
                         help='Enable plan mode')
     parser.add_argument('-no_yolo', '--no_yolo', action='store_true',
@@ -95,12 +95,12 @@ def set_arg():
         agent_utils._ralph_iterations = 0
         print_debug('Ralph loop OFF.')
 
-    if args.think:
-        agent_utils._default_thinking = True
-        print_debug('Thinking ON.')
-    else:
+    if args.no_think:
         agent_utils._default_thinking = False
         print_debug('Thinking OFF.')
+    else:
+        agent_utils._default_thinking = True
+        print_debug('Thinking ON.')
 
     if args.plan:
         agent_utils._default_plan_mode = True

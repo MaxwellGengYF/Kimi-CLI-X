@@ -90,28 +90,33 @@ set KIMI_MODEL_NAME=kimi-for-coding
 
 ```bash
 # 基本用法
-python kimi_agent_cli.py
+python cli.py
 
 # 清理模式（退出时删除缓存）
-python kimi_agent_cli.py -c
+python cli.py -c
+python cli.py --clean
 
-# Ralph 自动循环模式
-python kimi_agent_cli.py --ralph
+# Ralph 自动循环模式（自动循环工作直到完成）
+python cli.py --ralph
 
-# 启用思考模式
-python kimi_agent_cli.py --think
+# 禁用思考模式
+python cli.py --no_think
 
-# 初始启用计划模式（Agent Model会自行决定）
-python kimi_agent_cli.py --plan
+# 启用计划模式
+python cli.py --plan
 
 # 禁用 YOLO 模式（更安全，需要确认危险操作）
-python kimi_agent_cli.py --no_yolo
+python cli.py --no_yolo
 
-# 指定自定义技能目录
-python kimi_agent_cli.py -s ./my_skills
+# 禁用彩色输出
+python cli.py --no_color
+
+# 指定自定义技能目录（可指定多个）
+python cli.py -s ./my_skills
+python cli.py --skill-dir ./skills1 ./skills2
 
 # 组合多个选项
-python kimi_agent_cli.py -c --ralph --no_yolo
+python cli.py -c --ralph --no_yolo
 ```
 
 ### 交互命令
@@ -125,19 +130,22 @@ python kimi_agent_cli.py -c --ralph --no_yolo
 | `/context` | 显示当前上下文使用统计 |
 | `/exit` | 退出程序 |
 | `/skill:<name>` | 加载指定技能 |
-| `/file:<path>` | 加载并执行文件 |
-| `/txt` | 输入多行文本（以 `/end` 结束） |
-| `/script` | 输入并执行 Python 脚本 |
-| `/cmd` | 执行系统命令 |
+| `/file:<path>` | 加载并执行文件内容（逐行执行） |
+| `<path>` | 同 `/file:<path>`，直接输入文件路径 |
+| `/txt` | 输入多行文本（以 `/end` 结束，`/cancel` 取消） |
+| `/script` | 输入并执行 Python 脚本（以 `/end` 结束） |
+| `/cmd:<command>` | 执行系统命令 |
+| `/cd:<path>` | 切换工作目录 |
 | `/summarize` | 总结对话上下文到记忆 |
 | `/validate:<prompt>` | 验证条件是否为真 |
 | `/fix:<command>` | 运行命令并自动修复错误 |
 | `/tool:<name>` | 运行 tools/ 目录下的脚本 |
+| `/tool:help` | 列出所有可用工具 |
+| `/tool:graph` | 生成项目分析图表（思维导图、文档） |
 | `/think:on/off` | 开启/关闭思考模式 |
 | `/plan:on/off` | 开启/关闭计划模式 |
 | `/ralph:on/off` | 开启/关闭 Ralph 自动循环模式 |
 | `/md:on/off` | 开启/关闭读取 AGENTS.md |
-| `/cd:<path>` | 切换工作目录 |
 
 ### 使用示例
 
@@ -171,9 +179,7 @@ print("Hello, World!")
 #### 4. 执行系统命令
 ```
 >>>>>>>>> Enter your prompt or command:
-/cmd
->>>> Input cmd:
-ls -la
+/cmd:ls -la
 ```
 
 #### 5. 加载技能
@@ -349,7 +355,7 @@ graph/
 
 ```
 kimi-agent/
-├── kimi_agent_cli.py      # 主 CLI 入口
+├── cli.py      # 主 CLI 入口
 ├── kimi_utils.py          # Python API 工具函数
 ├── agent_utils.py         # Agent 工具函数
 ├── toolbox_build_cli.py   # 构建脚本
