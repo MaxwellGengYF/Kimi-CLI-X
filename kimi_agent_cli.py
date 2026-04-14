@@ -329,11 +329,14 @@ def _run_cli():
         return None, False
 
     def _cmd_txt(task_split):
-        print('\n>>>> Start input multiple-lines, end with /end')
+        print('\n>>>> Start input multiple-lines, end with /end, or cancel with /cancel')
         text = []
         while True:
             s = _input('', text_arr)
             if s.strip() == '/end':
+                break
+            if s.strip() == '/cancel':
+                text.clear()
                 break
             text.append(s)
         for i in _split_text(text):

@@ -165,7 +165,6 @@ def create_session(
     resume=False,
     plan_mode: Optional[bool] = None
 ):
-
     return asyncio.run(_create_session_async(
         session_id,
         work_dir,
@@ -279,7 +278,7 @@ async def prompt_async(
     if session is None:
         session = get_default_session()
     elif session == False:
-        session = create_session()
+        session = await _create_session_async()
         _temp_create_session = True
     prompt_str = prompt_str.strip()
 
@@ -310,37 +309,34 @@ async def prompt_async(
     if info_print:
         print_debug(f'Start...', end='\n\n')
 
-    async def func():
-        nonlocal session, _temp_create_session
-        max_retries = 5
-        for attempt in range(max_retries):
-            try:
-                async for message in session.prompt(
-                    prompt_str,
-                    merge_wire_messages=True,
-                ):
-                    print_agent_json(
-                        lambda: message.model_dump_json(), output_function)
-                if info_print:
-                    _print_usage(session)
-                max_retries = 0
-            except Exception as e:
-                print_error(str(e))
-                import time
-                if "429" in str(e):
-                    wait_time = 4 ** attempt  # 1, 4, 16, 64, 128 秒
-                    print_warning(f"Rate limited. Waiting {wait_time}s...")
-                    time.sleep(wait_time)
-                    continue
-                elif attempt == max_retries - 1:
-                    raise
-                else:
-                    time.sleep(1)
-            finally:
-                if _temp_create_session:
-                    await session.close()
-            break
-    await func()
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            async for message in session.prompt(
+                prompt_str,
+                merge_wire_messages=True,
+            ):
+                print_agent_json(
+                    lambda: message.model_dump_json(), output_function)
+            if info_print:
+                _print_usage(session)
+            max_retries = 0
+        except Exception as e:
+            print_error(str(e))
+            import time
+            if "429" in str(e):
+                wait_time = 4 ** attempt  # 1, 4, 16, 64, 128 秒
+                print_warning(f"Rate limited. Waiting {wait_time}s...")
+                time.sleep(wait_time)
+                continue
+            elif attempt == max_retries - 1:
+                raise
+            else:
+                time.sleep(1)
+        finally:
+            if _temp_create_session:
+                await session.close()
+        break
 
 
 def prompt(

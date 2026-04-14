@@ -6,6 +6,7 @@ from typing import Optional
 import json
 import threading
 import sys
+from concurrent.futures import ThreadPoolExecutor
 _threads = list()
 
 
@@ -159,6 +160,7 @@ def _process_lru():
         # Remove completed processes
         _threads = [p for p in _threads if p.is_alive()]
 
+
 _commands = {
     'Python': ('code', 'run_in_background'),
     'Run': ('path', 'args', 'timeout', 'run_in_background'),
@@ -185,6 +187,8 @@ _new_commands = dict()
 for k, v in _commands.items():
     _new_commands[k.lower()] = v
 _commands = _new_commands
+
+
 def print_agent_json(get_message, output_function: Callable | None = None):
     json_str = None
     try:
@@ -193,7 +197,6 @@ def print_agent_json(get_message, output_function: Callable | None = None):
         print_debug('JSON error (possibly because streaming)...')
         return
     js = json.loads(json_str)
-
 
     def print_item(item):
         import agent_utils
@@ -345,7 +348,7 @@ _default_yolo = True
 _default_agent_file_dir = Path(__file__).parent
 _default_agent_file = _default_agent_file_dir / 'agent_worker.yaml'
 _default_skill_dirs = []
-# The failed-list for tool call that 
+# The failed-list for tool call that
 # tuple: function-name, arguments, output, message
 _tool_call_failed_lists: dict[str, list[tuple[str, str, str, str]]] = dict()
 
