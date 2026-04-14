@@ -3,8 +3,8 @@ import queue
 import threading
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
-from kimi_utils import prompt, create_session, close_session
-from my_tools.common import _maybe_export_output
+from kimi_utils import prompt, close_session_async, _create_session_async
+from my_tools.common import _maybe_export_output_async
 from my_tools.background.utils import BackgroundStream, generate_task_id, add_task
 
 # Thread-local storage to track SubAgentScope context
@@ -50,27 +50,27 @@ class Spawn(CallableTool2):
                 if fn:
                     output_strs.append(fn)
 
-            def prompt_func():
+            async def prompt_async():
                 session = None
                 try:
                     import agent_utils
                     _sub_agent_scope.active = True
-                    session = create_session(
+                    session = await _create_session_async(
                         thinking=params.thinking,
                         plan_mode=False,
                         agent_file=agent_utils._default_agent_file_dir / 'agent_subagent.yaml')
-                    prompt(prompt_str=params.prompt, session=session,
-                           output_function=output_function)
+                    import kimi_utils
+                    await kimi_utils.prompt_async(prompt_str=params.prompt, session=session, output_function=output_function)
                 except Exception as e:
                     return str(e)
                 finally:
                     if session:
-                        close_session(session)
+                        await close_session_async(session)
                     _sub_agent_scope.active = False
                 return None
 
-            err_msg = await asyncio.to_thread(prompt_func)
-            output = _maybe_export_output('\n'.join(output_strs))
+            err_msg = await prompt_async()
+            output = await _maybe_export_output_async('\n'.join(output_strs))
             if err_msg:
                 return ToolError(output=output, message=err_msg, brief='')
             return ToolOk(output=output)
@@ -113,26 +113,28 @@ class Spawn(CallableTool2):
                     if fn:
                         output_strs.append(fn)
 
-                def prompt_func():
+                async def prompt_async():
                     session = None
                     try:
                         import agent_utils
                         _sub_agent_scope.active = True
-                        session = create_session(
+                        session = await _create_session_async(
                             thinking=params.thinking,
                             plan_mode=False,
                             agent_file=agent_utils._default_agent_file_dir / 'agent_subagent.yaml')
-                        prompt(prompt_str=params.prompt, session=session,
-                               output_function=output_function)
+                        import kimi_utils
+                        await kimi_utils.prompt_async(prompt_str=params.prompt, session=session,
+                                                output_function=output_function)
+                        print('After prompt')
                     except Exception as e:
                         return str(e)
                     finally:
                         if session:
-                            close_session(session)
+                            await close_session_async(session)
                         _sub_agent_scope.active = False
                     return None
 
-                err_msg = prompt_func()
+                err_msg = asyncio.run(prompt_async())
 
                 # Collect output
                 output = '\n'.join(output_strs)

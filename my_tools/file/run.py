@@ -9,7 +9,7 @@ from pathlib import Path
 
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
-from my_tools.common import _maybe_export_output
+from my_tools.common import _maybe_export_output_async
 from my_tools.background.utils import BackgroundStream, generate_task_id, add_task
 
 
@@ -50,41 +50,57 @@ class Run(CallableTool2):
             return await self._run_in_background(params)
         output = ''
         try:
-            # Run the command using subprocess.run
-            result = subprocess.run(
-                [params.path] + params.args,
+            # Run the command using async subprocess
+            proc = await asyncio.create_subprocess_exec(
+                params.path, *params.args,
                 cwd=params.cwd,
-                capture_output=True,
-                text=True,
-                encoding='utf-8',
-                errors='replace',
-                timeout=params.timeout
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
             )
+
+            # Wait for process with optional timeout
+            if params.timeout is not None:
+                stdout_data, stderr_data = await asyncio.wait_for(
+                    proc.communicate(), timeout=params.timeout
+                )
+            else:
+                stdout_data, stderr_data = await proc.communicate()
+
+            # Decode output with utf-8 and replace errors
+            stdout_text = stdout_data.decode('utf-8', errors='replace')
+            stderr_text = stderr_data.decode('utf-8', errors='replace')
 
             # Combine stdout and stderr
             output_parts = []
-            if result.stdout:
-                output_parts.append(result.stdout)
-            if result.stderr:
-                output_parts.append(f"[stderr] {result.stderr}")
+            if stdout_text:
+                output_parts.append(stdout_text)
+            if stderr_text:
+                output_parts.append(f"[stderr] {stderr_text}")
             output = "\n".join(output_parts)
 
             # Handle output export if needed
             if params.output_path:
                 Path(params.output_path).write_text(
-                    output, encoding='utf-8', errors='replace')
+                    output, encoding='utf-8', errors='replace'
+                )
                 output = f'saved to {params.output_path}'
             else:
-                output = _maybe_export_output(output)
+                output = await _maybe_export_output_async(output)
             # Return error if command failed
-            if result.returncode != 0:
+            if proc.returncode != 0:
                 return ToolError(
                     output=output,
-                    message=f"Command failed with exit code {result.returncode}",
+                    message=f"Command failed with exit code {proc.returncode}",
                     brief="Command execution failed"
                 )
             return ToolOk(output=output)
 
+        except asyncio.TimeoutError:
+            return ToolError(
+                output=output,
+                message=f"Command timed out after {params.timeout} seconds",
+                brief="Command execution timeout"
+            )
         except Exception as exc:
             # Clean up
             return ToolError(

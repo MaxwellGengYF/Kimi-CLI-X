@@ -5,7 +5,7 @@ import os
 import queue
 import threading
 import time
-from my_tools.common import _maybe_export_output
+from my_tools.common import _maybe_export_output_async
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 from pathlib import Path
@@ -48,23 +48,32 @@ class Python(CallableTool2):
 
         output = ''
         try:
-            # Run the Python code using subprocess
+            # Run the Python code using async subprocess
             # Use python -c to execute the code directly
-            result = subprocess.run(
-                [sys.executable, '-c', params.code],
-                capture_output=True,
-                text=True,
-                encoding='utf-8',
-                errors='replace',
-                timeout=params.timeout
+            proc = await asyncio.create_subprocess_exec(
+                sys.executable, '-c', params.code,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
             )
+
+            # Wait for process with optional timeout
+            if params.timeout is not None:
+                stdout_data, stderr_data = await asyncio.wait_for(
+                    proc.communicate(), timeout=params.timeout
+                )
+            else:
+                stdout_data, stderr_data = await proc.communicate()
+
+            # Decode output with utf-8 and replace errors
+            stdout_text = stdout_data.decode('utf-8', errors='replace')
+            stderr_text = stderr_data.decode('utf-8', errors='replace')
 
             # Combine stdout and stderr
             output_parts = []
-            if result.stdout:
-                output_parts.append(result.stdout)
-            if result.stderr:
-                output_parts.append(f"[stderr] {result.stderr}")
+            if stdout_text:
+                output_parts.append(stdout_text)
+            if stderr_text:
+                output_parts.append(f"[stderr] {stderr_text}")
             output = "\n".join(output_parts)
 
             # Handle dest parameter if provided
@@ -72,17 +81,23 @@ class Python(CallableTool2):
                 Path(params.dest).write_text(output, encoding='utf-8', errors='replace')
                 output = f'output exported to: {params.dest}'
             else:
-                output = _maybe_export_output(output)
+                output = await _maybe_export_output_async(output)
 
             # Return error if command failed
-            if result.returncode != 0:
+            if proc.returncode != 0:
                 return ToolError(
                     output=output,
-                    message=f"Python execution failed with exit code {result.returncode}",
+                    message=f"Python execution failed with exit code {proc.returncode}",
                     brief="Python execution error"
                 )
             return ToolOk(output=output)
 
+        except asyncio.TimeoutError:
+            return ToolError(
+                output=output,
+                message=f"Python execution timed out after {params.timeout} seconds",
+                brief="Python execution timeout"
+            )
         except Exception as exc:
             return ToolError(
                 output=output,

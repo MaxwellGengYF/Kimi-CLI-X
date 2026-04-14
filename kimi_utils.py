@@ -179,7 +179,7 @@ def create_session(
     ))
 
 
-def get_tool_call_errors(session = None):
+def get_tool_call_errors(session=None):
     if session is None:
         id = 'default'
     elif type(session) == str:
@@ -197,12 +197,23 @@ def get_tool_call_errors(session = None):
 
 
 def close_session(session):
-    if session:
-        try:
-            del agent_utils._tool_call_failed_lists[session.id]
-        except:
-            pass
-        asyncio.run(session.close())
+    if not session:
+        return
+    try:
+        del agent_utils._tool_call_failed_lists[session.id]
+    except:
+        pass
+    asyncio.run(session.close())
+
+
+async def close_session_async(session):
+    if not session:
+        return
+    try:
+        del agent_utils._tool_call_failed_lists[session.id]
+    except:
+        pass
+    await session.close()
 
 
 def get_default_session():
@@ -255,7 +266,7 @@ def clear_context(force_create: bool = False, resume: bool = False, print_info: 
         _print_usage(_default_session)
 
 
-def prompt(
+async def prompt_async(
     prompt_str: str,
     session=None,
     # settings
@@ -329,7 +340,28 @@ def prompt(
                 if _temp_create_session:
                     await session.close()
             break
-    asyncio.run(func())
+    await func()
+
+
+def prompt(
+    prompt_str: str,
+    session=None,
+    # settings
+    read_agents_md: bool = False,
+    skill_name: str | None = None,
+    output_function: Callable | None = None,
+    info_print: bool = True
+):
+    asyncio.run(
+        prompt_async(
+            prompt_str,
+            session,
+            # settings
+            read_agents_md,
+            skill_name,
+            output_function,
+            info_print
+        ))
 
 
 def validate(

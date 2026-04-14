@@ -39,7 +39,6 @@ class BackgroundStream:
     def input(self, data: str) -> bool:
         if self._input_function:
             return self._input_function(data)
-            return True
         return False
 
     def thread_is_alive(self) -> None:

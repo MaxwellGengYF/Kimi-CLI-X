@@ -25,7 +25,7 @@ agent:
     - "my_tools.agent:Spawn"
     - "my_tools.office:Docx2md"
     - "my_tools.pdf:Pdf2md"
-    - "my_tools.cpp:Cpplint"
+    # - "my_tools.cpp:Cpplint"
     # - "kimi_cli.tools.shell:Shell"
     # - "my_tools.file:FileInfo"
     # - "my_tools.img:ImageToText"

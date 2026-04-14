@@ -5,7 +5,7 @@ from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 
 from .utils import generate_task_id, remove_task_id, add_task, get_all_tasks, BackgroundStream
-from my_tools.common import _maybe_export_output
+from my_tools.common import _maybe_export_output_async
 
 class TaskListParams(BaseModel):
     """Parameters for TaskList tool."""
@@ -76,7 +76,7 @@ class TaskOutput(CallableTool2):
                     brief=f"Task '{params.task_id}' not found"
                 )
             if params.block:
-                stream.wait()
+                await asyncio.to_thread(stream.wait)
             else:
                 # Wait before capturing output
                 last_time = params.wait_time
@@ -87,7 +87,7 @@ class TaskOutput(CallableTool2):
                     last_time -= sleep_time
                     await asyncio.sleep(sleep_time)
                     
-            output = _maybe_export_output(stream.pop_output())
+            output = await _maybe_export_output_async( stream.pop_output())
             return ToolOk(output=output if output else "(no output)")
         except Exception as e:
             return ToolError(

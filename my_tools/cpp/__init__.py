@@ -1,3 +1,4 @@
+import asyncio
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 
@@ -6,7 +7,7 @@ import os
 import subprocess
 import time
 from pathlib import Path
-from my_tools.common import _maybe_export_output
+from my_tools.common import _maybe_export_output_async
 
 
 class Params(BaseModel):
@@ -283,7 +284,7 @@ class Cpplint(CallableTool2):
     async def __call__(self, params: Params) -> ToolReturnValue:
         file_path = Path(params.file_path).resolve()
 
-        if not file_path.exists():
+        if not await asyncio.to_thread(file_path.exists):
             return ToolError(
                 output="",
                 message=f"File not found: {file_path}",
@@ -293,17 +294,17 @@ class Cpplint(CallableTool2):
         # Find compile_commands.json
         file_args = ''
         try:
-            compile_commands_dir = load_compile_commands(params.project_root)
+            compile_commands_dir = await asyncio.to_thread(load_compile_commands, params.project_root)
         except FileNotFoundError:
             compile_commands_dir = params.project_root
         else:
             # Check if file_path is in compile_commands.json
             compile_commands_path = Path(
                 compile_commands_dir) / "compile_commands.json"
-            if not compile_commands_path.exists():
+            if not await asyncio.to_thread(compile_commands_path.exists):
                 output = ""
                 if params.verbose:
-                    output = _maybe_export_output(f'Compile arguments:\n' + file_args)
+                    output = await _maybe_export_output_async(f'Compile arguments:\n' + file_args)
                 return ToolError(
                     output=output,
                     message=f"compile_commands.json not found.",
@@ -311,8 +312,10 @@ class Cpplint(CallableTool2):
                 )
 
             try:
-                with open(compile_commands_path, "r", encoding="utf-8") as f:
-                    compile_commands = json.load(f)
+                def _load_compile_commands():
+                    with open(compile_commands_path, "r", encoding="utf-8") as f:
+                        return json.load(f)
+                compile_commands = await asyncio.to_thread(_load_compile_commands)
                 file_maps = dict()
                 for entry in compile_commands:
                     name = entry.get("file", None).replace(
@@ -347,7 +350,7 @@ class Cpplint(CallableTool2):
             except (json.JSONDecodeError, IOError) as e:
                 output = ""
                 if params.verbose:
-                    output = _maybe_export_output(f'Compile arguments:\n{file_args}\nError: {e}')
+                    output = await _maybe_export_output_async(f'Compile arguments:\n{file_args}\nError: {e}')
                 return ToolError(
                     output=output,
                     message=f"compile_commands.json decode error: {e}",
@@ -355,11 +358,11 @@ class Cpplint(CallableTool2):
                 )
 
         # Find clangd
-        clangd_path = find_clangd(params.clangd_path, params.project_root)
-        if not Path(clangd_path).exists():
+        clangd_path = await asyncio.to_thread(find_clangd, params.clangd_path, params.project_root)
+        if not await asyncio.to_thread(Path(clangd_path).exists):
             output = ''
             if params.verbose:
-                output = _maybe_export_output(f'Compile arguments:\n' + file_args)
+                output = await _maybe_export_output_async(f'Compile arguments:\n' + file_args)
             return ToolError(
                 output=output,
                 message=f"clangd not found: {clangd_path}",
@@ -368,11 +371,11 @@ class Cpplint(CallableTool2):
 
         # Read file content
         try:
-            content = file_path.read_text(encoding="utf-8")
+            content = await asyncio.to_thread(file_path.read_text, encoding="utf-8")
         except Exception as e:
             output = ''
             if params.verbose:
-                output = _maybe_export_output(f'Compile arguments:\n' + file_args)
+                output = await _maybe_export_output_async(f'Compile arguments:\n' + file_args)
             return ToolError(
                 output=output,
                 message=str(e),
@@ -383,20 +386,20 @@ class Cpplint(CallableTool2):
         client = ClangdLSPClient(clangd_path, compile_commands_dir)
 
         try:
-            client.start()
-            client.initialize()
-            client.open_document(str(file_path), content)
+            await asyncio.to_thread(client.start)
+            await asyncio.to_thread(client.initialize)
+            await asyncio.to_thread(client.open_document, str(file_path), content)
 
             # Wait for clangd to process
-            time.sleep(0.5)
+            await asyncio.sleep(0.5)
 
-            diagnostics = client.get_diagnostics(str(file_path))
+            diagnostics = await asyncio.to_thread(client.get_diagnostics, str(file_path))
 
             if not diagnostics:
                 output = 'No issues found!'
                 if params.verbose:
                     output += f'Compile arguments:\n' + file_args
-                output = _maybe_export_output(output)
+                output = await _maybe_export_output_async(output)
                 return ToolOk(output=output)
 
             errors = 0
@@ -417,7 +420,7 @@ class Cpplint(CallableTool2):
             if errors > 0:
                 if params.verbose:
                     output += f'Compile arguments:\n' + file_args
-                output = _maybe_export_output(output)
+                output = await _maybe_export_output_async(output)
                 return ToolError(
                     output=output,
                     message=f"Found {errors} error(s), {warnings} warning(s)",
@@ -426,18 +429,18 @@ class Cpplint(CallableTool2):
             else:
                 if params.verbose:
                     output += f'Compile arguments:\n' + file_args
-                output = _maybe_export_output(output)
+                output = await _maybe_export_output_async(output)
                 return ToolOk(output=output)
 
         except Exception as e:
             output = ''
             if params.verbose:
                 output = f'Compile arguments:\n' + file_args
-            output = _maybe_export_output(output)
+            output = await _maybe_export_output_async(output)
             return ToolError(
                 output=output,
                 message=str(e),
                 brief="Failed to check C++ syntax",
             )
         finally:
-            client.stop()
+            await asyncio.to_thread(client.stop)
