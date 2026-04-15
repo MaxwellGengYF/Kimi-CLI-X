@@ -9,6 +9,7 @@ from my_tools.common import _maybe_export_output_async
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 from pathlib import Path
+import anyio
 from .check import PySyntaxCheck
 from my_tools.background.utils import BackgroundStream, generate_task_id, add_task
 
@@ -119,16 +120,16 @@ class Python(CallableTool2):
         _stop_event = threading.Event()
         _process_ref = [None]  # Use list to hold reference in nested function
 
-        def run_python_bg(q: queue.Queue[str]) -> None:
+        def run_python_bg(q: queue.Queue[str]) -> bool:
             """Run the Python process and collect output into the queue."""
             process = None
             try:
                 if _stop_event.is_set():
-                    return
+                    return False
 
                 # Start the Python process
                 process = subprocess.Popen(
-                    [sys.executable, '-c', params.code],
+                    [sys.executable, '-u', '-c', params.code],
                     stdin=subprocess.PIPE,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
@@ -210,8 +211,11 @@ class Python(CallableTool2):
                 return_code = process.poll()
                 if _stop_event.is_set():
                     q.put_nowait("\n[Process stopped by user]")
+                    return False
                 elif return_code is not None and return_code != 0:
                     q.put_nowait(f"\n[Process exited with code {return_code}]")
+                    return False
+                return True
 
                 # Handle dest parameter if provided
                 if params.dest:
@@ -225,6 +229,7 @@ class Python(CallableTool2):
 
             except Exception as e:
                 q.put_nowait(f"\n[Error: {str(e)}]")
+                return False
             finally:
                 _stop_event.set()
                 if process is not None and process.poll() is None:

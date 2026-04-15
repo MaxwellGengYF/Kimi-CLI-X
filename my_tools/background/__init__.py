@@ -71,7 +71,7 @@ class TaskOutput(CallableTool2):
             tasks = get_all_tasks()
             stream: BackgroundStream | None = None
             if params.block:
-                stream = tasks.pop(params.task_id)
+                stream = tasks.pop(params.task_id, None)
             else:
                 stream = tasks.get(params.task_id)
             if stream is None:

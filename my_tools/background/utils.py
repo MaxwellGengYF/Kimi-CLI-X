@@ -18,7 +18,7 @@ class BackgroundStream:
         self._lock = threading.Lock()
         self._success = False
 
-    def success(self):
+    def success(self) -> bool:
         return self._success
 
     def start(self, function: Callable[[queue.Queue[str]], None], stop_function: Callable, input_function: Callable | None = None) -> None:
@@ -35,7 +35,7 @@ class BackgroundStream:
             self._queue = queue.Queue()
 
             def func(v: BackgroundStream, function: Callable):
-                v._success = function(v._queue)
+                v._success = False if function(v._queue) == False else True # defaultly success
             self._thread = threading.Thread(
                 target=func, args=(self, function), daemon=True)
             self._thread.start()
