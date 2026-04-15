@@ -8,6 +8,8 @@ import agent_utils
 from typing import Callable, List, Optional
 from collections import OrderedDict
 import hashlib
+from string import Template
+from kimi_cli.soul.agent import BuiltinSystemPromptArgs
 
 # Import TextSearchIndex for RAG functionality
 from my_tools.skill.faiss.text_search import TextSearchIndex, SearchResult
@@ -86,12 +88,63 @@ def _ensure_skill_dirs(skill_dirs: object) -> list[KaosPath]:
     if isinstance(skill_dirs, Iterable) and not isinstance(skill_dirs, (str, bytes)):
         return [make_kaos_dir(i) for i in skill_dirs]
     return [make_kaos_dir(skill_dirs)]
+_SYSTEM_PROMP = Template('''You are a coding agent.
+Rules:
+1. Minimal diff; preserve surrounding formatting.
+2. No explanations, apologies, or questions.
+3. For long tasks, use `Run`/`Python` with `run_in_background=true`, then manage via `TaskList`, `TaskOutput`, `Input`, `TaskStop`. Return control immediately after starting.
+${SHELL}${PLAN_MODE}
+${AGENTS_MD}${SKILLS}
+''')
 
+def get_system_prompt(
+    plan_mode: bool | None = None,
+    work_dir: Optional[KaosPath] = None):
+    agent_md = (Path(str(work_dir)) if work_dir is not None else Path(os.curdir)) / 'AGENTS.md'
+    plan_mode = plan_mode if plan_mode is not None else agent_utils._default_plan_mode
+    def system_prompt_func(args: BuiltinSystemPromptArgs) -> str:
+        plan_mode_doc = None
+        shell_doc = None
+        agent_md_doc = None
+        skill_doc = None
+        if args.KIMI_OS == 'Windows':
+            shell_doc = '''
+4. No Shell commands; use `Run`/`Python` instead.
+'''
+        else:
+            shell_doc = f'''
+4. Shell: {args.KIMI_SHELL} 
+'''
+        if plan_mode:
+           plan_mode_doc = f'''
+5. Plan mode: draft plan, run `ExitPlanMode`, then execute.
+'''
+        if agent_md.is_file():
+            agent_md_doc = agent_md.read_text(encoding='utf-8', errors='replace')
+            agent_md_doc = f'''
+AGENTS.md:
+```
+{agent_md_doc}
+```
+'''
+        if args.KIMI_SKILLS and args.KIMI_SHELL.lower() != 'no skills found.':
+            skill_doc= f'''
+Skills:
+{args.KIMI_SKILLS}
+'''
+        return _SYSTEM_PROMP.substitute(
+            PLAN_MODE=(plan_mode_doc.strip() + '\n') if plan_mode_doc else '',
+            SHELL=(shell_doc.strip() + '\n') if shell_doc else '',
+            AGENTS_MD=(agent_md_doc.strip() + '\n') if agent_md_doc else '',
+            SKILLS=(skill_doc.strip() + '\n') if skill_doc else '',
+            ).strip()
+    return system_prompt_func
+    
 
 async def _create_session_async(
     session_id: str = None,
     work_dir: Optional[KaosPath] = None,
-    skills_dir: Optional[bool] = None,
+    skills_dir: Optional[KaosPath] = None,
     ralph_loop: Optional[bool] = None,
     thinking: Optional[bool] = None,
     yolo: Optional[bool] = None,
@@ -135,6 +188,7 @@ async def _create_session_async(
             config=cfg,
             agent_file=agent_file,
             tool_call_failed_list=tool_call_failed_list,
+            custom_system_prompt=get_system_prompt(plan_mode, work_dir),
         )
         if not session:
             print_debug(f'Session {session_id} not found.')
@@ -150,6 +204,7 @@ async def _create_session_async(
             config=cfg,
             agent_file=agent_file,
             tool_call_failed_list=tool_call_failed_list,
+            custom_system_prompt=get_system_prompt(plan_mode, work_dir),
         )
     return session
 
@@ -157,7 +212,7 @@ async def _create_session_async(
 def create_session(
     session_id: str = None,
     work_dir: Optional[KaosPath] = None,
-    skills_dir: Optional[bool] = None,
+    skills_dir: Optional[KaosPath] = None,
     ralph_loop: Optional[bool] = None,
     thinking: Optional[bool] = None,
     yolo: Optional[bool] = None,
