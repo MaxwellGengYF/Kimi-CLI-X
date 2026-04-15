@@ -2,7 +2,6 @@ version: 1
 agent:
   extend: default
   tools:
-    - "my_tools.file:Ls"
     - "my_tools.file:Mkdir"
     - "my_tools.file:Rm"
     - "kimi_cli.tools.file:WriteFile"

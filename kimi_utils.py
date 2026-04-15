@@ -422,7 +422,7 @@ def validate(
         import my_tools.flag as flag
         flag.reset_flag()
         prompt_str = prompt_str + \
-            '\n\nIf the condition is true, run `SetValue` tool.'
+            '\n\nIf the condition is true, run `Setflag` tool.'
         prompt(prompt_str, session)
         return flag.check_flag() is not None
     else:

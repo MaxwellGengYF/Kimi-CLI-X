@@ -21,7 +21,7 @@ class Params(BaseModel):
 
 class Setflag(CallableTool2):
     name: str = "Setflag"
-    description: str = "Set a thread-local flag value."
+    description: str = "Set a flag."
     params: type[Params] = Params
 
     async def __call__(self,  params: Params) -> ToolReturnValue:
