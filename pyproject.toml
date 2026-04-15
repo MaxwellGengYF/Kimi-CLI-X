@@ -8,25 +8,23 @@ version = "0.1.0"
 description = "Kimi Agent Tools - Custom tool collection for Kimi Agent SDK"
 readme = "README.md"
 license = { text = "MIT" }
-requires-python = ">=3.9"
+requires-python = ">=3.14"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
+    "kimi-cli",
+    "kimi-agent-sdk",
+    "kosong",
+    "pykaos",
     # Image processing & OCR
     "pillow>=10.0.0",
     "pytesseract>=0.3.10",
-    
     # Office document processing
     "python-docx>=1.1.0",
-    
     # PDF processing
     "pymupdf>=1.23.0",
     "pdfplumber>=0.10.0",
@@ -55,8 +53,22 @@ all = [
 [tool.hatch.build.targets.wheel]
 packages = ["my_tools"]
 
+[tool.uv.workspace]
+members = [
+    "kimi-cli",
+    "kimi-cli/packages/kosong",
+    "kimi-cli/packages/kaos",
+    "kimi-agent-sdk/python",
+]
+
+[tool.uv.sources]
+kimi-cli = { workspace = true }
+kimi-agent-sdk = { workspace = true }
+kosong = { workspace = true }
+pykaos = { workspace = true }
+
 [tool.ruff]
-target-version = "py39"
+target-version = "py314"
 line-length = 100
 
 [tool.ruff.lint]
@@ -72,7 +84,7 @@ ignore = [
 ]
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.14"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false

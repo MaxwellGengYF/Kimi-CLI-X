@@ -8,3 +8,4 @@ requirements.txt
 tests/
 .cache
 .index_cache
+uv.lock
