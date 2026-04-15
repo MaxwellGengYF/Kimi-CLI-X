@@ -16,6 +16,10 @@ class BackgroundStream:
         self._stop_function: Callable = None
         self._input_function: Callable = None
         self._lock = threading.Lock()
+        self._success = False
+
+    def success(self):
+        return self._success
 
     def start(self, function: Callable[[queue.Queue[str]], None], stop_function: Callable, input_function: Callable | None = None) -> None:
         """Start the background thread with the given function.
@@ -29,8 +33,11 @@ class BackgroundStream:
                 return
 
             self._queue = queue.Queue()
+
+            def func(v: BackgroundStream, function: Callable):
+                v._success = function(v._queue)
             self._thread = threading.Thread(
-                target=function, args=(self._queue,), daemon=True)
+                target=func, args=(self, function), daemon=True)
             self._thread.start()
             self._stop_function = stop_function
             self._input_function = input_function

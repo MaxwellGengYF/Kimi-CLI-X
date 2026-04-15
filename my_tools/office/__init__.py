@@ -1,3 +1,4 @@
+import anyio
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 import re
@@ -60,7 +61,8 @@ class Docx2md(CallableTool2):
                 if output_dir and not os.path.exists(output_dir):
                     os.makedirs(output_dir, exist_ok=True)
                 
-                Path(params.output_path).write_text(markdown_content, encoding='utf-8')
+                async with await anyio.open_file(params.output_path, 'w', encoding='utf-8') as f:
+                    await f.write(markdown_content)
                 
                 return ToolOk(
                     output=f"Markdown saved to: {params.output_path}",

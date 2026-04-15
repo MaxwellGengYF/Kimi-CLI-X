@@ -5,7 +5,7 @@ from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 
 from .utils import generate_task_id, remove_task_id, add_task, get_all_tasks, BackgroundStream
-from my_tools.common import _maybe_export_output_async
+from my_tools.common import _maybe_export_output_async, _export_to_temp_file_async
 
 class TaskListParams(BaseModel):
     """Parameters for TaskList tool."""
@@ -46,11 +46,16 @@ class TaskOutputParams(BaseModel):
         description="Task ID to get output from."
     )
     block: bool = Field(
+        default = True,
         description='block and wait task.'
     )
     wait_time: float = Field(
         default=0,
         description="Time to wait before capturing output in seconds."
+    )
+    output_path: str | None = Field(
+        default=None,
+        description="Output file path (optional)."
     )
 
 
@@ -86,8 +91,19 @@ class TaskOutput(CallableTool2):
                     sleep_time = min(last_time, 0.05)
                     last_time -= sleep_time
                     await asyncio.sleep(sleep_time)
-                    
-            output = await _maybe_export_output_async( stream.pop_output())
+            output = stream.pop_output()
+            if params.output_path:
+                from pathlib import Path
+                import anyio
+                path = Path(params.output_path)
+                async with await anyio.open_file(path, 'w', encoding='utf-8') as f:
+                    await f.write(output)
+                output = f"Output exported to file `{path}`"
+            elif output and params.block and not stream.success():
+                temp_path, _ = await _export_to_temp_file_async(key=None, content=output, ext='.txt')
+                output = f"Output exported to file `{temp_path}`"
+            else:
+                output = await _maybe_export_output_async(output)
             return ToolOk(output=output if output else "(no output)")
         except Exception as e:
             return ToolError(

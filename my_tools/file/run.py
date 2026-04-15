@@ -1,4 +1,5 @@
 """run tool for executing a process from a path."""
+import anyio
 import asyncio
 import os
 import queue
@@ -80,20 +81,16 @@ class Run(CallableTool2):
 
             # Handle output export if needed
             if params.output_path:
-                Path(params.output_path).write_text(
-                    output, encoding='utf-8', errors='replace'
-                )
+                async with await anyio.open_file(params.output_path, 'w', encoding='utf-8', errors='replace') as f:
+                    await f.write(output)
                 output = f'saved to file `{params.output_path}`'
             # Return error if command failed
             if proc.returncode != 0:
-                if output:
-                    if not params.output_path:
-                        temp_path, _ = await _export_to_temp_file_async(key=None, content=output, ext='.txt')
-                        temp_path = f'saved to file `{temp_path}`'
-                else:
-                    temp_path = ''
+                if output and not params.output_path:
+                    temp_path, _ = await _export_to_temp_file_async(key=None, content=output, ext='.txt')
+                    output = f'saved to file `{temp_path}`'
                 return ToolError(
-                    output=temp_path,
+                    output=output,
                     message=f"Command failed with exit code {proc.returncode}",
                     brief="Command execution failed"
                 )
@@ -101,27 +98,23 @@ class Run(CallableTool2):
             return ToolOk(output=output)
 
         except asyncio.TimeoutError:
-            if output:
-                if not params.output_path:
-                    temp_path, _ = await _export_to_temp_file_async(key=None, content=output, ext='.txt')
-                    temp_path = f'saved to file `{temp_path}`'
-            else:
-                temp_path = ''
+            if output and not params.output_path:
+                temp_path, _ = await _export_to_temp_file_async(key=None, content=output, ext='.txt')
+                output = f'saved to file `{temp_path}`'
+
             return ToolError(
-                output=temp_path,
+                output=output,
                 message=f"Command timed out after {params.timeout} seconds",
                 brief="Command execution timeout"
             )
         except Exception as exc:
             # Clean up
-            if output:
-                if not params.output_path:
-                    temp_path, _ = await _export_to_temp_file_async(key=None, content=output, ext='.txt')
-                    temp_path = f'saved to file `{temp_path}`'
-            else:
-                temp_path = ''
+            if output and not params.output_path:
+                temp_path, _ = await _export_to_temp_file_async(key=None, content=output, ext='.txt')
+                output = f'saved to file `{temp_path}`'
+
             return ToolError(
-                output=temp_path,
+                output=output,
                 message=str(exc),
                 brief="Failed to run process",
             )
@@ -139,12 +132,12 @@ class Run(CallableTool2):
         _stop_event = threading.Event()
         _process_ref = [None]  # Use list to hold reference in nested function
 
-        def run_process_bg(q: queue.Queue[str]) -> None:
+        def run_process_bg(q: queue.Queue[str]) -> bool:
             """Run the process and collect output into the queue."""
             process = None
             try:
                 if _stop_event.is_set():
-                    return
+                    return False
                 # Start the process
                 process = subprocess.Popen(
                     [params.path] + params.args,
@@ -228,11 +221,15 @@ class Run(CallableTool2):
                 return_code = process.poll()
                 if _stop_event.is_set():
                     q.put_nowait("\n[Process stopped by user]")
+                    return False
                 elif return_code is not None and return_code != 0:
                     q.put_nowait(f"\n[Process exited with code {return_code}]")
+                    return False
+                return True
 
             except Exception as e:
                 q.put_nowait(f"\n[Error: {str(e)}]")
+                return False
             finally:
                 _stop_event.set()
                 if process is not None and process.poll() is None:
@@ -255,10 +252,10 @@ class Run(CallableTool2):
 
         def input_function(data: str) -> bool:
             """Push data to the process's stdin.
-            
+
             Args:
                 data: The string data to write to stdin.
-                
+
             Returns:
                 True if data was written successfully, False otherwise.
             """
@@ -272,7 +269,7 @@ class Run(CallableTool2):
                     time.sleep(0.05)
                 else:
                     break
-            
+
             # Write data to stdin
             try:
                 if proc.stdin is not None and proc.poll() is None:

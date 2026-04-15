@@ -78,7 +78,8 @@ class Python(CallableTool2):
 
             # Handle dest parameter if provided
             if params.dest:
-                Path(params.dest).write_text(output, encoding='utf-8', errors='replace')
+                async with await anyio.open_file(params.dest, 'w', encoding='utf-8', errors='replace') as f:
+                    await f.write(output)
                 output = f'output exported to: {params.dest}'
             else:
                 output = await _maybe_export_output_async(output)

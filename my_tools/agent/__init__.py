@@ -101,11 +101,11 @@ class Spawn(CallableTool2):
         # Shared state for stopping the task
         _stop_event = threading.Event()
 
-        def run_agent_bg(q: queue.Queue[str]) -> None:
+        def run_agent_bg(q: queue.Queue[str]) -> bool:
             """Run the sub-agent and collect output into the queue."""
             try:
                 if _stop_event.is_set():
-                    return
+                    return False
 
                 output_strs = []
 
@@ -143,11 +143,14 @@ class Spawn(CallableTool2):
 
                 if err_msg:
                     q.put_nowait(f"\n[Error: {err_msg}]")
+                    return False
                 else:
                     q.put_nowait("\n[Sub-agent completed]")
+                    return True
 
             except Exception as e:
                 q.put_nowait(f"\n[Error: {str(e)}]")
+                return False
             finally:
                 _stop_event.set()
 

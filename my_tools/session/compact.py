@@ -1,3 +1,4 @@
+import anyio
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 from pathlib import Path
@@ -64,7 +65,8 @@ class StoreSession(CallableTool2):
             key = params.key if params.key else 'default'
             _ensure_storage_dir()
             file_path = _get_key_path(key)
-            file_path.write_text(params.value, encoding="utf-8")
+            async with await anyio.open_file(file_path, 'w', encoding='utf-8') as f:
+                await f.write(params.value)
 
             return ToolOk(output='')
         except Exception as exc:
