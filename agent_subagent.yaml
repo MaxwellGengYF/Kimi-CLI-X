@@ -10,4 +10,4 @@ agent:
     - "kimi_cli.tools.file:Grep"
     - "kimi_cli.tools.file:StrReplaceFile"
     - "kimi_cli.tools.web:SearchWeb"
-    - "kimi_cli.tools.web:FetchURL"
+    - "my_tools.web.fetch_url:FetchURL"

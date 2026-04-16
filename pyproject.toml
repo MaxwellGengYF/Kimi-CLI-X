@@ -17,6 +17,8 @@ classifiers = [
 ]
 dependencies = [
     "numpy",
+    "playwright",
+    "markdownify",
 ]
 
 [project.optional-dependencies]
