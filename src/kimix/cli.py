@@ -501,12 +501,14 @@ def _run_cli():
                             print_info(
                                 f'Executing {path.name}', end='\n\n')
                             try:
-                                exec_ctx['__file__'] = path
+                                exec_ctx['__file__'] = str(path)
                                 exec(s, exec_ctx)
                             except KeyboardInterrupt as e:
                                 raise e
                             except Exception as e:
+                                import traceback
                                 print_error(str(e))
+                                print_error(traceback.format_exc())
                             finally:
                                 sync_all()
                         else:
