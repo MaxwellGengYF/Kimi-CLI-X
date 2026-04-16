@@ -144,7 +144,7 @@ def get_system_prompt(
             index += 1
         if yolo:
             yolo_doc = f'''
-{index}. You are in yolo mode. Do not ask questions; choose the best option and execute.
+{index}. Yolo mode: act decisively without asking. Never write outside working directory or change system settings(if not asked).
 '''
             index += 1
         if agent_md.is_file():
