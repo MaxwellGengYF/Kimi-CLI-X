@@ -341,13 +341,14 @@ def _percentage_str(num: float) -> str:
     return f"{num * 100:.1f}%"
 
 
-_ralph_iterations = 0
-_default_thinking = True
-_default_plan_mode = False
-_default_yolo = True
-_default_agent_file_dir = Path(__file__).parent
-_default_agent_file = _default_agent_file_dir / 'agent_worker.yaml'
-_default_skill_dirs = []
+_ralph_iterations: int = 0
+_default_thinking: bool = True
+_default_plan_mode: bool = False
+_default_yolo: bool = True
+_default_agent_file_dir: Path = Path(__file__).parent
+_default_agent_file: Path = _default_agent_file_dir / 'agent_worker.yaml'
+_default_skill_dirs: list = []
+_default_provider: dict | None = None
 # The failed-list for tool call that
 # tuple: function-name, arguments, output, message
 _tool_call_failed_lists: dict[str, list[tuple[str, str, str, str]]] = dict()
