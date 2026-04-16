@@ -22,6 +22,7 @@ HELP_STR = '''Command line options:
   --plan              - Enable plan mode
   --no_yolo           - Disable YOLO mode
   -s, --skill-dir     - Specify custom skill directory
+  --config            - Specify a JSON config file (see config_example.json for example)
 
 Available commands:
   /file:<path>    - Load a file and execute its content line by line
