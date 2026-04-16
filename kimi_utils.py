@@ -52,6 +52,19 @@ def _create_config():
     from kimi_agent_sdk import Config
     from kimi_cli.config import LoopControl
     cfg = Config()
+    # DO THIS: support other providers and models
+    # from kimi_cli.config import LLMModel, LLMProvider, ProviderType, ModelCapability
+    # cfg.default_model = 'my_model'
+    # cfg.models = {
+    #     'my_model': LLMModel(provider='my_provider', model='model_name', max_context_size=128_000, capabilities=[ModelCapability('thinking')])
+    # }
+    # cfg.providers = {
+    #     'my_provider': LLMProvider(
+    #         type=ProviderType('openai_responses'),
+    #         base_url='http://xxx',
+    #         api_key='sk_xxx',
+    #     )
+    # }
     if not cfg.loop_control:
         cfg.loop_control = LoopControl()
     return cfg
@@ -88,25 +101,33 @@ def _ensure_skill_dirs(skill_dirs: object) -> list[KaosPath]:
     if isinstance(skill_dirs, Iterable) and not isinstance(skill_dirs, (str, bytes)):
         return [make_kaos_dir(i) for i in skill_dirs]
     return [make_kaos_dir(skill_dirs)]
+
+
 _SYSTEM_PROMP = Template('''You are a coding agent.
 Rules:
 1. Minimal diff; preserve surrounding formatting.
 2. No explanations, apologies, or questions.
 3. For long tasks, use `Run`/`Python` with `run_in_background=true`, then manage via `TaskList`, `TaskOutput`, `Input`, `TaskStop`. Return control immediately after starting.
-${SHELL}${PLAN_MODE}
+${SHELL}${PLAN_MODE}${YOLO_MODE}
 ${AGENTS_MD}${SKILLS}
 ''')
 
+
 def get_system_prompt(
-    plan_mode: bool | None = None,
-    work_dir: Optional[KaosPath] = None):
-    agent_md = (Path(str(work_dir)) if work_dir is not None else Path(os.curdir)) / 'AGENTS.md'
+        plan_mode: bool | None = None,
+        yolo: bool | None = None,
+        work_dir: Optional[KaosPath] = None):
+    agent_md = (Path(str(work_dir)) if work_dir is not None else Path(
+        os.curdir)) / 'AGENTS.md'
     plan_mode = plan_mode if plan_mode is not None else agent_utils._default_plan_mode
+    yolo = yolo if yolo is not None else agent_utils._default_yolo
+
     def system_prompt_func(args: BuiltinSystemPromptArgs) -> str:
         plan_mode_doc = None
         shell_doc = None
         agent_md_doc = None
         skill_doc = None
+        yolo_doc = None
         if args.KIMI_OS == 'Windows':
             shell_doc = '''
 4. No Shell commands; use `Run`/`Python` instead.
@@ -115,12 +136,20 @@ def get_system_prompt(
             shell_doc = f'''
 4. Shell: {args.KIMI_SHELL} 
 '''
+        index = 5
         if plan_mode:
-           plan_mode_doc = f'''
-5. Plan mode: draft plan, run `ExitPlanMode`, then execute.
+            plan_mode_doc = f'''
+{index}. Plan mode: draft plan, run `ExitPlanMode`, then execute.
 '''
+            index += 1
+        if yolo:
+            yolo_doc = f'''
+{index}. You are in yolo mode. Do not ask questions; choose the best option and execute.
+'''
+            index += 1
         if agent_md.is_file():
-            agent_md_doc = agent_md.read_text(encoding='utf-8', errors='replace')
+            agent_md_doc = agent_md.read_text(
+                encoding='utf-8', errors='replace')
             agent_md_doc = f'''
 AGENTS.md:
 ```
@@ -128,7 +157,7 @@ AGENTS.md:
 ```
 '''
         if args.KIMI_SKILLS and args.KIMI_SHELL.lower() != 'no skills found.':
-            skill_doc= f'''
+            skill_doc = f'''
 Skills:
 {args.KIMI_SKILLS}
 '''
@@ -137,9 +166,10 @@ Skills:
             SHELL=(shell_doc.strip() + '\n') if shell_doc else '',
             AGENTS_MD=(agent_md_doc.strip() + '\n') if agent_md_doc else '',
             SKILLS=(skill_doc.strip() + '\n') if skill_doc else '',
-            ).strip()
+            YOLO_MODE=(yolo_doc.strip() + '\n') if yolo_doc else '',
+        ).strip()
     return system_prompt_func
-    
+
 
 async def _create_session_async(
     session_id: str = None,
@@ -188,7 +218,7 @@ async def _create_session_async(
             config=cfg,
             agent_file=agent_file,
             tool_call_failed_list=tool_call_failed_list,
-            custom_system_prompt=get_system_prompt(plan_mode, work_dir),
+            custom_system_prompt=get_system_prompt(plan_mode, yolo, work_dir),
         )
         if not session:
             print_debug(f'Session {session_id} not found.')
@@ -204,7 +234,7 @@ async def _create_session_async(
             config=cfg,
             agent_file=agent_file,
             tool_call_failed_list=tool_call_failed_list,
-            custom_system_prompt=get_system_prompt(plan_mode, work_dir),
+            custom_system_prompt=get_system_prompt(plan_mode, yolo, work_dir),
         )
     return session
 

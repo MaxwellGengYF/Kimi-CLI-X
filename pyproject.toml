@@ -16,24 +16,29 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-    "kimi-cli",
-    "kimi-agent-sdk",
-    "kosong",
-    "pykaos",
-    # Image processing & OCR
-    "pillow>=10.0.0",
-    "pytesseract>=0.3.10",
-    # Office document processing
-    "python-docx>=1.1.0",
-    # PDF processing
-    "pymupdf>=1.23.0",
-    "pdfplumber>=0.10.0",
     "numpy",
-    "faiss-cpu",
-    "sentence_transformers"
 ]
 
 [project.optional-dependencies]
+# Office document processing
+office = [
+    "pymupdf>=1.23.0",
+    "pdfplumber>=0.10.0",
+    "python-docx>=1.1.0",
+]
+
+# Image processing & OCR
+image_process = [
+    "pillow>=10.0.0",
+    "pytesseract>=0.3.10",
+]
+
+# Vector search / embeddings
+rag = [
+    "faiss-cpu",
+    "sentence_transformers",
+]
+
 # Development dependencies
 dev = [
     "pytest>=7.0.0",
@@ -44,6 +49,10 @@ dev = [
 
 # All optional dependencies
 all = [
+    "pymupdf>=1.23.0",
+    "pdfplumber>=0.10.0",
+    "faiss-cpu",
+    "sentence_transformers",
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
     "ruff>=0.1.0",
