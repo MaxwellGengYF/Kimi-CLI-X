@@ -14,7 +14,6 @@ COMMENT = """Always write ' Start writen by AGENT ' comment before code, Always 
 curr_dir = Path(os.curdir)
 if not curr_dir.is_absolute():
     curr_dir = curr_dir.absolute()
-
 # Start writen by AGENT
 HELP_STR = '''Command line options:
   -c, --clean         - Delete cache file after quit
