@@ -11,7 +11,11 @@ from dataclasses import dataclass
 
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
-from .faiss.text_search import TextSearchIndex
+
+def _get_text_search_index():
+    """Lazy import of TextSearchIndex to avoid hard faiss dependency at import time."""
+    from .faiss.text_search import TextSearchIndex
+    return TextSearchIndex
 
 
 # Supported text file extensions for indexing
@@ -142,7 +146,7 @@ class GrepAnalyzer(CallableTool2):
     COLLECTION_NAME: ClassVar[str] = "work_dir_files"
     PERSIST_DIR: ClassVar[str] = ".cache/chroma_db"
     _collection_cache: ClassVar[dict[str, IndexedCollection]] = {}
-    _index_cache: ClassVar[OrderedDict[str, TextSearchIndex]] = OrderedDict()
+    _index_cache: ClassVar[OrderedDict[str, Any]] = OrderedDict()
     _MAX_INDEX_CACHE_SIZE: ClassVar[int] = 3
 
     def _is_text_file(self, file_path: Path) -> bool:
@@ -409,7 +413,7 @@ class GrepAnalyzer(CallableTool2):
                 if len(self._index_cache) >= self._MAX_INDEX_CACHE_SIZE:
                     oldest_key, _ = self._index_cache.popitem(last=False)
                 # Create index with lazy loading and embedding cache
-                index = TextSearchIndex(cache_dir=cache_dir, lazy_load=True)
+                index = _get_text_search_index()(cache_dir=cache_dir, lazy_load=True)
                 self._index_cache[index_cache_key] = index
             
             # Try to load existing index or create new one

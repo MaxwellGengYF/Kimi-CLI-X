@@ -19,6 +19,9 @@ dependencies = [
     "numpy",
     "playwright",
     "markdownify",
+    "pykaos",
+    "kimi-cli",
+    "kimi-agent-sdk",
 ]
 
 [project.optional-dependencies]
@@ -62,7 +65,8 @@ all = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["my_tools"]
+packages = ["src/kimix", "my_tools"]
+sources = ["src"]
 
 [tool.uv.workspace]
 members = [
@@ -93,6 +97,9 @@ select = [
 ignore = [
     "E501",  # Line too long (handled by formatter)
 ]
+
+[project.scripts]
+kimix = "kimix.cli:cli"
 
 [tool.mypy]
 python_version = "3.14"

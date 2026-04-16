@@ -21,7 +21,23 @@ import numpy as np
 warnings.filterwarnings("ignore", message="builtin type swigvarlink has no __module__ attribute", category=DeprecationWarning)
 warnings.filterwarnings("ignore", message="builtin type SwigPyPacked has no __module__ attribute", category=DeprecationWarning)
 warnings.filterwarnings("ignore", message="builtin type SwigPyObject has no __module__ attribute", category=DeprecationWarning)
-import faiss
+
+# Lazy import of faiss
+faiss = None
+
+def _get_faiss():
+    """Lazy import of faiss."""
+    global faiss
+    if faiss is None:
+        try:
+            import faiss as _faiss
+            faiss = _faiss
+        except ImportError:
+            raise ImportError(
+                "faiss is required for RAG/search features. "
+                "Install it with: uv pip install faiss-cpu"
+            )
+    return faiss
 
 # Delay sentence_transformers import until needed
 SentenceTransformer = None
@@ -200,7 +216,7 @@ class TextSearchIndex:
         self._lazy_load = lazy_load
         
         # FAISS index (use _index to avoid property conflict)
-        self._index: Optional[faiss.Index] = None
+        self._index = None  # Optional[Any], faiss.Index when loaded
         
         # Document storage (maps FAISS id to document info)
         self.documents: List[DocumentLine] = []
@@ -255,11 +271,11 @@ class TextSearchIndex:
     def _ensure_index(self):
         """Ensure FAISS index is initialized with correct dimension."""
         if self._index is None:
-            self._index = faiss.IndexFlatIP(self.dimension)
+            self._index = _get_faiss().IndexFlatIP(self.dimension)
     
     def _normalize_vectors(self, vectors: np.ndarray) -> np.ndarray:
         """Normalize vectors for cosine similarity."""
-        faiss.normalize_L2(vectors)
+        _get_faiss().normalize_L2(vectors)
         return vectors
     
     def _get_embeddings(self, texts: List[str]) -> np.ndarray:
@@ -836,7 +852,7 @@ class TextSearchIndex:
         
         # Save FAISS index
         self._ensure_index()
-        faiss.write_index(self._index, str(save_path / 'faiss.index'))
+        _get_faiss().write_index(self._index, str(save_path / 'faiss.index'))
         # Save documents and metadata
         data = {
             'documents': [
@@ -868,7 +884,7 @@ class TextSearchIndex:
         save_path = Path(save_path)
         
         # Load FAISS index (already initialized by read_index)
-        self._index = faiss.read_index(str(save_path / 'faiss.index'))
+        self._index = _get_faiss().read_index(str(save_path / 'faiss.index'))
         
         # Load metadata
         with open(save_path / 'metadata.pkl', 'rb') as f:

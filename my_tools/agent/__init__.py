@@ -3,7 +3,7 @@ import queue
 import threading
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
-from kimi_utils import prompt, close_session_async, _create_session_async
+from kimix.kimi_utils import prompt, close_session_async, _create_session_async
 from my_tools.common import _maybe_export_output_async
 from my_tools.background.utils import BackgroundStream, generate_task_id, add_task
 
@@ -53,13 +53,13 @@ class Spawn(CallableTool2):
             async def prompt_async():
                 session = None
                 try:
-                    import agent_utils
+                    import kimix.agent_utils as agent_utils
                     _sub_agent_scope.active = True
                     session = await _create_session_async(
                         thinking=params.thinking,
                         plan_mode=False,
                         agent_file=agent_utils._default_agent_file_dir / 'agent_subagent.yaml')
-                    import kimi_utils
+                    import kimix.kimi_utils as kimi_utils
                     await kimi_utils.prompt_async(prompt_str=params.prompt, session=session, output_function=output_function)
                 except Exception as e:
                     return str(e)
@@ -116,13 +116,13 @@ class Spawn(CallableTool2):
                 async def prompt_async():
                     session = None
                     try:
-                        import agent_utils
+                        import kimix.agent_utils as agent_utils
                         _sub_agent_scope.active = True
                         session = await _create_session_async(
                             thinking=params.thinking,
                             plan_mode=False,
                             agent_file=agent_utils._default_agent_file_dir / 'agent_subagent.yaml')
-                        import kimi_utils
+                        import kimix.kimi_utils as kimi_utils
                         await kimi_utils.prompt_async(prompt_str=params.prompt, session=session,
                                                 output_function=output_function)
                         print('After prompt')
