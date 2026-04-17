@@ -1,3 +1,4 @@
+import asyncio
 import re
 from bs4 import BeautifulSoup
 from markdownify import markdownify as md
@@ -44,6 +45,17 @@ async def _fetch_html(url: str, user_agent: str, viewport: dict, wait_until: str
     return html
 
 
+async def _fetch_html_http(url: str, user_agent: str) -> str:
+    """Fallback HTTP fetch when Playwright browser is unavailable."""
+    import urllib.request
+    req = urllib.request.Request(url, headers={"User-Agent": user_agent})
+    loop = asyncio.get_running_loop()
+    response = await loop.run_in_executor(None, urllib.request.urlopen, req)
+    charset = response.headers.get_content_charset("utf-8")
+    data = await loop.run_in_executor(None, response.read)
+    return data.decode(charset, errors="replace")
+
+
 def _html_to_markdown(html: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
 
@@ -87,13 +99,20 @@ def _html_to_markdown(html: str) -> str:
 
 async def fetch_to_markdown(url: str, wait_until: str = "networkidle") -> str:
     """Fetch a URL using a headless browser, execute JS, and return extracted text as Markdown."""
-    html = await _fetch_html(url, _DESKTOP_UA, {"width": 1920, "height": 1080}, wait_until)
+    try:
+        html = await _fetch_html(url, _DESKTOP_UA, {"width": 1920, "height": 1080}, wait_until)
+    except Exception:
+        html = await _fetch_html_http(url, _DESKTOP_UA)
+
     markdown = _html_to_markdown(html)
 
     # If the result looks like a login wall, retry with a mobile user agent.
     text_len = len(markdown.replace(" ", "").replace("\n", ""))
     if text_len < 300 or _LOGIN_PATTERNS.search(markdown):
-        html_mobile = await _fetch_html(url, _MOBILE_UA, {"width": 390, "height": 844}, wait_until)
+        try:
+            html_mobile = await _fetch_html(url, _MOBILE_UA, {"width": 390, "height": 844}, wait_until)
+        except Exception:
+            html_mobile = await _fetch_html_http(url, _MOBILE_UA)
         markdown_mobile = _html_to_markdown(html_mobile)
         mobile_text_len = len(markdown_mobile.replace(" ", "").replace("\n", ""))
         if mobile_text_len > text_len:
