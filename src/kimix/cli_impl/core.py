@@ -1,0 +1,94 @@
+from pathlib import Path
+
+from . import constants
+from .utils import _input, _split_text
+from .args import set_arg
+from .commands import _command_map, _cmd_unknown
+from kimix.kimi_utils import (
+    print_success, print_error, print_warning, print_info,
+    prompt, sync_all, _create_default_session, get_default_session
+)
+
+
+def _run_cli():
+    exec_ctx = {
+        '__name__': '__main__'
+    }
+    set_arg()
+
+    input_str = None
+    _create_default_session(False)
+    assert get_default_session()
+    text_arr = []
+
+    while True:
+        try:
+            input_str = _input(
+                "\n>>>>>>>>> Enter your prompt or command:\n", text_arr)
+        except KeyboardInterrupt as e:
+            print_success('\nbye.')
+            break
+        except EOFError as e:
+            print_success('\nbye.')
+            break
+        try:
+            if len(input_str) == 0:
+                continue
+            if input_str is not None and input_str[0] == '/':
+                task = input_str[1:]
+                split_idx = task.strip().find(':')
+                if split_idx >= 0:
+                    task_split = (task[:split_idx], task[split_idx+1:])
+                else:
+                    task_split = (task,)
+                handler = _command_map.get(task_split[0], _cmd_unknown)
+                new_input_str, should_break = handler(task_split, text_arr)
+                if should_break:
+                    break
+                if new_input_str is not None:
+                    input_str = new_input_str
+                else:
+                    continue
+            elif len(input_str) > 0:
+                # Test if is file path
+                path = Path(input_str)
+                if not path.is_absolute():
+                    path = constants.curr_dir / path
+                if path.is_file():
+                    try:
+                        with open(path, 'r', encoding='utf-8', errors='replace') as f:
+                            s = f.read()
+                        suffix = path.suffix
+                        if suffix == '.py':
+                            print_info(
+                                f'Executing {path.name}', end='\n\n')
+                            try:
+                                exec_ctx['__file__'] = str(path)
+                                exec(s, exec_ctx)
+                            except KeyboardInterrupt as e:
+                                raise e
+                            except Exception as e:
+                                import traceback
+                                print_error(str(e))
+                                print_error(traceback.format_exc())
+                            finally:
+                                sync_all()
+                            input_str = None
+                        else:
+                            print_warning(
+                                'File not executable, consider as prompt.')
+                            input_str = s
+                    except KeyboardInterrupt as e:
+                        print_warning('Keyboard Interrupt.')
+                        input_str = None
+                    except Exception as e:
+                        print_error(str(e))
+                        input_str = None
+                if input_str is not None and len(input_str) > 0:
+                    try:
+                        prompt(prompt_str=input_str,
+                               session=get_default_session())
+                    except KeyboardInterrupt as e:
+                        print_warning('Keyboard Interrupt.')
+        except Exception as e:
+            print_error(str(e))
