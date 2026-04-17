@@ -4,7 +4,7 @@ import threading
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from kimix.agent_utils import print_error, _get_skill_dirs, run_thread
+from kimix.agent_utils import print_error, get_skill_dirs, run_thread
 
 _ask_mode = False
 
@@ -96,7 +96,7 @@ class Job:
 
         # Validate skills (optional)
         skills = json_dict.get("skills")
-        sk_dirs = _get_skill_dirs()
+        sk_dirs = get_skill_dirs()
         if skills is not None:
             if not isinstance(skills, list):
                 raise Exception('"skills" must be a list')

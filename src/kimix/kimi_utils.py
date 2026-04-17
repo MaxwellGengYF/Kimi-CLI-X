@@ -1,8 +1,7 @@
 from kimix.agent_utils import *
-from kimix.agent_utils import _run_process_with_error, _percentage_str
+from kimix.agent_utils import run_process_with_error, percentage_str
 from kaos.path import KaosPath
 import asyncio
-import time
 from pathlib import Path
 import kimix.agent_utils as agent_utils
 from typing import Callable, List, Optional
@@ -10,13 +9,15 @@ from collections import OrderedDict
 import hashlib
 from string import Template
 from kimi_cli.soul.agent import BuiltinSystemPromptArgs
-
+from typing import Any
+import os
+import threading
 # TextSearchIndex and SearchResult are lazily imported to avoid hard faiss dependency
 TextSearchIndex = None
 SearchResult = None
 
 
-def _ensure_text_search():
+def _ensure_text_search() -> tuple[Any, Any]:
     """Lazy import of TextSearchIndex and SearchResult."""
     global TextSearchIndex, SearchResult
     if TextSearchIndex is None:
@@ -26,16 +27,16 @@ def _ensure_text_search():
     return TextSearchIndex, SearchResult
 
 
-_default_session = None
+_default_session: Any = None
 __env_initialized = False
 
 # RAG index cache (LRU cache with max size of 3)
-_index_cache: OrderedDict = OrderedDict()
+_index_cache: OrderedDict[Any, Any] = OrderedDict()
 _MAX_INDEX_CACHE_SIZE: int = 3
 
 
-def _init_model(check_config: bool):
-    def _check_legal(value, start_with):
+def _init_model(check_config: bool) -> None:
+    def _check_legal(value: str | None, start_with : str) -> bool:
         if value is None or type(value) != str:
             return False
         return value.startswith(start_with)
@@ -56,12 +57,12 @@ def _init_model(check_config: bool):
         config_model = os.environ.get("KIMI_MODEL_NAME")
         if not _check_legal(config_model, 'kimi'):
             os.environ['KIMI_MODEL_NAME'] = default_model
-        elif config_model != default_model:
+        elif config_model is not None and config_model != default_model:
             default_model = config_model
             print_debug(f'Using {config_model} model.')
 
 
-def _create_config(provider_dict: dict | None = None):
+def _create_config(provider_dict: dict[str, Any] | None = None) -> Any:
     provider_dict = provider_dict if provider_dict is not None else agent_utils._default_provider
     _init_model(provider_dict is None)
     from kimi_agent_sdk import Config
@@ -109,7 +110,7 @@ def context_path() -> Path:
     return user_home / '.kimi' / 'sessions'
 
 
-def delete_session_dir() -> Path:
+def delete_session_dir() -> None:
     import shutil
     path = context_path()
     if path.exists():
@@ -120,18 +121,18 @@ def delete_session_dir() -> Path:
 _session_idx = 0
 
 
-def make_kaos_dir(obj: object) -> KaosPath:
+def make_kaos_dir(obj: Any) -> KaosPath:
     if type(obj) is not KaosPath:
         return KaosPath(obj)
     return obj
 
 
-def _ensure_skill_dirs(skill_dirs: object) -> list[KaosPath]:
+def _ensure_skill_dirs(skill_dirs: Any) -> list[KaosPath]:
     from collections.abc import Iterable
     if skill_dirs is None:
         return []
     if type(skill_dirs) == list:
-        return make_kaos_dir(skill_dirs)
+        return [make_kaos_dir(i) for i in skill_dirs]
     if isinstance(skill_dirs, Iterable) and not isinstance(skill_dirs, (str, bytes)):
         return [make_kaos_dir(i) for i in skill_dirs]
     return [make_kaos_dir(skill_dirs)]
@@ -150,7 +151,7 @@ ${AGENTS_MD}${SKILLS}
 def get_system_prompt(
         plan_mode: bool | None = None,
         yolo: bool | None = None,
-        work_dir: Optional[KaosPath] = None):
+        work_dir: Optional[KaosPath] = None) -> Callable[[BuiltinSystemPromptArgs], str]:
     agent_md = (Path(str(work_dir)) if work_dir is not None else Path(
         os.curdir)) / 'AGENTS.md'
     plan_mode = plan_mode if plan_mode is not None else agent_utils._default_plan_mode
@@ -206,22 +207,22 @@ Skills:
 
 
 async def _create_session_async(
-    session_id: str = None,
+    session_id: Optional[str] = None,
     work_dir: Optional[KaosPath] = None,
     skills_dir: Optional[KaosPath] = None,
     ralph_loop: Optional[bool] = None,
     thinking: Optional[bool] = None,
     yolo: Optional[bool] = None,
     agent_file: Optional[Path] = None,
-    resume=False,
+    resume: bool = False,
     plan_mode: Optional[bool] = None,
-    provider_dict: dict | None = None,
-):
+    provider_dict: dict[str, Any] | None = None,
+) -> Any:
     global _session_idx
     if session_id is None:
         session_id = str(_session_idx)
         _session_idx += 1
-    tool_call_failed_list = list()
+    tool_call_failed_list: list[Any] = list()
     agent_utils._tool_call_failed_lists[session_id] = tool_call_failed_list
     cfg = _create_config(provider_dict)
 
@@ -246,7 +247,7 @@ async def _create_session_async(
             session_id=session_id,
             work_dir=work_dir if work_dir is not None else KaosPath(os.curdir),
             skills_dirs=_ensure_skill_dirs(
-                skills_dir) if skills_dir is not None else agent_utils._get_skill_dirs(),
+                skills_dir) if skills_dir is not None else agent_utils.get_skill_dirs(),
             yolo=yolo if yolo is not None else agent_utils._default_yolo,
             plan_mode=plan_mode if plan_mode is not None else agent_utils._default_plan_mode,
             thinking=thinking if thinking is not None else agent_utils._default_thinking,
@@ -262,7 +263,7 @@ async def _create_session_async(
             session_id=session_id,
             work_dir=work_dir if work_dir is not None else KaosPath(os.curdir),
             skills_dirs=_ensure_skill_dirs(
-                skills_dir) if skills_dir is not None else agent_utils._get_skill_dirs(),
+                skills_dir) if skills_dir is not None else agent_utils.get_skill_dirs(),
             yolo=yolo if yolo is not None else agent_utils._default_yolo,
             plan_mode=plan_mode if plan_mode is not None else agent_utils._default_plan_mode,
             thinking=thinking if thinking is not None else agent_utils._default_thinking,
@@ -275,17 +276,17 @@ async def _create_session_async(
 
 
 def create_session(
-    session_id: str = None,
+    session_id: Optional[str] = None,
     work_dir: Optional[KaosPath] = None,
     skills_dir: Optional[KaosPath] = None,
     ralph_loop: Optional[bool] = None,
     thinking: Optional[bool] = None,
     yolo: Optional[bool] = None,
     agent_file: Optional[Path] = None,
-    resume=False,
+    resume: bool = False,
     plan_mode: Optional[bool] = None,
-    provider_dict: dict | None = None,
-):
+    provider_dict: dict[str, Any] | None = None,
+) -> Any:
     return asyncio.run(_create_session_async(
         session_id,
         work_dir,
@@ -300,7 +301,7 @@ def create_session(
     ))
 
 
-def get_tool_call_errors(session=None):
+def get_tool_call_errors(session: Any = None) -> str:
     if session is None:
         id = 'default'
     elif type(session) == str:
@@ -317,7 +318,7 @@ def get_tool_call_errors(session=None):
     return s
 
 
-def close_session(session):
+def close_session(session: Any) -> None:
     if not session:
         return
     try:
@@ -327,7 +328,7 @@ def close_session(session):
     asyncio.run(session.close())
 
 
-async def close_session_async(session):
+async def close_session_async(session: Any) -> None:
     if not session:
         return
     try:
@@ -337,12 +338,12 @@ async def close_session_async(session):
     await session.close()
 
 
-def get_default_session():
+def get_default_session() -> Any:
     global _default_session
     return _default_session
 
 
-def _create_default_session(resume: bool = True):
+def _create_default_session(resume: bool = True) -> Any:
     global _default_session
     if _default_session:
         return _default_session
@@ -354,25 +355,25 @@ _should_print_usage = threading.local()
 _should_print_usage.value = True
 
 
-def _print_usage(session):
+def _print_usage(session: Any) -> None:
     if not getattr(_should_print_usage, 'value', False):
         return
-    s = _percentage_str(session.status.context_usage)
+    s = percentage_str(session.status.context_usage)
     print_success(
         f'Finished, context usage: {s}'
     )
 
 
-def print_usage(session=None):
+def print_usage(session: Any = None) -> None:
     if not session:
         session = _create_default_session()
-    s = _percentage_str(session.status.context_usage)
+    s = percentage_str(session.status.context_usage)
     print_success(
         f'Context usage: {s}'
     )
 
 
-def clear_context(force_create: bool = False, resume: bool = False, print_info: bool = True):
+def clear_context(force_create: bool = False, resume: bool = False, print_info: bool = True) -> None:
     global _default_session
     if _default_session:
         if not force_create and _default_session.status.context_usage < 1e-8:
@@ -389,13 +390,13 @@ def clear_context(force_create: bool = False, resume: bool = False, print_info: 
 
 async def prompt_async(
     prompt_str: str,
-    session=None,
+    session: Any = None,
     # settings
     read_agents_md: bool = False,
     skill_name: str | None = None,
-    output_function: Callable | None = None,
+    output_function: Callable[[Any], Any] | None = None,
     info_print: bool = True
-):
+) -> None:
     _temp_create_session = False
     if session is None:
         session = get_default_session()
@@ -404,7 +405,7 @@ async def prompt_async(
         _temp_create_session = True
     prompt_str = prompt_str.strip()
 
-    def enable_skill(skill_name):
+    def enable_skill(skill_name: str) -> None:
         nonlocal prompt_str
         if not agent_utils._default_skill_dirs:
             print_warning('Skill dir not setted.')
@@ -463,13 +464,13 @@ async def prompt_async(
 
 def prompt(
     prompt_str: str,
-    session=None,
+    session: Any = None,
     # settings
     read_agents_md: bool = False,
     skill_name: str | None = None,
-    output_function: Callable | None = None,
+    output_function: Callable[[Any], Any] | None = None,
     info_print: bool = True
-):
+) -> None:
     asyncio.run(
         prompt_async(
             prompt_str,
@@ -483,8 +484,8 @@ def prompt(
 
 
 def validate(
-    prompt_str: Optional[str], session=None
-):
+    prompt_str: Optional[str], session: Any = None
+) -> bool:
     if type(prompt_str) == str and len(prompt_str) > 0:
         import my_tools.flag as flag
         flag.reset_flag()
@@ -496,7 +497,7 @@ def validate(
         return False
 
 
-def prompt_path(path: Path, split_word: str = None, session=None, after_prompt_coro=None):
+def prompt_path(path: Path, split_word: Optional[str] = None, session: Any = None, after_prompt_coro: Any = None) -> None:
     f = open(path, 'r', encoding='utf-8')
     if not f:
         print_error(f'File {str(path)} not found.')
@@ -526,23 +527,23 @@ def prompt_path(path: Path, split_word: str = None, session=None, after_prompt_c
 
 def fix_error(
         command: str,
-        extra_prompt: str = None,
+        extra_prompt: Optional[str] = None,
         skip_success: bool = True,
-        keycode: tuple = ('error', ),
-        session=None,
-        max_loop=4):
+        keycode: tuple[str, ...] = ('error', ),
+        session: Any = None,
+        max_loop: int = 4) -> bool:
     for i in range(max_loop):
-        result = _run_process_with_error(
+        result = run_process_with_error(
             command, keycode, skip_success=skip_success)
         if i == 0 and result is None:
             print_success('No error.')
             return True
         error_keyword = None
-        for i in keycode:
+        for k in keycode:
             if error_keyword:
-                error_keyword += ', ' + i
+                error_keyword += ', ' + k
             else:
-                error_keyword = i
+                error_keyword = k
         prompt_str = f'Fix "{error_keyword}" from command {command}:\n{result}\n'
         if extra_prompt is not None:
             prompt_str = f'{extra_prompt}, {prompt_str}'
@@ -551,21 +552,21 @@ def fix_error(
     return False
 
 
-def async_prompt(prompt_str: str, session=False):  # make session false, default stateless
+def async_prompt(prompt_str: str, session: Any = False) -> Any:
     return run_thread(prompt, (prompt_str, session))
 
 
 def async_fix_error(
     command: str,
-    extra_prompt: str = None,
+    extra_prompt: Optional[str] = None,
     skip_success: bool = True,
-    keycode: tuple = ('error',),
-    session=False
-):
+    keycode: tuple[str, ...] = ('error',),
+    session: Any = False
+) -> Any:
     return run_thread(fix_error, (command, extra_prompt, skip_success, keycode, session))
 
 
-def read_file(path: Path, split_word: str = None):
+def read_file(path: Path | str, split_word: Optional[str] = None) -> str | list[str]:
     path = Path(path)
     if not path.exists():
         return ''
@@ -577,7 +578,7 @@ def read_file(path: Path, split_word: str = None):
     return s
 
 
-def set_plan_mode(value: bool = True):
+def set_plan_mode(value: bool = True) -> None:
     agent_utils._default_plan_mode = value == True
     if not _default_session:
         return
@@ -592,7 +593,7 @@ def rag(
     refresh: bool = False,
     hybrid_search: bool = True,
     negative: Optional[str] = None
-) -> List[SearchResult]:
+) -> List[Any]:
     """Perform semantic search using TextSearchIndex.
 
     This function uses an LRU cache to avoid re-indexing the same paths.
@@ -696,6 +697,7 @@ def rag(
         return []
 
     # Perform search based on hybrid_search parameter
+    results: list[Any]
     if hybrid_search:
         results = index.hybrid_search(query, top_k=top_k, negative=negative)
     else:

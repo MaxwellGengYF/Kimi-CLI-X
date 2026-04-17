@@ -166,13 +166,13 @@ sync_all()
 ### Process Execution
 
 ```python
-from agent_utils import _run_process_with_log, _run_process_with_error
+from agent_utils import _run_process_with_log, run_process_with_error
 
 # Run command and capture output
 output, returncode = _run_process_with_log("ls -la")
 
 # Run command and capture only errors
-error_output = _run_process_with_error(
+error_output = run_process_with_error(
     command="npm run build",
     keycode=("error", "failed"),  # Keywords to look for
     skip_success=True             # Return None if no error keywords found

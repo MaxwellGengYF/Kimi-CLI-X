@@ -1,13 +1,14 @@
+from __future__ import annotations
+
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable, Optional
 import os
 from enum import Enum
-from typing import Optional
 import json
 import threading
 import sys
-from concurrent.futures import ThreadPoolExecutor
-_threads = list()
+
+_threads: list[threading.Thread] = list()
 
 
 class Color(Enum):
@@ -64,7 +65,7 @@ class Style(Enum):
 
 
 _colorful_print = True
-_print_func = None
+_print_func: Callable[[str, str], Any] | None = None
 
 
 def colorful_print(
@@ -74,14 +75,7 @@ def colorful_print(
     styles: Optional[list[Style]] = None,
     end: str = "\n"
 ) -> None:
-    if not _colorful_print:
-        if _print_func:
-            _print_func(text, end)
-        else:
-            print(text, end=end)
-        return
-    """
-    Print text with optional colors and styles.
+    """Print text with optional colors and styles.
 
     Args:
         text: The text to print
@@ -90,7 +84,13 @@ def colorful_print(
         styles: List of text styles to apply
         end: String to append at the end (default: newline)
     """
-    codes = []
+    if not _colorful_print:
+        if _print_func:
+            _print_func(text, end)
+        else:
+            print(text, end=end)
+        return
+    codes: list[int] = []
 
     if styles:
         codes.extend(style.value for style in styles)
@@ -138,13 +138,13 @@ def print_info(text: str, end: str = "\n") -> None:
 
 
 def print_debug(text: str, end: str = "\n") -> None:
+    """Print debug message in cyan."""
     if _quiet:
         return
-    """Print debug message in cyan."""
     colorful_print(text, fg=Color.BRIGHT_CYAN, end=end)
 
 
-def _process_lru():
+def _process_lru() -> None:
     import time
     """Limit the number of processes to 32 by waiting and removing completed ones."""
     global _threads
@@ -161,7 +161,7 @@ def _process_lru():
         _threads = [p for p in _threads if p.is_alive()]
 
 
-_commands = {
+_commands: dict[str, Any] = {
     'Python': ('code', 'run_in_background'),
     'Run': ('path', 'args', 'timeout', 'run_in_background'),
     'TaskOutput': ('task_id', 'block', 'wait_time'),
@@ -183,23 +183,22 @@ _commands = {
     'spawn': ('prompt', 'thinking'),
     'GrepAnalyzer': ('query', 'directory', 'top_k', 'refresh'),
 }
-_new_commands = dict()
+_new_commands: dict[str, str | tuple[str]] = dict()
 for k, v in _commands.items():
     _new_commands[k.lower()] = v
 _commands = _new_commands
 
 
-def print_agent_json(get_message, output_function: Callable | None = None):
+def print_agent_json(get_message: Callable[[], str], output_function: Callable[[str], Any] | None = None) -> None:
     json_str = None
     try:
         json_str = get_message()
-    except Exception as e:
+    except Exception:
         print_debug('JSON error (possibly because streaming)...')
         return
     js = json.loads(json_str)
 
-    def print_item(item):
-        import kimix.agent_utils as agent_utils
+    def print_item(item: Any) -> None:
         if type(item) == str:
             if not (item.find('<choice>') >= 0 and item.find('</choice>') >= 0):
                 if _print_func:
@@ -236,7 +235,7 @@ def print_agent_json(get_message, output_function: Callable | None = None):
         print_item(js)
 
 
-def run_thread(function, args: tuple = None):
+def run_thread(function: Callable[..., Any], args: tuple[Any, ...] | None = None) -> threading.Thread:
     assert callable(function)
     global _threads
     # Enforce process limit before creating new one
@@ -253,20 +252,20 @@ def run_thread(function, args: tuple = None):
     return thd
 
 
-def run_script(path):
+def run_script(path: str | Path) -> Any:
     import subprocess
     return subprocess.Popen(
         [sys.executable, str(path)], creationflags=subprocess.CREATE_NEW_CONSOLE)
 
 
-def sync_all():
+def sync_all() -> None:
     global _threads
     for thd in _threads:
         thd.join()
     _threads.clear()
 
 
-def _run_process_with_log(command: str):
+def _run_process_with_log(command: str) -> tuple[str, int]:
     import subprocess
     print_info(f'Shell: {command}')
     result = subprocess.run(command, shell=True,
@@ -283,7 +282,7 @@ def _run_process_with_log(command: str):
     return output, result.returncode
 
 
-def _run_process_with_error(command: str, keycode: tuple, skip_success: bool = True):
+def run_process_with_error(command: str, keycode: tuple[str, ...] | None, skip_success: bool = True) -> str | None:
     result, code = _run_process_with_log(command)
     if skip_success and code == 0:
         return None
@@ -300,8 +299,9 @@ def _run_process_with_error(command: str, keycode: tuple, skip_success: bool = T
     return result
 
 
-def _percentage_str(num: float) -> str:
+def percentage_str(num: float) -> str:
     return f"{num * 100:.1f}%"
+
 
 _ralph_iterations: int = 0
 _default_thinking: bool = True
@@ -309,22 +309,21 @@ _default_plan_mode: bool = False
 _default_yolo: bool = True
 _default_agent_file_dir: Path = Path(__file__).parent
 _default_agent_file: Path = _default_agent_file_dir / 'agent_worker.yaml'
-_default_skill_dirs: list = []
-_default_provider: dict | None = None
+_default_skill_dirs: list[Any] = []
+_default_provider: dict[str, Any] | None = None
 # The failed-list for tool call that
 # tuple: function-name, arguments, output, message
 _tool_call_failed_lists: dict[str, list[tuple[str, str, str, str]]] = dict()
 
 
-def _get_skill_dirs(use_kaos_path=True) -> list:
-    if use_kaos_path:
-        from kaos.path import KaosPath
+def get_skill_dirs(use_kaos_path: bool = True) -> list[Any]:
+    from kaos.path import KaosPath
     global _default_skill_dirs
     if _default_skill_dirs:
         return _default_skill_dirs
 
-    def _gen():
-        result = []
+    def _gen() -> list[Path]:
+        result: list[Path] = []
         d = Path(os.curdir) / ".agents/skills"
         if d.exists():
             result.append(d)
@@ -341,7 +340,7 @@ def _get_skill_dirs(use_kaos_path=True) -> list:
             print_debug(f'skill dir: {str(d)}')
         if use_kaos_path:
             _default_skill_dirs = [
-                KaosPath(d) if type(d) is not KaosPath else d
+                KaosPath(str(d))
                 for d in _default_skill_dirs
             ]
         return _default_skill_dirs

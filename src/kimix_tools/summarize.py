@@ -17,7 +17,7 @@ read '${memory_file}' and remember.
 def summarize(temp_file: str | None = None) -> None:
     from pathlib import Path
     from kimix.kimi_utils import prompt, get_default_session, print_warning, clear_context
-    from kimix.agent_utils import _percentage_str, print_success, print_error
+    from kimix.agent_utils import percentage_str, print_success, print_error
     from my_tools.common import _create_temp_file_name
     if not get_default_session() or get_default_session().status.context_usage <= 1e-5:
         print_warning('Context is empty.')
@@ -35,7 +35,7 @@ def summarize(temp_file: str | None = None) -> None:
     prompt(read_memory.substitute(memory_file=temp_file), info_print=False)
     new_usage = get_default_session().status.context_usage
     print_success(
-        f'Compact from {_percentage_str(last_usage)} to {_percentage_str(new_usage)}')
+        f'Compact from {percentage_str(last_usage)} to {percentage_str(new_usage)}')
 
 summarize_mistakes_prompt = Template('''Please analyze and summarize the following tool call errors:
 
@@ -64,7 +64,7 @@ def summarize_mistake(result_file: str, session = None) -> None:
 def summarize_session(old_session, temp_file: str | None = None, create_session_func: Callable | None = None):
     from pathlib import Path
     from kimix.kimi_utils import prompt, print_warning
-    from kimix.agent_utils import _percentage_str, print_success
+    from kimix.agent_utils import percentage_str, print_success
     from my_tools.common import _create_temp_file_name
     if old_session.status.context_usage <= 1e-5:
         print_warning('Context is empty.')
@@ -86,7 +86,7 @@ def summarize_session(old_session, temp_file: str | None = None, create_session_
     prompt(read_memory.substitute(memory_file=temp_file), info_print=False, session=new_session)
     new_usage = new_session.status.context_usage
     print_success(
-        f'Compact from {_percentage_str(last_usage)} to {_percentage_str(new_usage)}')
+        f'Compact from {percentage_str(last_usage)} to {percentage_str(new_usage)}')
 
 if __name__ == '__main__':
     summarize()

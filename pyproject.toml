@@ -102,11 +102,32 @@ ignore = [
 kimix = "kimix.cli:cli"
 
 [tool.mypy]
-python_version = "3.14"
+# Strict mode switch
+strict = true
+
+# Or manually enable individual strict checks (when strict = false)
 warn_return_any = true
 warn_unused_configs = true
-disallow_untyped_defs = false
-ignore_missing_imports = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+
+# Disallow implicit optional (None must be explicitly declared)
+no_implicit_optional = true
+
+# Check untyped definitions
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_calls = true
+
+# Check Any types
+disallow_any_generics = true
+
+# Other useful options
+show_error_codes = true        # Show error codes for easy # type: ignore[xxx]
+ignore_missing_imports = true  # Skip when third-party libraries lack type stubs
+exclude = ["tests/", "scripts/"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
