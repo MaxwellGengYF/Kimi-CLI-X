@@ -10,7 +10,7 @@ def create_company(
 ):
     from .designer import Designer
     global _designer
-    import manager.base as base
+    import kimix_manager.base as base
     _designer = Designer(designer_folder, clear_db)
     base._ask_mode = ask_mode
 
@@ -19,7 +19,7 @@ _temp_idx = 0
 
 
 def schedule_project(content: str, job_name: str = None):
-    from agent_utils import print_error
+    from kimix.agent_utils import print_error
     if _designer is None:
         print_error('Company not opened.')
         return
@@ -45,7 +45,7 @@ def start_work():
 
 
 def designer(content: str) -> Path | None:
-    from agent_utils import print_error
+    from kimix.agent_utils import print_error
     if _designer is None:
         print_error('Company not opened.')
         return
@@ -55,7 +55,7 @@ def designer(content: str) -> Path | None:
 
 
 def worker(job: Job):
-    from agent_utils import print_error
+    from kimix.agent_utils import print_error
     if _designer is None:
         print_error('Company not opened.')
         return

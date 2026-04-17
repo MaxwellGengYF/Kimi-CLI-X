@@ -4,7 +4,7 @@ import threading
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from agent_utils import print_error, _get_skill_dirs, run_thread
+from kimix.agent_utils import print_error, _get_skill_dirs, run_thread
 
 _ask_mode = False
 

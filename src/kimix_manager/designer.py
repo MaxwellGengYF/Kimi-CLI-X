@@ -2,9 +2,9 @@ import json
 from pathlib import Path
 import os
 
-from manager.base import Worker, get_worker, Job, add_worker
-from kimi_utils import prompt, create_session, close_session, validate
-from agent_utils import print_error, _get_skill_dirs, print_warning, print_success
+from kimix_manager.base import Worker, get_worker, Job, add_worker
+from kimix.kimi_utils import prompt, create_session, close_session, validate
+from kimix.agent_utils import print_error, _get_skill_dirs, print_warning, print_success
 from my_tools.check_fmt import check_json
 
 
@@ -78,7 +78,7 @@ In {dst_file_path} fix this: {err_msg}.
                 close_session(session)
         if manual_mode:
             return dst_file_path
-        import manager.base as base
+        import kimix_manager.base as base
         if base._ask_mode:
             print_success(
                 f'File saved to {dst_file_path}, do you want me to ask programmer to work?(y/n)')

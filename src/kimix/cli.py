@@ -179,7 +179,7 @@ def _run_cli():
         return None, False
     
     def _cmd_summarize(task_split):
-        from tools.summarize import summarize
+        from kimix_tools.summarize import summarize
         tmp = None
         if len(task_split) >= 2:
             tmp = '_'.join(task_split[1:])
