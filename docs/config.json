@@ -1,0 +1,16 @@
+{
+    "model_name": "my-model",
+    "name": "my-name",
+    "model": "minimax-m2.7",
+    "max_context_size": 200000,
+    "capabilities": ["thinking"],
+    "url": "https://api.minimaxi.com/anthropic",
+    "type": "anthropic",
+    "api_key": "sk-xxx",
+    "env": {},
+    "custom_headers": {},
+    "oauth": {
+        "storage": "file",
+        "key": "my-key"
+    }
+}

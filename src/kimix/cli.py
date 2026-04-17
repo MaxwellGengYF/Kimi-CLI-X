@@ -77,6 +77,8 @@ def set_arg():
                         help='Disable YOLO mode')
     parser.add_argument('-s', '--skill-dir', type=str, nargs='*', default=None,
                         help='Specify custom skill directory(s)')
+    parser.add_argument('--config', type=str, default=None,
+                        help='Path to a JSON config file to load as default provider')
     args = parser.parse_args()
     if args.no_color:
         agent_utils._colorful_print = False
@@ -116,6 +118,30 @@ def set_arg():
         agent_utils._default_yolo = True
         print_debug('YOLO ON.')
 
+    # Handle --config argument
+    if args.config:
+        import json
+        config_path = Path(args.config)
+        if not config_path.is_absolute():
+            abs_path = curr_dir / config_path
+            if not (abs_path.exists() and abs_path.is_file()):
+                config_path = Path(__file__).parent / config_path
+            else:
+                config_path = abs_path
+        config_path = config_path.resolve()
+        if config_path.exists() and config_path.is_file():
+            try:
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    agent_utils._default_provider = json.load(f)
+            except json.JSONDecodeError as e:
+                print_warning(
+                    f'Invalid JSON in config file: {str(config_path)} ({e})')
+            except Exception as e:
+                print_warning(
+                    f'Failed to load config file: {str(config_path)} ({e})')
+        else:
+            print_warning(f'Config file not found: {str(config_path)}')
+
     # Handle --skill-dir argument
     if args.skill_dir:
         for skill_dir in args.skill_dir:
@@ -125,7 +151,8 @@ def set_arg():
             # Normalize the path (resolve ., .., and symlinks)
             skill_dir_path = skill_dir_path.resolve()
             if skill_dir_path.exists() and skill_dir_path.is_dir():
-                agent_utils._default_skill_dirs.append(KaosPath(skill_dir_path))
+                agent_utils._default_skill_dirs.append(
+                    KaosPath(skill_dir_path))
                 print_debug(f'Skill dir added: {str(skill_dir_path)}')
             else:
                 print_warning(f'Skill dir not found: {str(skill_dir_path)}')
@@ -177,7 +204,7 @@ def _run_cli():
     def _cmd_clear(task_split):
         clear_context()
         return None, False
-    
+
     def _cmd_summarize(task_split):
         from kimix_tools.summarize import summarize
         tmp = None

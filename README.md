@@ -2,7 +2,7 @@
 
 Kimi Agent CLI 是一个交互式命令行工具，用于与 Kimi AI Agent 进行交互。它提供了丰富的功能，包括文件操作、代码执行、任务管理、技能加载等。
 
-> 想了解更多 Kimi-CLI-X 的优势与改进，请参阅 [why_us.md](why_us.md)。
+> 想了解更多 Kimi-CLI-X 的优势与改进，请参阅 [why_us.md](docs/why_us.md)。
 
 ## 特性介绍
 

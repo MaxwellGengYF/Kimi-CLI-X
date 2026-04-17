@@ -15,6 +15,7 @@ from kimi_cli.soul.agent import BuiltinSystemPromptArgs
 TextSearchIndex = None
 SearchResult = None
 
+
 def _ensure_text_search():
     """Lazy import of TextSearchIndex and SearchResult."""
     global TextSearchIndex, SearchResult
@@ -24,6 +25,7 @@ def _ensure_text_search():
         SearchResult = _SR
     return TextSearchIndex, SearchResult
 
+
 _default_session = None
 __env_initialized = False
 
@@ -32,7 +34,7 @@ _index_cache: OrderedDict = OrderedDict()
 _MAX_INDEX_CACHE_SIZE: int = 3
 
 
-def _init_model():
+def _init_model(check_config: bool):
     def _check_legal(value, start_with):
         if value is None or type(value) != str:
             return False
@@ -42,27 +44,61 @@ def _init_model():
     if __env_initialized:
         return
     __env_initialized = True
-    api_key = os.environ.get("KIMI_API_KEY")
-    if not _check_legal(api_key, 'sk'):
-        print_error('API key shoud be setted to KIMI_API_KEY environment var')
-        exit(1)
+    if check_config:
+        api_key = os.environ.get("KIMI_API_KEY")
+        if not _check_legal(api_key, 'sk'):
+            print_error('KIMI_API_KEY not found.')
+            exit(1)
 
-    if not _check_legal(os.environ.get("KIMI_BASE_URL"), 'http'):
-        os.environ["KIMI_BASE_URL"] = "https://api.kimi.com/coding/v1"
-    default_model = 'kimi-for-coding'
-    config_model = os.environ.get("KIMI_MODEL_NAME")
-    if not _check_legal(config_model, 'kimi'):
-        os.environ['KIMI_MODEL_NAME'] = default_model
-    elif config_model != default_model:
-        default_model = config_model
-        print_debug(f'Using {config_model} model.')
+        if not _check_legal(os.environ.get("KIMI_BASE_URL"), 'http'):
+            os.environ["KIMI_BASE_URL"] = "https://api.kimi.com/coding/v1"
+        default_model = 'kimi-for-coding'
+        config_model = os.environ.get("KIMI_MODEL_NAME")
+        if not _check_legal(config_model, 'kimi'):
+            os.environ['KIMI_MODEL_NAME'] = default_model
+        elif config_model != default_model:
+            default_model = config_model
+            print_debug(f'Using {config_model} model.')
 
 
 def _create_config():
-    _init_model()
+    provider_dict = agent_utils._default_provider
+    _init_model(provider_dict is None)
     from kimi_agent_sdk import Config
     from kimi_cli.config import LoopControl
     cfg = Config()
+    # DO THIS: support other providers and models
+    from kimi_cli.config import LLMModel, LLMProvider
+    if provider_dict is not None:
+        model_name = provider_dict.get('model_name', 'unknown_model')
+        name = provider_dict.get('name', 'unknown')
+        print_debug(f'Using model `{model_name}` from provider `{name}`')
+        model = provider_dict.get('model')
+        max_context_size = provider_dict.get('max_context_size')
+        capabilities = provider_dict.get('capabilities', [])
+        url = provider_dict.get('url')
+        provider_type = provider_dict.get("type")
+        assert provider_type is not None, "`provider_type` must be provided in  config"
+        assert max_context_size is not None, "`max_context_size` must be provided in  config"
+        assert model is not None, "model must be provided in config"
+        assert url is not None, "url must be provided in config"
+        provider = LLMProvider(
+            type=provider_type,
+            # example: "https://api.minimaxi.com/anthropic"
+            base_url=url,
+            # TODO: delete this before push.
+            api_key=provider_dict.get('api_key', ''),
+            custom_headers=provider_dict.get('custom_headers'),
+            oauth=provider_dict.get('oauth'),
+        )
+        cfg.default_model = model_name
+        cfg.models = {
+            model_name: LLMModel(
+                provider=name, model=model, max_context_size=max_context_size, capabilities=capabilities)
+        }
+        cfg.providers = {
+            name: provider
+        }
     if not cfg.loop_control:
         cfg.loop_control = LoopControl()
     return cfg
