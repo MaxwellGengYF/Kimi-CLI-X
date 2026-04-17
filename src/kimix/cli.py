@@ -9,7 +9,6 @@ import sys
 import subprocess
 LSP_JSON = None
 frame = 0
-read_agent = False
 COMMENT = """Always write ' Start writen by AGENT ' comment before code, Always write ' End writen by AGENT ' comment after code"""
 curr_dir = Path(os.curdir)
 if not curr_dir.is_absolute():
@@ -45,11 +44,6 @@ Available commands:
   /script         - Write python script
   /cmd            - Write cmd 
   /cd             - change dir
-  /tool:<name>    - Run script from tools/ directory
-  /tool:help      - List all available tools
-  /tool:graph     - Generate project analysis graph (mindmap, docs)
-  /md:on          - Enable read AGENTS.md
-  /md:off         - Disable read AGENTS.md
 
 Or enter any prompt to send to the agent.
 '''
@@ -284,23 +278,6 @@ def _run_cli():
         print_info(f'Validate result: {result}')
         return None, False
 
-    def _cmd_md(task_split):
-        global read_agent
-        if len(task_split) < 2:
-            print_error('Command must be /md:on or /md:off')
-            return None, False
-        value = task_split[1].strip().lower()
-        if value == 'on':
-            read_agent = True
-            print_success('Read markdown mode enabled.')
-        elif value == 'off':
-            read_agent = False
-            print_success('Read markdown disabled.')
-        else:
-            print_error('Command must be /think:on or /think:off')
-            return None, False
-        return None, False
-
     def _cmd_think(task_split):
         if len(task_split) < 2:
             print_error('Command must be /think:on or /think:off')
@@ -381,81 +358,12 @@ def _run_cli():
         if len(task_split) != 2:
             print_error(f'command format error, must be /file:path')
             return None, False
-        return task_split[1], False
-
-    def _cmd_tool(task_split):
-        tools_dir = Path(__file__).parent / 'tools'
-
-        if len(task_split) < 2:
-            print_error('Command must be /tool:<script_name> or /tool:help')
+        file_name = ':'.join(task_split[1:])
+        file_name = Path(file_name)
+        if not file_name.exists():
+            print_error(f'file not found: {file_name}')
             return None, False
-
-        sentence = ':'.join(task_split[1:])
-        args = sentence.split(' ')
-        tool_name = args[0]
-        args = ' '.join(args[1:])
-        # Handle help command
-        if tool_name == 'help':
-            if not tools_dir.exists():
-                print_info('No tools directory found.')
-                return None, False
-
-            tool_files = sorted(
-                [f for f in tools_dir.iterdir() if f.suffix == '.py'])
-            if not tool_files:
-                print_info('No tools available in tools/ directory.')
-            else:
-                print_success('Available tools:')
-                for tool_file in tool_files:
-                    print_info(f'  - {tool_file.name}')
-            return None, False
-
-        # Remove .py extension if present
-        if tool_name.endswith('.py'):
-            tool_name = tool_name[:-3]
-        tool_path = tools_dir / tool_name
-        is_file = False
-        if not tool_path.exists():
-            tool_path = tools_dir / f'{tool_name}.py'
-            is_file = True
-
-        if not tool_path.exists():
-            print_error(f'Tool not found: {tool_name} or {tool_name}.py')
-            return None, False
-        # Add tools_dir to sys.path so tool packages can import from other tools (e.g., 'graph')
-        tools_dir_str = str(tools_dir)
-        if tools_dir_str not in sys.path:
-            sys.path.insert(0, tools_dir_str)
-        try:
-            if is_file:
-                print_info(f'Running tool: {tool_name}.py')
-                # Read and execute the tool script
-                script_content = tool_path.read_text(encoding='utf-8')
-                # Create a clean execution context
-                exec(script_content, {
-                    '__name__': '__main__',
-                    '__file__': str(tool_path),
-                    'args': args,
-                })
-                print_success(f'Tool {tool_name}.py finished.')
-            else:
-                print_info(f'Running tool: {tool_name}')
-                # Execute package's __init__.py
-                init_file = tool_path / '__init__.py'
-                if init_file.exists():
-                    script_content = init_file.read_text(encoding='utf-8')
-                    exec(script_content, {
-                        '__name__': '__main__',
-                        '__file__': str(init_file),
-                        '__package__': tool_name,
-                        'args': args,
-                    })
-                else:
-                    print_error(f'Tool package {tool_name} has no __init__.py')
-                print_success(f'Tool {tool_name} finished.')
-        except Exception as e:
-            print_error(f'Failed to run tool {tool_name}: {e}')
-        return None, False
+        return file_name.read_text(encoding='utf-8', errors='replace'), False
 
     def _cmd_unknown(task_split):
         print_warning('Unrecognized command.')
@@ -477,9 +385,7 @@ def _run_cli():
         'ralph': _cmd_ralph,
         'txt': _cmd_txt,
         'skill': _cmd_skill,
-        'file': _cmd_file,
-        'tool': _cmd_tool,
-        'md': _cmd_md
+        'file': _cmd_file
     }
 
     while True:
@@ -554,8 +460,7 @@ def _run_cli():
                     try:
                         if (input_str is not None) and len(input_str) > 0:
                             prompt(prompt_str=input_str,
-                                   session=get_default_session(),
-                                   read_agents_md=read_agent)
+                                   session=get_default_session())
                     except KeyboardInterrupt as e:
                         print_warning('Keyboard Interrupt.')
         except Exception as e:
