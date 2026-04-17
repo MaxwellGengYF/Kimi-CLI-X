@@ -61,8 +61,8 @@ def _init_model(check_config: bool):
             print_debug(f'Using {config_model} model.')
 
 
-def _create_config():
-    provider_dict = agent_utils._default_provider
+def _create_config(provider_dict: dict | None = None):
+    provider_dict = provider_dict if provider_dict is not None else agent_utils._default_provider
     _init_model(provider_dict is None)
     from kimi_agent_sdk import Config
     from kimi_cli.config import LoopControl
@@ -214,7 +214,8 @@ async def _create_session_async(
     yolo: Optional[bool] = None,
     agent_file: Optional[Path] = None,
     resume=False,
-    plan_mode: Optional[bool] = None
+    plan_mode: Optional[bool] = None,
+    provider_dict: dict | None = None,
 ):
     global _session_idx
     if session_id is None:
@@ -222,7 +223,7 @@ async def _create_session_async(
         _session_idx += 1
     tool_call_failed_list = list()
     agent_utils._tool_call_failed_lists[session_id] = tool_call_failed_list
-    cfg = _create_config()
+    cfg = _create_config(provider_dict)
 
     # No ralph mode defaultly, manually do validate please
     cfg.loop_control.max_ralph_iterations = agent_utils._ralph_iterations
@@ -282,7 +283,8 @@ def create_session(
     yolo: Optional[bool] = None,
     agent_file: Optional[Path] = None,
     resume=False,
-    plan_mode: Optional[bool] = None
+    plan_mode: Optional[bool] = None,
+    provider_dict: dict | None = None,
 ):
     return asyncio.run(_create_session_async(
         session_id,
@@ -293,7 +295,8 @@ def create_session(
         yolo,
         agent_file,
         resume,
-        plan_mode
+        plan_mode,
+        provider_dict
     ))
 
 
