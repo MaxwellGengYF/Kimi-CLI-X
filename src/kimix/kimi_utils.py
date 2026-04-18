@@ -13,6 +13,7 @@ from typing import Any
 import os
 import threading
 # TextSearchIndex and SearchResult are lazily imported to avoid hard faiss dependency
+from kimi_agent_sdk import Session
 TextSearchIndex = None
 SearchResult = None
 
@@ -27,7 +28,7 @@ def _ensure_text_search() -> tuple[Any, Any]:
     return TextSearchIndex, SearchResult
 
 
-_default_session: Any = None
+_default_session: Session | None = None
 __env_initialized = False
 
 # RAG index cache (LRU cache with max size of 3)
@@ -217,7 +218,7 @@ async def _create_session_async(
     resume: bool = False,
     plan_mode: Optional[bool] = None,
     provider_dict: dict[str, Any] | None = None,
-) -> Any:
+) -> Session:
     global _session_idx
     if session_id is None:
         session_id = str(_session_idx)
@@ -233,7 +234,6 @@ async def _create_session_async(
     if ralph_loop is not None:
         cfg.loop_control.max_ralph_iterations = -1 if ralph_loop else 0
 
-    from kimi_agent_sdk import Session
     session = None
     if agent_file is None:
         agent_file = agent_utils._default_agent_file
@@ -286,7 +286,7 @@ def create_session(
     resume: bool = False,
     plan_mode: Optional[bool] = None,
     provider_dict: dict[str, Any] | None = None,
-) -> Any:
+) -> Session:
     return asyncio.run(_create_session_async(
         session_id,
         work_dir,
@@ -301,7 +301,7 @@ def create_session(
     ))
 
 
-def get_tool_call_errors(session: Any = None) -> str:
+def get_tool_call_errors(session: Session | str | None = None) -> str:
     if session is None:
         id = 'default'
     elif type(session) == str:
@@ -318,7 +318,7 @@ def get_tool_call_errors(session: Any = None) -> str:
     return s
 
 
-def close_session(session: Any) -> None:
+def close_session(session: Session) -> None:
     if not session:
         return
     try:
@@ -328,7 +328,7 @@ def close_session(session: Any) -> None:
     asyncio.run(session.close())
 
 
-async def close_session_async(session: Any) -> None:
+async def close_session_async(session: Session) -> None:
     if not session:
         return
     try:
@@ -338,12 +338,27 @@ async def close_session_async(session: Any) -> None:
     await session.close()
 
 
-def get_default_session() -> Any:
+def get_cancel_event(session: Session | None = None) -> asyncio.Event | None:
+    """Get the cancel event of a session."""
+    if session is None:
+        session = get_default_session()
+    return getattr(session, '_cancel_event', None)
+
+
+def cancel_prompt(session: Session | None = None) -> None:
+    """Set the cancel event on a session to cancel the current prompt."""
+    if session is None:
+        session = get_default_session()
+    if session is not None:
+        session.cancel()
+
+
+def get_default_session() -> Session | None:
     global _default_session
     return _default_session
 
 
-def _create_default_session(resume: bool = True) -> Any:
+def _create_default_session(resume: bool = True) -> Session:
     global _default_session
     if _default_session:
         return _default_session
@@ -355,7 +370,7 @@ _should_print_usage = threading.local()
 _should_print_usage.value = True
 
 
-def _print_usage(session: Any) -> None:
+def _print_usage(session: Session) -> None:
     if not getattr(_should_print_usage, 'value', False):
         return
     s = percentage_str(session.status.context_usage)
@@ -364,7 +379,7 @@ def _print_usage(session: Any) -> None:
     )
 
 
-def print_usage(session: Any = None) -> None:
+def print_usage(session: Session | None = None) -> None:
     if not session:
         session = _create_default_session()
     s = percentage_str(session.status.context_usage)
@@ -390,19 +405,16 @@ def clear_context(force_create: bool = False, resume: bool = False, print_info: 
 
 async def prompt_async(
     prompt_str: str,
-    session: Any = None,
+    session: Session | None = None,
     # settings
     read_agents_md: bool = False,
     skill_name: str | None = None,
     output_function: Callable[[Any], Any] | None = None,
-    info_print: bool = True
+    info_print: bool = True,
+    cancel_callable: Callable[[], bool] | None = None,
 ) -> None:
-    _temp_create_session = False
     if session is None:
         session = get_default_session()
-    elif session == False:
-        session = await _create_session_async()
-        _temp_create_session = True
     prompt_str = prompt_str.strip()
 
     def enable_skill(skill_name: str) -> None:
@@ -439,6 +451,9 @@ async def prompt_async(
                 prompt_str,
                 merge_wire_messages=True,
             ):
+                if cancel_callable is not None and cancel_callable():
+                    session.cancel()
+                    break
                 print_agent_json(
                     lambda: message.model_dump_json(), output_function)
             if info_print:
@@ -456,20 +471,18 @@ async def prompt_async(
                 raise
             else:
                 time.sleep(1)
-        finally:
-            if _temp_create_session:
-                await session.close()
         break
 
 
 def prompt(
     prompt_str: str,
-    session: Any = None,
+    session: Session | None = None,
     # settings
     read_agents_md: bool = False,
     skill_name: str | None = None,
     output_function: Callable[[Any], Any] | None = None,
-    info_print: bool = True
+    info_print: bool = True,
+    cancel_callable: Callable[[], bool] | None = None,
 ) -> None:
     asyncio.run(
         prompt_async(
@@ -479,12 +492,13 @@ def prompt(
             read_agents_md,
             skill_name,
             output_function,
-            info_print
+            info_print,
+            cancel_callable,
         ))
 
 
 def validate(
-    prompt_str: Optional[str], session: Any = None
+    prompt_str: Optional[str], session: Session | None = None
 ) -> bool:
     if type(prompt_str) == str and len(prompt_str) > 0:
         import my_tools.flag as flag
@@ -497,7 +511,7 @@ def validate(
         return False
 
 
-def prompt_path(path: Path, split_word: Optional[str] = None, session: Any = None, after_prompt_coro: Any = None) -> None:
+def prompt_path(path: Path, split_word: Optional[str] = None, session: Session | None = None, after_prompt_coro: Any = None) -> None:
     f = open(path, 'r', encoding='utf-8')
     if not f:
         print_error(f'File {str(path)} not found.')
@@ -530,7 +544,7 @@ def fix_error(
         extra_prompt: Optional[str] = None,
         skip_success: bool = True,
         keycode: tuple[str, ...] = ('error', ),
-        session: Any = None,
+        session: Session | None = None,
         max_loop: int = 4) -> bool:
     for i in range(max_loop):
         result = run_process_with_error(
@@ -552,8 +566,19 @@ def fix_error(
     return False
 
 
-def async_prompt(prompt_str: str, session: Any = False) -> Any:
-    return run_thread(prompt, (prompt_str, session))
+def async_prompt(
+    prompt_str: str,
+    session: Session | None = None,
+    # settings
+    read_agents_md: bool = False,
+    skill_name: str | None = None,
+    output_function: Callable[[Any], Any] | None = None,
+    info_print: bool = True,
+    cancel_callable: Callable[[], bool] | None = None,
+) -> Any:
+    if session is None:
+        session = _create_default_session()
+    return run_thread(prompt, (prompt_str, session, read_agents_md, skill_name, output_function, info_print, cancel_callable))
 
 
 def async_fix_error(
@@ -561,8 +586,10 @@ def async_fix_error(
     extra_prompt: Optional[str] = None,
     skip_success: bool = True,
     keycode: tuple[str, ...] = ('error',),
-    session: Any = False
+    session: Session | None = None
 ) -> Any:
+    if session is None:
+        session = _create_default_session()
     return run_thread(fix_error, (command, extra_prompt, skip_success, keycode, session))
 
 

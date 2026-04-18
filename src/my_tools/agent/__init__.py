@@ -50,7 +50,7 @@ class Spawn(CallableTool2):
                 if fn:
                     output_strs.append(fn)
 
-            async def prompt_async():
+            async def prompt_async(cancel_callable=None):
                 session = None
                 try:
                     import kimix.agent_utils as agent_utils
@@ -60,7 +60,7 @@ class Spawn(CallableTool2):
                         plan_mode=False,
                         agent_file=agent_utils._default_agent_file_dir / 'agent_subagent.yaml')
                     import kimix.kimi_utils as kimi_utils
-                    await kimi_utils.prompt_async(prompt_str=params.prompt, session=session, output_function=output_function)
+                    await kimi_utils.prompt_async(prompt_str=params.prompt, session=session, output_function=output_function, cancel_callable=cancel_callable)
                 except Exception as e:
                     return str(e)
                 finally:
@@ -113,7 +113,7 @@ class Spawn(CallableTool2):
                     if fn:
                         output_strs.append(fn)
 
-                async def prompt_async():
+                async def prompt_async(cancel_callable=None):
                     session = None
                     try:
                         import kimix.agent_utils as agent_utils
@@ -124,7 +124,7 @@ class Spawn(CallableTool2):
                             agent_file=agent_utils._default_agent_file_dir / 'agent_subagent.yaml')
                         import kimix.kimi_utils as kimi_utils
                         await kimi_utils.prompt_async(prompt_str=params.prompt, session=session,
-                                                output_function=output_function)
+                                                output_function=output_function, cancel_callable=cancel_callable)
                         print('After prompt')
                     except Exception as e:
                         return str(e)
@@ -134,7 +134,7 @@ class Spawn(CallableTool2):
                         _sub_agent_scope.active = False
                     return None
 
-                err_msg = asyncio.run(prompt_async())
+                err_msg = asyncio.run(prompt_async(_stop_event.is_set))
 
                 # Collect output
                 output = '\n'.join(output_strs)

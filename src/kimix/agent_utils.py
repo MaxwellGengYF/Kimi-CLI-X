@@ -148,7 +148,7 @@ def _process_lru() -> None:
     import time
     """Limit the number of processes to 32 by waiting and removing completed ones."""
     global _threads
-    MAX_PROCESSES = 4
+    MAX_PROCESSES = 8
 
     # Remove already completed processes first
     _threads = [p for p in _threads if p.is_alive()]

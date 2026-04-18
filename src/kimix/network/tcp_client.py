@@ -104,12 +104,6 @@ class TCPClient:
                     break
 
                 message = payload.decode("utf-8")
-
-                print(
-                    f"[TCPClient] Received: {message[:100]}{'...' if len(message) > 100 else ''}",
-                    flush=True,
-                )
-
                 # Notify message callback
                 if self._on_message:
                     try:
@@ -162,11 +156,6 @@ class TCPClient:
 
                 # Send payload
                 self._socket.sendall(payload)
-
-                print(
-                    f"[TCPClient] Sent: {message[:100]}{'...' if len(message) > 100 else ''}",
-                    flush=True,
-                )
                 return True
 
             except Exception as e:

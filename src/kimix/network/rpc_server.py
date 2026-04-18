@@ -25,10 +25,16 @@ class JSONRPCServer:
         host: str = DEFAULT_HOST,
         port: int = DEFAULT_PORT,
         max_workers: int = 10,
+        on_client_connect: Optional[Callable[[int, tuple[str, int]], None]] = None,
+        on_client_disconnect: Optional[Callable[[int], None]] = None,
     ):
         self._server = TcpGroupServer(host=host, port=port, max_workers=max_workers)
         self._registry: dict[str, Callable[..., Any]] = {}
         self._server.on_raw_data(self._handle_raw_data)
+        if on_client_connect is not None:
+            self._server.on_client_connect(on_client_connect)
+        if on_client_disconnect is not None:
+            self._server.on_client_disconnect(on_client_disconnect)
 
     def register(self, name: str, func: Callable[..., Any]) -> None:
         """Register a function under the given name."""
