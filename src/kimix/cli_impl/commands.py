@@ -22,7 +22,7 @@ def _cmd_clear(task_split, text_arr):
 
 
 def _cmd_summarize(task_split, text_arr):
-    from kimix_tools.summarize import summarize
+    from kimix.summarize import summarize
     summarize()
     return None, False
 
