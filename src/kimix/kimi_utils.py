@@ -36,7 +36,7 @@ _MAX_INDEX_CACHE_SIZE: int = 3
 
 
 def _init_model(check_config: bool) -> None:
-    def _check_legal(value: str | None, start_with : str) -> bool:
+    def _check_legal(value: str | None, start_with: str) -> bool:
         if value is None or type(value) != str:
             return False
         return value.startswith(start_with)
@@ -580,6 +580,15 @@ def read_file(path: Path | str, split_word: Optional[str] = None) -> str | list[
 
 def set_plan_mode(value: bool = True) -> None:
     agent_utils._default_plan_mode = value == True
+    if not _default_session:
+        return
+    clear_context(True, True)
+
+
+def set_ralph_loop(value: int = -1) -> None:
+    if value < -1:
+        value = -1
+    agent_utils._ralph_iterations = value
     if not _default_session:
         return
     clear_context(True, True)
