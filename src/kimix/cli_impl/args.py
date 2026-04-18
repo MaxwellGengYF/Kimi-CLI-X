@@ -3,6 +3,7 @@ from kaos.path import KaosPath
 from pathlib import Path
 from . import constants
 from kimix.kimi_utils import print_debug, print_warning
+from . import utils
 
 
 def set_arg():
@@ -24,6 +25,8 @@ def set_arg():
                         help='Specify custom skill directory(s)')
     parser.add_argument('--config', type=str, default=None,
                         help='Path to a JSON config file to load as default provider')
+    parser.add_argument('--server', action='store_true',
+                        help='Enable server mode')
     args = parser.parse_args()
     if args.no_color:
         agent_utils._colorful_print = False
@@ -62,6 +65,13 @@ def set_arg():
     else:
         agent_utils._default_yolo = True
         print_debug('YOLO ON.')
+
+    if args.server:
+        utils._server_mode = True
+        print_debug('Server mode ON.')
+    else:
+        utils._server_mode = False
+        print_debug('Server mode OFF.')
 
     # Handle --config argument
     if args.config:

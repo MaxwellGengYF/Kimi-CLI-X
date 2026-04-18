@@ -1,21 +1,17 @@
 from pathlib import Path
 
 from . import constants
-from .utils import _input, _split_text
+from .utils import _input, _split_text, server_mode
 from .args import set_arg
 from .commands import _command_map, _cmd_unknown
+from kimix.agent_utils import print_debug
 from kimix.kimi_utils import (
     print_success, print_error, print_warning, print_info,
     prompt, sync_all, _create_default_session, get_default_session
 )
-
-
-def _run_cli():
-    exec_ctx = {
-        '__name__': '__main__'
-    }
-    set_arg()
-
+exec_ctx: dict = {}
+def _client_cli():
+    global exec_ctx
     input_str = None
     _create_default_session(False)
     assert get_default_session()
@@ -92,3 +88,17 @@ def _run_cli():
                         print_warning('Keyboard Interrupt.')
         except Exception as e:
             print_error(str(e))
+
+
+def _run_cli():
+    global exec_ctx
+    exec_ctx = {
+        '__name__': '__main__'
+    }
+    set_arg()
+    if server_mode():
+        print_debug('Enable server mode.')
+        from .server import server_cli
+        server_cli()
+        return
+    _client_cli()
