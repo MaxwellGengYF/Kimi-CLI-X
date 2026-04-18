@@ -16,9 +16,10 @@ class RunParams(BaseModel):
         default_factory=list,
         description="Command arguments."
     )
-    timeout: int | None = Field(
+    timeout: int = Field(
         default=120,
-        description="Timeout in seconds (default: no timeout)."
+        ge=1,
+        description="Timeout in seconds (default: 120)."
     )
     cwd: str | None = Field(
         default=None,
@@ -34,7 +35,7 @@ class RunParams(BaseModel):
     )
 
 
-class Run(CallableTool2):
+class Run(CallableTool2[RunParams]):
     name: str = "Run"
     description: str = "Execute a program."
     params: type[RunParams] = RunParams
@@ -43,75 +44,49 @@ class Run(CallableTool2):
         # Handle background execution
         if params.run_in_background:
             return await self._run_in_background(params)
-        output = ''
-        try:
-            # Run the command using async subprocess
-            proc = await asyncio.create_subprocess_exec(
-                params.path, *params.args,
-                cwd=params.cwd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+
+        task = ProcessTask(params.path, params.args, params.cwd, params.timeout)
+        task_id = task.start("run", Path(params.path).stem)
+
+        # Wait for completion with timeout (allow a small buffer for cleanup)
+        wait_timeout = params.timeout
+        await anyio.to_thread.run_sync(task.wait, wait_timeout)
+        
+        if task.thread_is_alive():
+            return ToolError(
+                output=f'Running in background. task_id: `{task_id}`. use `TaskOutput` or `TaskStop` tool',
+                message="Process timeout",
+                brief="Timeout"
             )
+        # Clean up foreground task registration
+        from my_tools.background.utils import remove_task_id
+        remove_task_id(task_id)
 
-            # Wait for process with optional timeout
-            if params.timeout is not None:
-                stdout_data, stderr_data = await asyncio.wait_for(
-                    proc.communicate(), timeout=params.timeout
-                )
-            else:
-                stdout_data, stderr_data = await proc.communicate()
+        # Get output
+        output = task.stream.pop_output() if task.stream else ""
 
-            # Decode output with utf-8 and replace errors
-            stdout_text = stdout_data.decode('utf-8', errors='replace')
-            stderr_text = stderr_data.decode('utf-8', errors='replace')
+        # Handle output export if needed
+        if params.output_path:
+            async with await anyio.open_file(params.output_path, 'w', encoding='utf-8', errors='replace') as f:
+                await f.write(output)
+            output = f'saved to file `{params.output_path}`'
+        
+        # Check success
+        success = task.stream.success() if task.stream else False
 
-            # Combine stdout and stderr
-            output_parts = []
-            if stdout_text:
-                output_parts.append(stdout_text)
-            if stderr_text:
-                output_parts.append(f"[stderr] {stderr_text}")
-            output = "\n".join(output_parts)
 
-            # Handle output export if needed
-            if params.output_path:
-                async with await anyio.open_file(params.output_path, 'w', encoding='utf-8', errors='replace') as f:
-                    await f.write(output)
-                output = f'saved to file `{params.output_path}`'
-            # Return error if command failed
-            if proc.returncode != 0:
-                if output and not params.output_path:
-                    temp_path, _ = await _export_to_temp_file_async(key=None, content=output, ext='.txt')
-                    output = f'saved to file `{temp_path}`'
-                return ToolError(
-                    output=output,
-                    message=f"Command failed with exit code {proc.returncode}",
-                    brief="Command execution failed"
-                )
-            output = await _maybe_export_output_async(output)
-            return ToolOk(output=output)
-
-        except asyncio.TimeoutError:
+        if not success:
             if output and not params.output_path:
                 temp_path, _ = await _export_to_temp_file_async(key=None, content=output, ext='.txt')
                 output = f'saved to file `{temp_path}`'
-
             return ToolError(
                 output=output,
-                message=f"Command timed out after {params.timeout} seconds",
-                brief="Command execution timeout"
+                message="Command execution failed",
+                brief="Command execution failed"
             )
-        except Exception as exc:
-            # Clean up
-            if output and not params.output_path:
-                temp_path, _ = await _export_to_temp_file_async(key=None, content=output, ext='.txt')
-                output = f'saved to file `{temp_path}`'
 
-            return ToolError(
-                output=output,
-                message=str(exc),
-                brief="Failed to run process",
-            )
+        output = await _maybe_export_output_async(output)
+        return ToolOk(output=output)
 
     async def _run_in_background(self, params: RunParams) -> ToolReturnValue:
         """Run a process in the background and register it as a background task.
@@ -123,7 +98,7 @@ class Run(CallableTool2):
             ToolOk with task_id on success, ToolError on failure.
         """
         try:
-            task = ProcessTask(params.path, params.args, params.cwd)
+            task = ProcessTask(params.path, params.args, params.cwd, params.timeout)
             task_id = task.start("run", Path(params.path).stem)
 
             # Return success with task_id

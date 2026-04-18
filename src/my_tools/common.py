@@ -21,14 +21,14 @@ def _estimate_tokens(text: str) -> int:
     return len(text) // 4
 
 
-def _create_temp_file_name(ext:str = '.md') -> str:
+def _create_temp_file_name(ext: str = '.md') -> str:
     global _temp_idx
     id = _temp_idx
     _temp_idx += 1
     return str(_temp_folder / (str(id) + ext))
 
 
-def _export_to_temp_file(key: Path | None, content: str, ext:str='.txt') -> tuple[str, bool]:
+def _export_to_temp_file(key: Path | None, content: str, ext: str = '.txt') -> tuple[str, bool]:
     global _temp_idx
     """Export content to a temporary file and return the file path."""
     id = _temp_idx
@@ -51,7 +51,7 @@ def _export_to_temp_file(key: Path | None, content: str, ext:str='.txt') -> tupl
     return name, new_id
 
 
-async def _export_to_temp_file_async(key: Path | None, content: str, ext:str='.txt') -> tuple[str, bool]:
+async def _export_to_temp_file_async(key: Path | None, content: str, ext: str = '.txt') -> tuple[str, bool]:
     global _temp_idx
     """Async version: Export content to a temporary file and return the file path."""
     import anyio
@@ -205,10 +205,23 @@ class ProcessTask:
                         process.wait()
                     break
                 if self.timeout is not None and time.time() - start_time > self.timeout:
-                    q.put_nowait(f"\n[Process timed out after {self.timeout} seconds]")
+                    q.put_nowait(
+                        f"\n[Process timed out after {self.timeout} seconds]")
                     self._stop_event.set()
                     is_timeout = True
                 time.sleep(0.1)
+
+            # Signal EOF to readers so they exit promptly
+            try:
+                if process.stdout is not None:
+                    process.stdout.close()
+            except Exception:
+                pass
+            try:
+                if process.stderr is not None:
+                    process.stderr.close()
+            except Exception:
+                pass
 
             # Wait for readers to finish
             stdout_thread.join(timeout=60)
@@ -307,11 +320,18 @@ class ProcessTask:
         self._stream = BackgroundStream()
         # Generate a task ID based on the executable name
         self._task_id = generate_task_id(kind, name or Path(self.path).stem)
-        self._stream.start(self._run_process_bg, self._stop_function, self._input_function)
+        self._stream.start(self._run_process_bg,
+                           self._stop_function, self._input_function)
         # Register the task
         add_task(self._task_id, self._stream)
         assert self._task_id is not None
         return self._task_id
+
+    def wait(self, timeout: float | None = None) -> None:
+        self._stream.wait(timeout)
+
+    def thread_is_alive(self) -> bool:
+        return self._stream.thread_is_alive()
 
     def stop(self) -> None:
         """Stop the background process."""
