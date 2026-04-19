@@ -8,16 +8,16 @@ import os
 import queue
 import sys
 import threading
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
-
 import kimix.agent_utils as agent_utils
+from kimi_agent_sdk import Session
 from kimix.kimi_utils import (
     create_session, close_session, prompt_async,
     clear_context, set_plan_mode, set_ralph_loop,
     close_session_async, _create_session_async,
 )
-async def clear_context_async(session: Any, force_create: bool = False, resume: bool = False, print_info: bool = True) -> Any:
+async def clear_context_async(session: Session, force_create: bool = False, resume: bool = False, print_info: bool = True) -> Session:
     """Close the old session, then create a new session and return it."""
     if not force_create and session.status.context_usage < 1e-8:
         return session
@@ -32,38 +32,40 @@ from kimix.network.rpc_server import JSONRPCServer
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8888
 
-client_dict: dict[int, dict[str, Any]] = {}
+
+@dataclass
+class Client:
+    session: Session | None = None
+    thread: threading.Thread | None = None
+    output_queue: queue.Queue[str] | None = None
+
+
+client_dict: dict[str, Client] = {}
 
 
 
-async def _get_or_create_session(client_id: int) -> Any:
+async def _get_or_create_session(client_id: int) -> Session:
     """Lazy create session for a client if not already created."""
-    info = client_dict.get(client_id)
-    if info is None:
-        info = {"session": None, "thread": None, "queue": None}
-        client_dict[client_id] = info
-    if info["session"] is None:
-
-        info["session"] = await _create_session_async(session_id=str(client_id))
-    return info["session"]
+    client = client_dict.setdefault(str(client_id), Client(session=None, thread=None, output_queue=None))
+    if client.session is None:
+        client.session = await _create_session_async(session_id=str(client_id))
+    return client.session
 
 
-async def _cmd_help(client_id: int, session: Any, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
+async def _cmd_help(client_id: int, session: Session, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
     output_queue.put(HELP_STR)
     return None
 
 
-async def _cmd_clear(client_id: int, session: Any, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
+async def _cmd_clear(client_id: int, session: Session, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
     new_session = await clear_context_async(session, force_create=True, resume=False, print_info=False)
-    if new_session is None:
-        new_session = await _create_session_async(session_id=str(client_id))
-    client_dict[client_id]["session"] = new_session
+    client_dict[str(client_id)].session = new_session
     from kimix.agent_utils import percentage_str
     output_queue.put(f'Context cleared. Usage: {percentage_str(new_session.status.context_usage)}')
     return None
 
 
-async def _cmd_summarize(client_id: int, session: Any, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
+async def _cmd_summarize(client_id: int, session: Session, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
     def _run() -> None:
         async def _inner() -> None:
             try:
@@ -79,33 +81,29 @@ async def _cmd_summarize(client_id: int, session: Any, cmd: str, arg: str, outpu
                 await prompt_async(read_memory.substitute(memory_file=temp_file), session=new_session, output_function=output_queue.put, info_print=False)
                 new_usage = new_session.status.context_usage
                 output_queue.put(f'Compact from {percentage_str(last_usage)} to {percentage_str(new_usage)}')
-                client_dict[client_id]["session"] = new_session
+                client_dict[str(client_id)].session = new_session
             except Exception as e:
                 output_queue.put(f"[error] {e}")
         asyncio.run(_inner())
 
     thread = threading.Thread(target=_run)
     thread.start()
-    client_dict[client_id] = {
-        "session": session,
-        "thread": thread,
-        "queue": output_queue,
-    }
+    client_dict[str(client_id)] = Client(session=session, thread=thread, output_queue=output_queue)
     return None
 
 
-async def _cmd_exit(client_id: int, session: Any, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
+async def _cmd_exit(client_id: int, session: Session, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
     output_queue.put('bye!')
     return None
 
 
-async def _cmd_context(client_id: int, session: Any, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
+async def _cmd_context(client_id: int, session: Session, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
     from kimix.agent_utils import percentage_str
     output_queue.put(f'Context usage: {percentage_str(session.status.context_usage)}')
     return None
 
 
-async def _cmd_script(client_id: int, session: Any, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
+async def _cmd_script(client_id: int, session: Session, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
     if not arg:
         output_queue.put('[error] Command must be /script:<code>')
         return None
@@ -117,7 +115,7 @@ async def _cmd_script(client_id: int, session: Any, cmd: str, arg: str, output_q
     return None
 
 
-async def _cmd_cmd(client_id: int, session: Any, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
+async def _cmd_cmd(client_id: int, session: Session, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
     if not arg:
         output_queue.put('[error] Command must be /cmd:<command>')
         return None
@@ -129,7 +127,7 @@ async def _cmd_cmd(client_id: int, session: Any, cmd: str, arg: str, output_queu
     return None
 
 
-async def _cmd_cd(client_id: int, session: Any, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
+async def _cmd_cd(client_id: int, session: Session, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
     if not arg:
         output_queue.put('[error] Command must be /cd:<path>')
         return None
@@ -137,16 +135,14 @@ async def _cmd_cd(client_id: int, session: Any, cmd: str, arg: str, output_queue
         os.chdir(arg)
         agent_utils._default_skill_dirs = []
         new_session = await clear_context_async(session, force_create=True, resume=True, print_info=False)
-        if new_session is None:
-            new_session = await _create_session_async(session_id=str(client_id), resume=True)
-        client_dict[client_id]["session"] = new_session
+        client_dict[str(client_id)].session = new_session
         output_queue.put(f'Changed directory to: {Path(".").resolve()}')
     except Exception as e:
         output_queue.put(f'[error] Failed to change directory: {e}')
     return None
 
 
-async def _cmd_fix(client_id: int, session: Any, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
+async def _cmd_fix(client_id: int, session: Session, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
     if not arg:
         output_queue.put('[error] Command must be /fix:<command>')
         return None
@@ -164,7 +160,7 @@ async def _cmd_fix(client_id: int, session: Any, cmd: str, arg: str, output_queu
     return prompt_str
 
 
-async def _cmd_think(client_id: int, session: Any, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
+async def _cmd_think(client_id: int, session: Session, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
     value = arg.strip().lower()
     if value == 'on':
         agent_utils._default_thinking = True
@@ -177,26 +173,26 @@ async def _cmd_think(client_id: int, session: Any, cmd: str, arg: str, output_qu
         return None
     new_session = await clear_context_async(session, force_create=True, resume=True, print_info=False)
     if new_session is not None:
-        client_dict[client_id]["session"] = new_session
+        client_dict[str(client_id)].session = new_session
     return None
 
 
 
-async def _cmd_txt(client_id: int, session: Any, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
+async def _cmd_txt(client_id: int, session: Session, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
     if not arg:
         output_queue.put('[error] Command must be /txt:<text>')
         return None
     return arg
 
 
-async def _cmd_skill(client_id: int, session: Any, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
+async def _cmd_skill(client_id: int, session: Session, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
     if not arg:
         output_queue.put('[error] Command must be /skill:<name>')
         return None
     return f'Use skill:{arg}.\n'
 
 
-async def _cmd_file(client_id: int, session: Any, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
+async def _cmd_file(client_id: int, session: Session, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
     if not arg:
         output_queue.put('[error] Command must be /file:<path>')
         return None
@@ -214,7 +210,7 @@ async def _cmd_file(client_id: int, session: Any, cmd: str, arg: str, output_que
         return None
 
 
-async def _cmd_unknown(client_id: int, session: Any, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
+async def _cmd_unknown(client_id: int, session: Session, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
     output_queue.put('Unrecognized command.')
     return None
 
@@ -239,10 +235,11 @@ _command_map = {
 def input_from_client(client_id: int, text: str) -> str:
     """Receive a string from the client, start prompt_async in a background thread, and return confirmation."""
     print(f"[from client {client_id}] {text}")
-    if client_id not in client_dict:
+    client = client_dict.get(str(client_id))
+    if client is None:
         return "error: client not connected"
 
-    existing_thread = client_dict[client_id].get("thread")
+    existing_thread = client.thread
     if existing_thread is not None and existing_thread.is_alive():
         return "error: prompt already in progress"
 
@@ -261,15 +258,14 @@ def input_from_client(client_id: int, text: str) -> str:
         handler = _command_map.get(cmd, _cmd_unknown)
         new_text = asyncio.run(handler(client_id, session, cmd, arg, output_queue))
         if new_text is None:
-            info = client_dict[client_id]
-            client_dict[client_id] = {
-                "session": info.get("session", session),
-                "thread": info.get("thread"),
-                "queue": output_queue,
-            }
+            client_dict[str(client_id)] = Client(
+                session=client.session if client.session is not None else session,
+                thread=client.thread,
+                output_queue=output_queue,
+            )
             return "processing"
         text = new_text
-        session = client_dict[client_id].get("session", session)
+        session = client.session if client.session is not None else session
 
     def _run_prompt() -> None:
         try:
@@ -284,20 +280,16 @@ def input_from_client(client_id: int, text: str) -> str:
 
     thread = threading.Thread(target=_run_prompt)
     thread.start()
-    client_dict[client_id] = {
-        "session": session,
-        "thread": thread,
-        "queue": output_queue,
-    }
+    client_dict[str(client_id)] = Client(session=session, thread=thread, output_queue=output_queue)
     return "processing"
 
 
 def get_output_from_client(client_id: int) -> list[str]:
     """Get queued output for a client."""
-    if client_id not in client_dict:
+    client = client_dict.get(str(client_id))
+    if client is None:
         return ["error: client not connected"]
-    info = client_dict[client_id]
-    q = info.get("queue")
+    q = client.output_queue
     if q is None:
         return []
     outputs = []
@@ -311,33 +303,32 @@ def get_output_from_client(client_id: int) -> list[str]:
 
 def is_session_finished(client_id: int) -> bool:
     """Check whether the prompt thread for a client has finished."""
-    if client_id not in client_dict:
+    client = client_dict.get(str(client_id))
+    if client is None:
         return False
-    thread = client_dict[client_id].get("thread")
+    thread = client.thread
     if thread is None:
         return False
     if not thread.is_alive():
-        client_dict[client_id]["thread"] = None
+        client.thread = None
         return True
     return False
 
 def on_client_connect(client_id: int, client_addr: tuple[str, int]) -> None:
     """Track a client connection; session is created lazily later."""
     print(client_addr)
-    if client_id in client_dict:
+    if str(client_id) in client_dict:
         return
-    client_dict[client_id] = {"session": None, "thread": None, "queue": None}
+    client_dict[str(client_id)] = Client(session=None, thread=None, output_queue=None)
 
 
 def on_client_disconnect(client_id: int) -> None:
     """Close a client's session and clean up tracking dictionaries."""
-    if client_id not in client_dict:
+    client = client_dict.pop(str(client_id), None)
+    if client is None:
         return
-    info = client_dict.pop(client_id)
-    session = info.get("session")
-    if session is not None:
-        close_session(session)
-    return 'ok'
+    if client.session is not None:
+        close_session(client.session)
 
 def server_cli() -> None:
     parser = argparse.ArgumentParser(description="Simple JSON-RPC server")
