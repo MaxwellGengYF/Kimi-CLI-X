@@ -49,9 +49,11 @@ class TaskOutputParams(BaseModel):
         default = True,
         description='block and wait task.'
     )
-    wait_time: float = Field(
-        default=0,
-        description="Time to wait before capturing output in seconds."
+    timeout: int = Field(
+        default=60,
+        ge=1,
+        le=300,
+        description="Timeout in seconds."
     )
     output_path: str | None = Field(
         default=None,
@@ -77,10 +79,10 @@ class TaskOutput(CallableTool2):
                     output="",
                     brief=f"Task '{params.task_id}' not found"
                 )
-            if params.block or params.wait_time > 0:
-                await asyncio.to_thread(stream.wait, params.wait_time if params.wait_time > 0 else None)
-            output = stream.pop_output()
+            if params.block or params.timeout > 0:
+                await asyncio.to_thread(stream.wait, params.timeout if params.timeout > 0 else None)
             task_alive = stream.thread_is_alive()
+            output = stream.get_output() if task_alive else stream.pop_output()
             if not task_alive:
                 remove_task_id(params.task_id)
             if params.output_path:

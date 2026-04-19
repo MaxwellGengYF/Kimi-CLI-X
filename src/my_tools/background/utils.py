@@ -1,3 +1,4 @@
+import io
 import threading
 import queue
 from typing import Any, Callable
@@ -17,6 +18,7 @@ class BackgroundStream:
         self._input_function: Callable[[str], Any] | None = None
         self._lock = threading.Lock()
         self._success = False
+        self._output = io.StringIO()
 
     def success(self) -> bool:
         return self._success
@@ -64,22 +66,22 @@ class BackgroundStream:
             with self._lock:
                 self._thread = None
 
-    def pop_output(self) -> str:
-        """Pop all output from the queue and return as a single string.
-
-        Returns:
-            Concatenated string of all queue contents. Empty string if queue is None.
-        """
+    def get_output(self) -> str:
         if self._queue is None:
-            return ""
+            return self._output.getvalue()
 
-        lines = []
-        while not self._queue.empty():
+        while True:
             try:
-                lines.append(self._queue.get_nowait())
+                self._output.write(self._queue.get_nowait())
             except queue.Empty:
                 break
-        return "".join(lines)
+        return self._output.getvalue()
+
+    def pop_output(self) -> str:
+        output = self.get_output()
+        self._output.truncate(0)
+        self._output.seek(0)
+        return output
 
     def get_queue(self) -> queue.Queue[str] | None:
         """Get the thread-safe queue for retrieving messages.

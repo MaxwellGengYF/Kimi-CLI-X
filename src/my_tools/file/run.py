@@ -17,9 +17,10 @@ class RunParams(BaseModel):
         description="Command arguments."
     )
     timeout: int = Field(
-        default=120,
+        default=10,
         ge=1,
-        description="Timeout in seconds (default: 120)."
+        le=60,
+        description="Timeout in seconds."
     )
     cwd: str | None = Field(
         default=None,

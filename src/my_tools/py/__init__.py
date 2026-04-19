@@ -17,9 +17,10 @@ class Params(BaseModel):
         description="Output file path (optional)."
     )
     timeout: int = Field(
-        default=120,
+        default=10,
         ge=1,
-        description="Timeout in seconds (default: 120)."
+        le=60,
+        description="Timeout in seconds."
     )
     run_in_background: bool = Field(
         default=False,
