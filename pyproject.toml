@@ -78,6 +78,9 @@ all = [
 packages = ["src/kimix", "my_tools"]
 sources = ["src"]
 
+[tool.uv]
+link-mode = "symlink"
+
 [tool.uv.workspace]
 members = [
     "kimi-cli",
