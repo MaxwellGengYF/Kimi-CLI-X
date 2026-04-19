@@ -5,6 +5,7 @@ from pathlib import Path
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 
+from my_tools.common import _maybe_export_output
 from my_tools.web.web_fetcher import fetch_to_markdown
 
 
@@ -19,7 +20,7 @@ class Params(BaseModel):
     )
 
 
-class FetchURL(CallableTool2):
+class FetchURL(CallableTool2[Params]):
     """Fetch a web page and return its content as Markdown."""
     name: str = "FetchURL"
     description: str = "Fetch content from a URL using a headless browser and return it as Markdown."
@@ -51,13 +52,5 @@ class FetchURL(CallableTool2):
                     brief="Failed to write output file"
                 )
 
-        # Truncate very long content for direct output
-        max_length = 10000
-        if len(markdown) > max_length:
-            truncated = markdown[:max_length] + "\n\n... [content truncated]"
-            return ToolOk(
-                output=truncated,
-                message=f"Content was truncated (total: {len(markdown)} characters). Use output_path parameter to save full content to file."
-            )
-
-        return ToolOk(output=markdown)
+        output = _maybe_export_output(markdown)
+        return ToolOk(output=output)

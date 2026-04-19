@@ -434,6 +434,9 @@ async def prompt_async(
 
     max_retries = 5
     for attempt in range(max_retries):
+        # already canceled.
+        if session._cancel_event is not None and session._cancel_event.is_set():
+            break
         try:
             async for message in session.prompt(
                 prompt_str,
