@@ -144,6 +144,7 @@ Rules:
 1. Minimal diff; preserve surrounding formatting.
 2. No explanations, apologies, or questions.
 3. For long tasks, use `Run`/`Python` with `run_in_background=true`, then manage via `TaskList`, `TaskOutput`, `Input`, `TaskStop`. Return control immediately after starting.
+4. Python path `${PYTHON_PATH}`, ALWAYS use this python.
 ${SHELL}${PLAN_MODE}${YOLO_MODE}
 ${AGENTS_MD}${SKILLS}
 ''')
@@ -164,15 +165,16 @@ def get_system_prompt(
         agent_md_doc = None
         skill_doc = None
         yolo_doc = None
+        index = 5
         if args.KIMI_OS == 'Windows':
-            shell_doc = '''
-4. No Shell commands; use `Run`/`Python` instead.
+            shell_doc = f'''
+{index}. No Shell commands; use `Run`/`Python` instead.
 '''
         else:
             shell_doc = f'''
-4. Shell: {args.KIMI_SHELL} 
+{index}. Shell: {args.KIMI_SHELL} 
 '''
-        index = 5
+        index += 1
         if plan_mode:
             plan_mode_doc = f'''
 {index}. Plan mode: draft plan, run `ExitPlanMode`, then execute.
@@ -198,8 +200,9 @@ Skills:
 {args.KIMI_SKILLS}
 '''
         return _SYSTEM_PROMP.substitute(
+            PYTHON_PATH=sys.executable,
             PLAN_MODE=(plan_mode_doc.strip() + '\n') if plan_mode_doc else '',
-            SHELL=(shell_doc.strip() + '\n') if shell_doc else '',
+            SHELL=shell_doc.strip() + '\n',
             AGENTS_MD=(agent_md_doc.strip() + '\n') if agent_md_doc else '',
             SKILLS=(skill_doc.strip() + '\n') if skill_doc else '',
             YOLO_MODE=(yolo_doc.strip() + '\n') if yolo_doc else '',

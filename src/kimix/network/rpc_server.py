@@ -81,11 +81,11 @@ class JSONRPCServer:
         func = self._registry[method_name]
         try:
             if isinstance(params, dict):
-                result = func(**params)
+                result = func(client_id, **params)
             elif isinstance(params, list):
-                result = func(*params)
+                result = func(client_id, *params)
             else:
-                result = func()
+                result = func(client_id)
         except TypeError as exc:
             return json.dumps(
                 {
@@ -143,16 +143,16 @@ class JSONRPCServer:
 
 if __name__ == "__main__":
     def main() -> None:
-        def add(a: int, b: int) -> int:
+        def add(client_id: int, a: int, b: int) -> int:
             return a + b
 
-        def subtract(a: int, b: int) -> int:
+        def subtract(client_id: int, a: int, b: int) -> int:
             return a - b
 
-        def echo(message: str) -> str:
+        def echo(client_id: int, message: str) -> str:
             return message
 
-        def multiply(a: int, b: int) -> int:
+        def multiply(client_id: int, a: int, b: int) -> int:
             return a * b
 
         server = JSONRPCServer()

@@ -46,6 +46,10 @@ class Run(CallableTool2):
     params: type[RunParams] = RunParams
 
     async def __call__(self, params: RunParams) -> ToolReturnValue:
+        import sys
+        # check if using python
+        if params.path == 'python':
+            params.path = sys.executable
         # Handle background execution
         if params.run_in_background:
             return await self._run_in_background(params)

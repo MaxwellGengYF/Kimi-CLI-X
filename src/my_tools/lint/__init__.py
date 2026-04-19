@@ -9,6 +9,9 @@ import time
 from pathlib import Path
 from my_tools.common import _maybe_export_output_async
 
+from my_tools.lint.js_lint import JsTsSyntaxCheck
+from my_tools.lint.py_lint import MypyCheck
+
 
 class Params(BaseModel):
     file_path: str = Field(

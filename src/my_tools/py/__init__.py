@@ -22,10 +22,11 @@ class Params(BaseModel):
         default=None,
         description="Output file path (optional)."
     )
-    timeout: float | None = Field(
+    timeout: int | None = Field(
         default=None,
-        ge=0,
-        description="Timeout in seconds (default: no timeout)."
+        ge=1,
+        le=300,
+        description="Timeout in seconds."
     )
     run_in_background: bool = Field(
         default=False,
