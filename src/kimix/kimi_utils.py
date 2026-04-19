@@ -611,20 +611,20 @@ def read_file(path: Path | str, split_word: Optional[str] = None) -> str | list[
     return s
 
 
-def set_plan_mode(value: bool = True) -> None:
+def set_plan_mode(value: bool = True, resume: bool = True) -> None:
     agent_utils._default_plan_mode = value == True
     if not _default_session:
         return
-    clear_context(True, True)
+    clear_context(True, resume)
 
 
-def set_ralph_loop(value: int = -1) -> None:
+def set_ralph_loop(value: int = -1, resume: bool = True) -> None:
     if value < -1:
         value = -1
     agent_utils._ralph_iterations = value
     if not _default_session:
         return
-    clear_context(True, True)
+    clear_context(True, resume)
 
 
 def rag(

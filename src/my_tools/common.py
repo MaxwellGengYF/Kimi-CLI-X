@@ -1,5 +1,6 @@
 # Token limit threshold - if output exceeds this, export to a temp file
 # Using 8000 as a conservative threshold to stay well below typical model limits
+import os
 from pathlib import Path
 import tempfile
 import queue
@@ -142,6 +143,7 @@ class ProcessTask:
             process = subprocess.Popen(
                 [self.path] + self.args,
                 cwd=self.cwd,
+                env=os.environ,
                 stdin=subprocess.PIPE,  # Allow input via input_function
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
