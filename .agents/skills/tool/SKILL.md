@@ -251,6 +251,7 @@ A wrapper for background thread execution with a thread-safe queue:
 - `start(function)` - Start the background thread with a given function that accepts a `queue.Queue[str]`
 - `wait()` - Wait for the background thread to complete
 - `pop_output()` - Retrieve and clear all output from the queue
+- `get_output()` - Retrieve all output from the queue without clearing
 - `get_queue()` - Get the thread-safe queue for retrieving messages
 - `is_started()` - Check if the stream has been started
 
