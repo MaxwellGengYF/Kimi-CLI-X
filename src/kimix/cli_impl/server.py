@@ -51,7 +51,9 @@ def input_from_client(client_id: int, text: str) -> str:
 
     thread = threading.Thread(target=_run_prompt)
     thread.start()
-    # TODO check if client_dict[client_id].thread already exists, return error if so.
+    existing_thread = client_dict[client_id].get("thread")
+    if existing_thread is not None and existing_thread.is_alive():
+        return "error: prompt already in progress"
     client_dict[client_id] = {
         "session": session,
         "thread": thread,
@@ -84,7 +86,10 @@ def is_session_finished(client_id: int) -> bool:
     thread = client_dict[client_id].get("thread")
     if thread is None:
         return False
-    return not thread.is_alive()
+    if not thread.is_alive():
+        client_dict[client_id]["thread"] = None
+        return True
+    return False
 
 
 def on_client_connect(client_id: int, client_addr: tuple[str, int]) -> str:

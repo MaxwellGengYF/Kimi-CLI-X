@@ -145,12 +145,6 @@ class TcpGroupServer:
 
                 message = payload.decode("utf-8", errors="replace")
 
-                print(
-                    f"[TcpGroupServer] Client {client_id} received: "
-                    f"{message[:100]}{'...' if len(message) > 100 else ''}",
-                    flush=True,
-                )
-
                 # Notify message callback
                 if self._on_message:
                     try:
@@ -216,11 +210,6 @@ class TcpGroupServer:
                 # Send payload
                 client_sock.sendall(payload)
 
-                print(
-                    f"[TcpGroupServer] Sent to client {client_id}: "
-                    f"{message[:100]}{'...' if len(message) > 100 else ''}",
-                    flush=True,
-                )
                 return True
 
             except Exception as e:

@@ -201,6 +201,8 @@ def print_agent_json(get_message: Callable[[], str], output_function: Callable[[
     def print_item(item: Any) -> None:
         if type(item) == str:
             if not (item.find('<choice>') >= 0 and item.find('</choice>') >= 0):
+                if output_function:
+                    output_function(item)
                 if _print_func:
                     _print_func(item, '\n')
                 else:
@@ -208,7 +210,10 @@ def print_agent_json(get_message: Callable[[], str], output_function: Callable[[
         elif item.get("type") == "think" and not _quiet:
             think_content = item.get("think", "")
             if think_content:
-                colorful_print(f"[Think] {think_content}",
+                think_content = f"[Think] {think_content}"
+                if output_function:
+                    output_function(think_content)
+                colorful_print(think_content,
                                fg=Color.BRIGHT_CYAN, end='\n')
         elif item.get("type") == "text":
             text_content = item.get("text", "")

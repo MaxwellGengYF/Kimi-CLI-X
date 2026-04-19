@@ -3,6 +3,7 @@
 
 import argparse
 import sys
+import time
 
 from kimix.network.rpc_client import JSONRPCClient
 
@@ -24,14 +25,24 @@ def client_cli() -> None:
     try:
         while True:
             try:
-                text = input("[client] Enter text to send: ")
+                text = input("> ")
             except EOFError:
                 print("[client] No input provided")
-                sys.exit(1)
-            if text == 'exit':
-                return
+                break
+            if text == "exit":
+                break
             result = client.call("input_from_client", text)
-            print(f"[client] Server response: {result}")
+            if result != "processing":
+                print(f"[client] Server response: {result}")
+                continue
+            while True:
+                outputs = client.call("get_output_from_client")
+                for output in outputs:
+                    print(output, end="\n")
+                finished = client.call("is_session_finished")
+                if finished:
+                    break
+                time.sleep(1.0)
     except TimeoutError:
         print("[client] Request timed out")
     except RuntimeError as exc:

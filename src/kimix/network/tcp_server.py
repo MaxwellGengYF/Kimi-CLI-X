@@ -130,8 +130,6 @@ class TCPServer:
                 
                 # Sanity check
                 if length == 0 or length > 10 * 1024 * 1024:  # Max 10MB
-                    error_msg = f"Invalid message length: {length}"
-                    print(f"[TCPServer] {error_msg}", flush=True)
                     continue
                 
                 # Receive payload
@@ -140,8 +138,6 @@ class TCPServer:
                     break
                 
                 message = payload.decode('utf-8', errors='replace')
-                
-                print(f"[TCPServer] Received: {message[:100]}{'...' if len(message) > 100 else ''}", flush=True)
                 
                 # Notify message callback
                 if self._on_message:
@@ -161,9 +157,7 @@ class TCPServer:
                 
             except socket.timeout:
                 continue
-            except Exception as e:
-                error_msg = f"Receive error: {e}"
-                print(f"[TCPServer] {error_msg}", flush=True)
+            except Exception:
                 break
         
         # Client disconnected
@@ -205,11 +199,10 @@ class TCPServer:
                 # Send payload
                 self._client_socket.sendall(payload)
                 
-                print(f"[TCPServer] Sent: {message[:100]}{'...' if len(message) > 100 else ''}", flush=True)
+                # print(f"[TCPServer] Sent: {message[:100]}{'...' if len(message) > 100 else ''}", flush=True)
                 return True
                 
-            except Exception as e:
-                print(f"[TCPServer] Send error: {e}", flush=True)
+            except Exception:
                 return False
     
     def send_bytes(self, data: bytes) -> bool:
@@ -230,8 +223,7 @@ class TCPServer:
                 
                 return True
                 
-            except Exception as e:
-                print(f"[TCPServer] Send error: {e}", flush=True)
+            except Exception:
                 return False
     
     def disconnect_client(self) -> None:
