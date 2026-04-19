@@ -5,7 +5,6 @@ kimi_agent_sdk/
 kimi_cli/
 kosong/
 requirements.txt
-tests/
 .cache
 .index_cache
 uv.lock

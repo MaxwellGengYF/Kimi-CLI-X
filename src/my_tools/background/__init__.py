@@ -70,36 +70,27 @@ class TaskOutput(CallableTool2):
         try:
             tasks = get_all_tasks()
             stream: BackgroundStream | None = None
-            if params.block:
-                stream = tasks.pop(params.task_id, None)
-            else:
-                stream = tasks.get(params.task_id)
+            stream = tasks.get(params.task_id)
             if stream is None:
                 return ToolError(
                     message=f"Task '{params.task_id}' not found",
                     output="",
                     brief=f"Task '{params.task_id}' not found"
                 )
-            if params.block:
-                await asyncio.to_thread(stream.wait)
-            else:
-                # Wait before capturing output
-                last_time = params.wait_time
-                while last_time > 0:
-                    if not stream.thread_is_alive():
-                        break
-                    sleep_time = min(last_time, 0.05)
-                    last_time -= sleep_time
-                    await asyncio.sleep(sleep_time)
+            if params.block or params.wait_time > 0:
+                await asyncio.to_thread(stream.wait, params.wait_time if params.wait_time > 0 else None)
             output = stream.pop_output()
+            task_alive = stream.thread_is_alive()
+            if not task_alive:
+                remove_task_id(params.task_id)
             if params.output_path:
                 from pathlib import Path
                 import anyio
                 path = Path(params.output_path)
                 async with await anyio.open_file(path, 'w', encoding='utf-8') as f:
                     await f.write(output)
-                output = f"Output exported to file `{path}`"
-            elif output and params.block and not stream.success():
+                output = f"{'Task is still running, ' if task_alive else ''}output exported to file `{path}`"
+            elif output and task_alive and not stream.success():
                 temp_path, _ = await _export_to_temp_file_async(key=None, content=output, ext='.txt')
                 output = f"Output exported to file `{temp_path}`"
             else:

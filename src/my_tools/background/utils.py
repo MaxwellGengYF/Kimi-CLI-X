@@ -1,6 +1,6 @@
 import threading
 import queue
-from typing import Callable
+from typing import Any, Callable
 
 _ALL_TASK_NAMES: set[str] = set()
 
@@ -8,20 +8,20 @@ _ALL_TASK_NAMES: set[str] = set()
 class BackgroundStream:
     """A wrapper for background thread execution with a thread-safe queue."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._thread: threading.Thread | None = None
         self._queue: queue.Queue[str] | None = None
         self._started: bool = False
         self._stopped: bool = False
-        self._stop_function: Callable = None
-        self._input_function: Callable = None
+        self._stop_function: Callable[[], Any] | None = None
+        self._input_function: Callable[[str], Any] | None = None
         self._lock = threading.Lock()
         self._success = False
 
     def success(self) -> bool:
         return self._success
 
-    def start(self, function: Callable[[queue.Queue[str]], None], stop_function: Callable, input_function: Callable | None = None) -> None:
+    def start(self, function: Callable[[queue.Queue[str]], Any], stop_function: Callable[[], Any], input_function: Callable[[str], Any] | None = None) -> None:
         """Start the background thread with the given function.
 
         Args:
@@ -34,28 +34,34 @@ class BackgroundStream:
 
             self._queue = queue.Queue()
 
-            def func(v: BackgroundStream, function: Callable):
+            def func(v: BackgroundStream, function: Callable[[queue.Queue[str]], Any]) -> None:
                 v._success = False if function(v._queue) == False else True # defaultly success
             self._thread = threading.Thread(
                 target=func, args=(self, function), daemon=True)
-            self._thread.start()
             self._stop_function = stop_function
             self._input_function = input_function
             self._started = True
+        self._thread.start()
 
     def input(self, data: str) -> bool:
         if self._input_function:
-            return self._input_function(data)
+            return bool(self._input_function(data))
         return False
 
-    def thread_is_alive(self) -> None:
-        return self._thread is not None and self._thread.is_alive()
-
-    def wait(self) -> None:
-        """Wait for the background thread to complete."""
+    def thread_is_alive(self) -> bool:
         with self._lock:
-            if self.thread_is_alive():
-                self._thread.join()
+            return self._thread is not None and self._thread.is_alive()
+
+    def wait(self, timeout: float | None = None) -> None:
+        """Wait for the background thread to complete."""
+        if not self.thread_is_alive():
+            return
+        thread = self._thread
+        if thread is None:
+            return
+        thread.join(timeout=timeout)
+        if not thread.is_alive():
+            with self._lock:
                 self._thread = None
 
     def pop_output(self) -> str:
@@ -101,18 +107,18 @@ class BackgroundStream:
             if not self._started or self._stopped:
                 return False
             self._stopped = True
-            if self._thread is not None and self._thread.is_alive():
-                if self._stop_function is not None:
-                    try:
-                        self._stop_function()
-                    except Exception:
-                        pass
-                return True
-            return False
+            thread_alive = self._thread is not None and self._thread.is_alive()
+            stop_func = self._stop_function if thread_alive else None
+
+        if stop_func is not None:
+            try:
+                stop_func()
+            except Exception:
+                pass
+        return thread_alive
 
 
 _ALL_TASK: dict[str, BackgroundStream] = dict()
-
 
 def generate_task_id(kind: str, name: str | None = None) -> str:
     values = [kind]
@@ -130,7 +136,7 @@ def generate_task_id(kind: str, name: str | None = None) -> str:
     return task_id
 
 
-def remove_task_id(task_id: str) -> BackgroundStream:
+def remove_task_id(task_id: str) -> BackgroundStream | None:
     """Remove a task_id from the global task names set.
 
     Args:
@@ -155,7 +161,7 @@ def add_task(task_id: str, stream: BackgroundStream) -> None:
     _ALL_TASK_NAMES.add(task_id)
 
 
-def get_all_tasks():
+def get_all_tasks() -> dict[str, BackgroundStream]:
     return _ALL_TASK
 
 
