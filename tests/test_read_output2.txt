@@ -1,0 +1,49 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- D:\kimi-agent\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: D:\kimi-agent
+configfile: pyproject.toml
+plugins: anyio-4.13.0, asyncio-1.3.0, typeguard-4.5.1
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 32 items
+
+tests/test_read.py::test_params_defaults PASSED                          [  3%]
+tests/test_read.py::test_params_custom PASSED                            [  6%]
+tests/test_read.py::test_params_line_offset_zero_invalid PASSED          [  9%]
+tests/test_read.py::test_params_line_offset_too_negative PASSED          [ 12%]
+tests/test_read.py::test_params_n_lines_min PASSED                       [ 15%]
+tests/test_read.py::test_empty_path PASSED                               [ 18%]
+tests/test_read.py::test_relative_path_outside_workspace PASSED          [ 21%]
+tests/test_read.py::test_absolute_path_outside_workspace_allowed PASSED  [ 25%]
+tests/test_read.py::test_sensitive_file_blocked PASSED                   [ 28%]
+tests/test_read.py::test_sensitive_file_exemption PASSED                 [ 31%]
+tests/test_read.py::test_file_not_found PASSED                           [ 34%]
+tests/test_read.py::test_path_is_directory PASSED                        [ 37%]
+tests/test_read.py::test_image_file_blocked PASSED                       [ 40%]
+tests/test_read.py::test_video_file_blocked PASSED                       [ 43%]
+tests/test_read.py::test_unknown_file_type_blocked PASSED                [ 46%]
+tests/test_read.py::test_read_basic PASSED                               [ 50%]
+tests/test_read.py::test_read_no_trailing_newline PASSED                 [ 53%]
+tests/test_read.py::test_read_with_line_offset PASSED                    [ 56%]
+tests/test_read.py::test_read_with_n_lines PASSED                        [ 59%]
+tests/test_read.py::test_read_offset_beyond_eof PASSED                   [ 62%]
+tests/test_read.py::test_read_max_lines_limit PASSED                     [ 65%]
+tests/test_read.py::test_read_max_bytes_limit PASSED                     [ 68%]
+tests/test_read.py::test_read_truncates_long_lines PASSED                [ 71%]
+tests/test_read.py::test_read_tail_basic PASSED                          [ 75%]
+tests/test_read.py::test_read_tail_with_n_lines PASSED                   [ 78%]
+tests/test_read.py::test_read_tail_n_lines_less_than_tail_count PASSED   [ 81%]
+tests/test_read.py::test_read_tail_negative_offset_beyond_total PASSED   [ 84%]
+tests/test_read.py::test_read_tail_max_lines_limit PASSED                [ 87%]
+tests/test_read.py::test_read_tail_max_bytes_limit PASSED                [ 90%]
+tests/test_read.py::test_read_tail_truncates_long_lines PASSED           [ 93%]
+tests/test_read.py::test_read_exception_handling PASSED                  [ 96%]
+tests/test_read.py::test_read_class_attributes PASSED                    [100%]
+
+============================== warnings summary ===============================
+.venv\Lib\site-packages\loguru\_simple_sinks.py:13
+  D:\kimi-agent\.venv\Lib\site-packages\loguru\_simple_sinks.py:13: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead
+    self._completable = asyncio.iscoroutinefunction(getattr(stream, "complete", None))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 32 passed, 1 warning in 1.76s ========================

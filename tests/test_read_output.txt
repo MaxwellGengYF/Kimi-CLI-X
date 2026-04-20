@@ -1,0 +1,135 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- D:\kimi-agent\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: D:\kimi-agent
+configfile: pyproject.toml
+plugins: anyio-4.13.0, asyncio-1.3.0, typeguard-4.5.1
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 32 items
+
+tests/test_read.py::test_params_defaults PASSED                          [  3%]
+tests/test_read.py::test_params_custom PASSED                            [  6%]
+tests/test_read.py::test_params_line_offset_zero_invalid PASSED          [  9%]
+tests/test_read.py::test_params_line_offset_too_negative PASSED          [ 12%]
+tests/test_read.py::test_params_n_lines_min PASSED                       [ 15%]
+tests/test_read.py::test_empty_path PASSED                               [ 18%]
+tests/test_read.py::test_relative_path_outside_workspace PASSED          [ 21%]
+tests/test_read.py::test_absolute_path_outside_workspace_allowed PASSED  [ 25%]
+tests/test_read.py::test_sensitive_file_blocked PASSED                   [ 28%]
+tests/test_read.py::test_sensitive_file_exemption PASSED                 [ 31%]
+tests/test_read.py::test_file_not_found PASSED                           [ 34%]
+tests/test_read.py::test_path_is_directory PASSED                        [ 37%]
+tests/test_read.py::test_image_file_blocked PASSED                       [ 40%]
+tests/test_read.py::test_video_file_blocked PASSED                       [ 43%]
+tests/test_read.py::test_unknown_file_type_blocked PASSED                [ 46%]
+tests/test_read.py::test_read_basic PASSED                               [ 50%]
+tests/test_read.py::test_read_no_trailing_newline PASSED                 [ 53%]
+tests/test_read.py::test_read_with_line_offset PASSED                    [ 56%]
+tests/test_read.py::test_read_with_n_lines PASSED                        [ 59%]
+tests/test_read.py::test_read_offset_beyond_eof PASSED                   [ 62%]
+tests/test_read.py::test_read_max_lines_limit PASSED                     [ 65%]
+tests/test_read.py::test_read_max_bytes_limit FAILED                     [ 68%]
+tests/test_read.py::test_read_truncates_long_lines PASSED                [ 71%]
+tests/test_read.py::test_read_tail_basic PASSED                          [ 75%]
+tests/test_read.py::test_read_tail_with_n_lines PASSED                   [ 78%]
+tests/test_read.py::test_read_tail_n_lines_less_than_tail_count PASSED   [ 81%]
+tests/test_read.py::test_read_tail_negative_offset_beyond_total PASSED   [ 84%]
+tests/test_read.py::test_read_tail_max_lines_limit FAILED                [ 87%]
+tests/test_read.py::test_read_tail_max_bytes_limit FAILED                [ 90%]
+tests/test_read.py::test_read_tail_truncates_long_lines PASSED           [ 93%]
+tests/test_read.py::test_read_exception_handling PASSED                  [ 96%]
+tests/test_read.py::test_read_class_attributes FAILED                    [100%]
+
+================================== FAILURES ===================================
+__________________________ test_read_max_bytes_limit __________________________
+
+tmp_path = WindowsPath('C:/Users/maxwellgeng/AppData/Local/Temp/pytest-of-maxwellgeng/pytest-22/test_read_max_bytes_limit0')
+
+    @pytest.mark.asyncio
+    async def test_read_max_bytes_limit(tmp_path: Path) -> None:
+        work_dir = KaosPath(str(tmp_path))
+        runtime = _make_runtime(work_dir)
+        tool = ReadFile(runtime)
+    
+        f = tmp_path / "file.txt"
+        # Each line is ~100 bytes; 2000 lines > 100KB
+        f.write_text("\n".join("x" * 100 for _ in range(2000)) + "\n")
+    
+        result = await tool(Params(path=str(f), line_offset=1, n_lines=2000))
+        assert isinstance(result, ToolOk)
+>       assert f"Max {MAX_BYTES} bytes reached." in result.message
+E       AssertionError: assert 'Max 102400 bytes reached.' in '1000 lines read from file starting from line 1. Total lines in file: 2000. Max 1000 lines reached.'
+E        +  where '1000 lines read from file starting from line 1. Total lines in file: 2000. Max 1000 lines reached.' = ToolOk(is_error=False, output='     1\txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n     2\txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n     3\txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n     4\txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n     5\txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n     6\txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n     7\txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n     8\txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n     9\txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n    10\txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n    11\txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n   992\txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n   993\txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n   994\txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n   995\txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n   996\txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n   997\txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n   998\txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n   999\txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n  1000\txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n', message='1000 lines read from file starting from line 1. Total lines in file: 2000. Max 1000 lines reached.', display=[], extras=None).message
+
+tests\test_read.py:356: AssertionError
+_______________________ test_read_tail_max_lines_limit ________________________
+
+tmp_path = WindowsPath('C:/Users/maxwellgeng/AppData/Local/Temp/pytest-of-maxwellgeng/pytest-22/test_read_tail_max_lines_limit0')
+
+    @pytest.mark.asyncio
+    async def test_read_tail_max_lines_limit(tmp_path: Path) -> None:
+        work_dir = KaosPath(str(tmp_path))
+        runtime = _make_runtime(work_dir)
+        tool = ReadFile(runtime)
+    
+        f = tmp_path / "file.txt"
+        f.write_text("\n".join(f"line{i}" for i in range(MAX_LINES + 5)) + "\n")
+    
+>       result = await tool(Params(path=str(f), line_offset=-(MAX_LINES + 10), n_lines=MAX_LINES + 10))
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for Params
+E         Value error, line_offset cannot be less than -1000. Use a positive line_offset with the total line count to read from a specific position. [type=value_error, input_value={'path': 'C:\\Users\\maxw... -1010, 'n_lines': 1010}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/value_error
+
+tests\test_read.py:461: ValidationError
+_______________________ test_read_tail_max_bytes_limit ________________________
+
+tmp_path = WindowsPath('C:/Users/maxwellgeng/AppData/Local/Temp/pytest-of-maxwellgeng/pytest-22/test_read_tail_max_bytes_limit0')
+
+    @pytest.mark.asyncio
+    async def test_read_tail_max_bytes_limit(tmp_path: Path) -> None:
+        work_dir = KaosPath(str(tmp_path))
+        runtime = _make_runtime(work_dir)
+        tool = ReadFile(runtime)
+    
+        f = tmp_path / "file.txt"
+        # Create lines that exceed MAX_BYTES when tailing many of them
+        f.write_text("\n".join("x" * 100 for _ in range(2000)) + "\n")
+    
+>       result = await tool(Params(path=str(f), line_offset=-2000, n_lines=2000))
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for Params
+E         Value error, line_offset cannot be less than -1000. Use a positive line_offset with the total line count to read from a specific position. [type=value_error, input_value={'path': 'C:\\Users\\maxw... -2000, 'n_lines': 2000}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/value_error
+
+tests\test_read.py:477: ValidationError
+_________________________ test_read_class_attributes __________________________
+
+    def test_read_class_attributes() -> None:
+        assert ReadFile.name == "ReadFile"
+        assert ReadFile.params is Params
+>       assert "Read text files" in ReadFile.description
+                                    ^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: type object 'ReadFile' has no attribute 'description'
+
+tests\test_read.py:543: AttributeError
+============================== warnings summary ===============================
+.venv\Lib\site-packages\loguru\_simple_sinks.py:13
+  D:\kimi-agent\.venv\Lib\site-packages\loguru\_simple_sinks.py:13: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead
+    self._completable = asyncio.iscoroutinefunction(getattr(stream, "complete", None))
+
+tests/test_read.py::test_absolute_path_outside_workspace_allowed
+  D:\kimi-agent\tests\test_read.py:111: RuntimeWarning: coroutine 'KaosPath.mkdir' was never awaited
+    work_dir.mkdir(parents=True, exist_ok=True)
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_read.py::test_read_max_bytes_limit - AssertionError: assert...
+FAILED tests/test_read.py::test_read_tail_max_lines_limit - pydantic_core._py...
+FAILED tests/test_read.py::test_read_tail_max_bytes_limit - pydantic_core._py...
+FAILED tests/test_read.py::test_read_class_attributes - AttributeError: type ...
+================== 4 failed, 28 passed, 2 warnings in 1.87s ===================
+
+[Process exited with code 1]
