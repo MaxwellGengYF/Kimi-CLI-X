@@ -145,6 +145,7 @@ Rules:
 2. No explanations, apologies, or questions.
 3. For long tasks, use `Run`/`Python` with `run_in_background=true`, then manage via `TaskList`, `TaskOutput`, `Input`, `TaskStop`. Return control immediately after starting.
 4. Python path `${PYTHON_PATH}`, ALWAYS use this python.
+5. For complex or multi-step tasks, use `SetTodoList` to track progress.
 ${SHELL}${PLAN_MODE}${YOLO_MODE}
 ${AGENTS_MD}${SKILLS}
 ''')
@@ -165,7 +166,7 @@ def get_system_prompt(
         agent_md_doc = None
         skill_doc = None
         yolo_doc = None
-        index = 5
+        index = 6
         if args.KIMI_OS == 'Windows':
             shell_doc = f'''
 {index}. No Shell commands; use `Run`/`Python` instead.
@@ -467,6 +468,9 @@ async def prompt_async(
                 if info_print:
                     _print_usage(session)
                 max_retries = 0
+            except KeyboardInterrupt as e:
+                if session:
+                    session.cancel()
             except Exception as e:
                 print_error(str(e))
                 import time
