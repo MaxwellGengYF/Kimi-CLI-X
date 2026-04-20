@@ -325,6 +325,8 @@ def get_skill_dirs(use_kaos_path: bool = True) -> list[Any]:
     from kaos.path import KaosPath
     global _default_skill_dirs
     if _default_skill_dirs:
+        if use_kaos_path:
+            return [KaosPath(str(i)) for i in _default_skill_dirs]
         return _default_skill_dirs
 
     def _gen() -> list[Path]:
@@ -344,7 +346,7 @@ def get_skill_dirs(use_kaos_path: bool = True) -> list[Any]:
         for d in _default_skill_dirs:
             print_debug(f'skill dir: {str(d)}')
         if use_kaos_path:
-            _default_skill_dirs = [
+            return [
                 KaosPath(str(d))
                 for d in _default_skill_dirs
             ]

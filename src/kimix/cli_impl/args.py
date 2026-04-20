@@ -5,9 +5,11 @@ from . import constants
 from kimix.kimi_utils import print_debug, print_warning
 from . import utils
 
+DEFAULT_HOST = "127.0.0.1"
+DEFAULT_PORT = 8888
 
-def set_arg():
-    import argparse
+import argparse
+def set_arg() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description='Kimi Agent CLI')
     parser.add_argument('-c', '--clean', action='store_true',
                         help='Delete cache file after quit')
@@ -25,8 +27,12 @@ def set_arg():
                         help='Specify custom skill directory(s)')
     parser.add_argument('--config', type=str, default=None,
                         help='Path to a JSON config file to load as default provider')
+    # server
     parser.add_argument('--server', action='store_true',
                         help='Enable server mode')
+    parser.add_argument("--host", default=DEFAULT_HOST, help="Host to bind to")
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Port to bind to")
+    parser.add_argument("--ws-port", type=int, default=None, help="WebSocket bridge port (optional)")
     args = parser.parse_args()
     if args.no_color:
         agent_utils._colorful_print = False
@@ -111,3 +117,4 @@ def set_arg():
                 print_debug(f'Skill dir added: {str(skill_dir_path)}')
             else:
                 print_warning(f'Skill dir not found: {str(skill_dir_path)}')
+    return parser

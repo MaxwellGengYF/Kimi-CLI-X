@@ -19,11 +19,7 @@ from kimix.kimi_utils import (
 from kimix.cli_impl.server_cmds import _command_map, _cmd_unknown, session_dict, SessionEntry
 from kimix.network.rpc_server import JSONRPCServer
 
-
-DEFAULT_HOST = "127.0.0.1"
-DEFAULT_PORT = 8888
-
-
+from kimix.cli_impl.args import DEFAULT_HOST, DEFAULT_PORT
 
 client_sessions: dict[str, list[str]] = {}
 
@@ -202,11 +198,12 @@ def on_client_disconnect(client_id: int) -> None:
             if entry.session is not None:
                 _close_kimi_session(entry.session)
 
-def server_cli() -> None:
-    parser = argparse.ArgumentParser(description="Simple JSON-RPC server")
-    parser.add_argument("--host", default=DEFAULT_HOST, help="Host to bind to")
-    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Port to bind to")
-    parser.add_argument("--ws-port", type=int, default=None, help="WebSocket bridge port (optional)")
+def server_cli(parser: argparse.ArgumentParser | None = None) -> None:
+    if parser is None:
+        parser = argparse.ArgumentParser(description="Simple JSON-RPC server")
+        parser.add_argument("--host", default=DEFAULT_HOST, help="Host to bind to")
+        parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Port to bind to")
+        parser.add_argument("--ws-port", type=int, default=None, help="WebSocket bridge port (optional)")
     args = parser.parse_args()
 
     server = JSONRPCServer(host=args.host, port=args.port, on_client_connect=on_client_connect, on_client_disconnect=on_client_disconnect)
