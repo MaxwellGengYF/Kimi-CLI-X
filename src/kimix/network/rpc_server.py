@@ -6,11 +6,19 @@ It accepts JSON-RPC 2.0 requests over TCP from multiple clients, dispatches
 to registered functions, and returns JSON-RPC 2.0 responses.
 """
 
+import asyncio
 import json
+import threading
 import time
 from typing import Any, Callable, Optional
 
+from kimix.network.tcp_client import TCPClient
 from kimix.network.tcp_group_server import TcpGroupServer
+
+try:
+    import websockets
+except ImportError:
+    websockets = None  # type: ignore[assignment]
 
 
 DEFAULT_HOST = "127.0.0.1"
@@ -30,6 +38,8 @@ class JSONRPCServer:
     ):
         self._server = TcpGroupServer(host=host, port=port, max_workers=max_workers)
         self._registry: dict[str, Callable[..., Any]] = {}
+        self._ws_thread: Optional[threading.Thread] = None
+        self._ws_future: Optional[asyncio.Future[None]] = None
         self._server.on_raw_data(self._handle_raw_data)
         if on_client_connect is not None:
             self._server.on_client_connect(on_client_connect)
@@ -139,6 +149,101 @@ class JSONRPCServer:
     def disconnect_client(self, client_id: int) -> bool:
         """Disconnect a specific client."""
         return self._server.disconnect_client(client_id)
+
+    # ------------------------------------------------------------------
+    # WebSocket-to-TCP bridge
+    # ------------------------------------------------------------------
+
+    async def _ws_handler(self, websocket: Any) -> None:
+        """Handle one WebSocket client by bridging to the TCP JSON-RPC server."""
+        loop = asyncio.get_running_loop()
+        tcp_client = TCPClient(self._server.host, self._server.port)
+        ws_send_queue: asyncio.Queue[Optional[str]] = asyncio.Queue()
+
+        def on_tcp_message(msg: str) -> None:
+            try:
+                asyncio.run_coroutine_threadsafe(ws_send_queue.put(msg), loop)
+            except RuntimeError:
+                pass  # loop closed
+
+        def on_tcp_disconnect() -> None:
+            try:
+                asyncio.run_coroutine_threadsafe(ws_send_queue.put(None), loop)
+                asyncio.run_coroutine_threadsafe(websocket.close(), loop)
+            except RuntimeError:
+                pass
+
+        tcp_client.on_message(on_tcp_message)
+        tcp_client.on_disconnect(on_tcp_disconnect)
+
+        if not tcp_client.connect(blocking=False):
+            await websocket.close()
+            return
+
+        async def forward_to_ws() -> None:
+            while True:
+                msg = await ws_send_queue.get()
+                if msg is None:
+                    break
+                try:
+                    await websocket.send(msg)
+                except Exception:
+                    break
+
+        forward_task = asyncio.create_task(forward_to_ws())
+
+        try:
+            async for message in websocket:
+                tcp_client.send(message)
+        except Exception:
+            pass
+        finally:
+            await ws_send_queue.put(None)
+            forward_task.cancel()
+            try:
+                await forward_task
+            except asyncio.CancelledError:
+                pass
+            tcp_client.disconnect()
+
+    def start_websocket_server(
+        self, ws_port: int, blocking: bool = False
+    ) -> None:
+        """Start a WebSocket server that bridges clients to the TCP JSON-RPC backend."""
+        if websockets is None:
+            raise ImportError(
+                "websockets is required for WebSocket support. "
+                "Install it with: pip install websockets"
+            )
+
+        async def _serve() -> None:
+            server = await websockets.serve(
+                self._ws_handler, self._server.host, ws_port
+            )
+            print(
+                f"[JSONRPCServer] WebSocket server started on "
+                f"ws://{self._server.host}:{ws_port}"
+            )
+            self._ws_future = asyncio.get_running_loop().create_future()
+            await self._ws_future
+            server.close()
+            await server.wait_closed()
+
+        if blocking:
+            asyncio.run(_serve())
+        else:
+            def _run_loop() -> None:
+                asyncio.run(_serve())
+            self._ws_thread = threading.Thread(target=_run_loop, daemon=True)
+            self._ws_thread.start()
+
+    def stop_websocket_server(self) -> None:
+        """Signal the WebSocket server to shut down gracefully."""
+        future = self._ws_future
+        if future is not None and not future.done():
+            loop = future.get_loop()
+            if not loop.is_closed():
+                loop.call_soon_threadsafe(future.set_result, None)
 
 
 if __name__ == "__main__":
