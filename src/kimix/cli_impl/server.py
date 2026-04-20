@@ -39,11 +39,11 @@ def input_from_client(client_id: int, session_id: str, text: str) -> str:
     print(f"[from client {client_id}] session {session_id}: {text}")
     entry = session_dict.get(session_id)
     if entry is None:
-        return "error: session not found"
+        return f"error: session {session_id} not found"
     if entry.client_id != str(client_id):
-        return "error: session does not belong to this client"
+        return f"error: session {session_id} does not belong to this client"
     if entry.task_queue is None:
-        return "error: session not initialized"
+        return f"error: session {session_id} not initialized"
 
     output_queue: queue.Queue[str] = queue.Queue()
 
@@ -111,7 +111,7 @@ def is_session_finished(client_id: int, session_id: str) -> bool:
         return False
     if entry.task_queue is None:
         return False
-    return not entry.running and entry.task_queue.empty()
+    return not entry.running and entry.task_queue.empty() and entry.output_queue.empty()
 
 # RPC function
 def _session_worker(session_id: str, entry: SessionEntry) -> None:
@@ -160,9 +160,9 @@ def close_session(client_id: int, session_id: str) -> str:
     """Close a session. Only the client that opened the session can close it."""
     entry = session_dict.get(session_id)
     if entry is None:
-        return "error: session not found"
+        return f"error: session {session_id} not found"
     if entry.client_id != str(client_id):
-        return "error: session does not belong to this client"
+        return f"error: session {session_id} does not belong to this client"
 
     if entry.stop_event is not None:
         entry.stop_event.set()
