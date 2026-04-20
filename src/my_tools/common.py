@@ -124,6 +124,13 @@ class ProcessTask:
     """Run a subprocess in the background with stream output and input support."""
 
     def __init__(self, path: str, args: list[str] | None = None, cwd: str | None = None, timeout: float | None = None) -> None:
+        import shutil
+        # On Windows, subprocess.Popen with shell=False does not resolve .cmd/.bat
+        # via PATHEXT. Use shutil.which to find the real executable (e.g. pnpm.CMD).
+        if not Path(path).exists():
+            resolved = shutil.which(path)
+            if resolved:
+                path = resolved
         self.path = path
         self.args = args or []
         self.cwd = cwd
