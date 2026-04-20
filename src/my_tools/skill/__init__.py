@@ -81,7 +81,7 @@ class SkillAnalyzer(CallableTool2[Any]):
         if not self._load_index():
             raise SkipThisTool()
 
-    def _load_index(self, skill_path: list[Any] | None = None) -> None:
+    def _load_index(self, skill_path: list[Any] | None = None) -> bool:
         from kimix.agent_utils import get_skill_dirs
         SKILL_PATHS = skill_path if skill_path is not None else get_skill_dirs()
         search_paths = [str(Path(p).resolve()) for p in SKILL_PATHS]
@@ -117,17 +117,20 @@ class SkillAnalyzer(CallableTool2[Any]):
             if removed_files:
                 save = True
 
+            all_new_files = []
             for search_path in existing_paths:
                 if os.path.isdir(search_path):
                     new_files = index.get_new_files(search_path)
                     if new_files:
-                        for file_path in new_files:
-                            index.add_file(file_path)
-                        save = True
+                        all_new_files.extend(new_files)
                 elif os.path.isfile(search_path):
                     if index._is_file_modified(search_path):
                         index.add_file(search_path)
-                        save = True
+                        all_new_files.append(search_path)
+
+            if all_new_files:
+                index.add_files_parallel(all_new_files)
+                save = True
         else:
             for search_path in existing_paths:
                 if os.path.isdir(search_path):
@@ -167,12 +170,15 @@ class SkillAnalyzer(CallableTool2[Any]):
                 )
 
             output_lines = []
+            search_bases = [
+                sp if os.path.isdir(sp) else os.path.dirname(sp)
+                for sp in search_paths
+            ]
 
             for i, r in enumerate(results, 1):
                 rel_path = r.file_path
-                for sp in search_paths:
+                for base in search_bases:
                     try:
-                        base = sp if os.path.isdir(sp) else os.path.dirname(sp)
                         candidate = os.path.relpath(r.file_path, base)
                         if not candidate.startswith('..'):
                             rel_path = candidate
@@ -180,19 +186,21 @@ class SkillAnalyzer(CallableTool2[Any]):
                     except ValueError:
                         pass
 
+                line_text = r.line_text
+                snippet = line_text[:200]
                 output_lines.append(
                     f"{i}. [{r.score:.4f}] {rel_path}:{r.line_index + 1}")
                 output_lines.append(
-                    f"   {r.line_text[:200]}{'...' if len(r.line_text) > 200 else ''}")
+                    f"   {snippet}{'...' if len(line_text) > 200 else ''}")
 
                 if params.content:
                     try:
                         with open(r.file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                            full_content = f.read()
-                        output_lines.append(f"\n   --- Full Content ---")
+                            full_content = f.read(2000)
+                        output_lines.append("\n   --- Full Content ---")
                         output_lines.append(
-                            f"   {full_content[:2000]}{'...' if len(full_content) > 2000 else ''}")
-                        output_lines.append(f"   --- End Content ---\n")
+                            f"   {full_content}{'...' if len(full_content) == 2000 else ''}")
+                        output_lines.append("   --- End Content ---\n")
                     except Exception:
                         pass
 
