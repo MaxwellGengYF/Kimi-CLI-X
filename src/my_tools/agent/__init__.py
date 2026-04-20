@@ -46,8 +46,9 @@ class Spawn(CallableTool2):
         try:
             output_strs = []
 
-            def output_function(fn):
-                if fn:
+            def output_function(fn: str) -> None:
+                # Main agent no need to get thinking-output
+                if fn and not fn.startswith('[Think]'):
                     output_strs.append(fn)
 
             async def prompt_async(cancel_callable=None):
@@ -58,7 +59,7 @@ class Spawn(CallableTool2):
                     session = await _create_session_async(
                         thinking=params.thinking,
                         plan_mode=False,
-                        agent_file=agent_utils._default_agent_file_dir / 'agent_subagent.yaml')
+                        agent_file=agent_utils._default_agent_file_dir / 'agent_subagent.yaml', is_sub_agent=True)
                     import kimix.kimi_utils as kimi_utils
                     await kimi_utils.prompt_async(prompt_str=params.prompt, session=session, output_function=output_function, cancel_callable=cancel_callable)
                 except Exception as e:

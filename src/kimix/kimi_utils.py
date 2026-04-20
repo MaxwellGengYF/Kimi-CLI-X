@@ -139,19 +139,20 @@ def _ensure_skill_dirs(skill_dirs: Any) -> list[KaosPath]:
     return [make_kaos_dir(skill_dirs)]
 
 
-_SYSTEM_PROMP = Template('''You are a coding agent.
+_SYSTEM_PROMP = Template('''You are a ${AGENT_ROLE}.
 Rules:
 1. Minimal diff; preserve surrounding formatting.
 2. No explanations, apologies, or questions.
 3. For long tasks, use `Run`/`Python` with `run_in_background=true`, then manage via `TaskList`, `TaskOutput`, `Input`, `TaskStop`. Return control immediately after starting.
 4. Python path `${PYTHON_PATH}`, ALWAYS use this python.
 5. For complex or multi-step tasks, use `SetTodoList` to track progress.
-${SHELL}${PLAN_MODE}${YOLO_MODE}
+${SPAWN}${SHELL}${PLAN_MODE}${YOLO_MODE}
 ${AGENTS_MD}${SKILLS}
 ''')
-
+_START_INDEX = 6
 
 def get_system_prompt(
+        is_sub_agent: bool = False,
         plan_mode: bool | None = None,
         yolo: bool | None = None,
         work_dir: Optional[KaosPath] = None) -> Callable[[BuiltinSystemPromptArgs], str]:
@@ -161,21 +162,22 @@ def get_system_prompt(
     yolo = yolo if yolo is not None else agent_utils._default_yolo
 
     def system_prompt_func(args: BuiltinSystemPromptArgs) -> str:
+        role_doc = 'coding sub-agent' if is_sub_agent else 'coding agent'
+        spawn_doc = None
         plan_mode_doc = None
         shell_doc = None
         agent_md_doc = None
         skill_doc = None
         yolo_doc = None
-        index = 6
-        if args.KIMI_OS == 'Windows':
-            shell_doc = f'''
-{index}. No Shell commands; use `Run`/`Python` instead.
-'''
-        else:
+        index = _START_INDEX
+        if not is_sub_agent:
+            spawn_doc = f'''{index}. Use `Spawn` for: "parallelizable independent subtasks", "large-context analysis or tasks needing different expertise", "permission-graded operations like read-only analysis or sandboxed execution".'''
+            index += 1
+        if args.KIMI_OS != 'Windows':
             shell_doc = f'''
 {index}. Shell: {args.KIMI_SHELL} 
 '''
-        index += 1
+            index += 1
         if plan_mode:
             plan_mode_doc = f'''
 {index}. Plan mode: draft plan, run `ExitPlanMode`, then execute.
@@ -201,9 +203,11 @@ Skills:
 {args.KIMI_SKILLS}
 '''
         return _SYSTEM_PROMP.substitute(
+            AGENT_ROLE=role_doc.strip(),
             PYTHON_PATH=sys.executable,
             PLAN_MODE=(plan_mode_doc.strip() + '\n') if plan_mode_doc else '',
-            SHELL=shell_doc.strip() + '\n',
+            SHELL=(shell_doc.strip() + '\n') if shell_doc else '',
+            SPAWN=(spawn_doc.strip() + '\n') if spawn_doc else '',
             AGENTS_MD=(agent_md_doc.strip() + '\n') if agent_md_doc else '',
             SKILLS=(skill_doc.strip() + '\n') if skill_doc else '',
             YOLO_MODE=(yolo_doc.strip() + '\n') if yolo_doc else '',
@@ -222,6 +226,7 @@ async def _create_session_async(
     resume: bool = False,
     plan_mode: Optional[bool] = None,
     provider_dict: dict[str, Any] | None = None,
+    is_sub_agent: bool = False,
 ) -> Session:
     global _session_idx
     if session_id is None:
@@ -258,7 +263,7 @@ async def _create_session_async(
             config=cfg,
             agent_file=agent_file,
             tool_call_failed_list=tool_call_failed_list,
-            custom_system_prompt=get_system_prompt(plan_mode, yolo, work_dir),
+            custom_system_prompt=get_system_prompt(is_sub_agent, plan_mode, yolo, work_dir),
         )
         if not session:
             print_debug(f'Session {session_id} not found.')
@@ -274,7 +279,7 @@ async def _create_session_async(
             config=cfg,
             agent_file=agent_file,
             tool_call_failed_list=tool_call_failed_list,
-            custom_system_prompt=get_system_prompt(plan_mode, yolo, work_dir),
+            custom_system_prompt=get_system_prompt(is_sub_agent, plan_mode, yolo, work_dir),
         )
     return session
 
