@@ -95,10 +95,10 @@ def _run_cli():
     exec_ctx = {
         '__name__': '__main__'
     }
-    set_arg()
+    parser = set_arg()
     if server_mode():
         print_debug('Enable server mode.')
         from .server import server_cli
-        server_cli()
+        server_cli(parser)
         return
     _client_cli()
