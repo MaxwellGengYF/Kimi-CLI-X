@@ -415,69 +415,75 @@ async def prompt_async(
     output_function: Callable[[Any], Any] | None = None,
     info_print: bool = True,
     cancel_callable: Callable[[], bool] | None = None,
+    close_session_after_prompt: bool = False,
 ) -> None:
     if session is None:
         session = get_default_session()
+        close_session_after_prompt = False
     prompt_str = prompt_str.strip()
-
-    def enable_skill(skill_name: str) -> None:
-        nonlocal prompt_str
-        if not agent_utils._default_skill_dirs:
-            print_warning('Skill dir not setted.')
-        else:
-            skill_found = False
-            for skill_dir in agent_utils._default_skill_dirs:
-                if (Path(str(skill_dir)) / Path(skill_name) / 'SKILL.md').exists():
-                    skill_found = True
-                    break
-            if not skill_found:
-                print_warning(f'Skill {skill_name} not found.')
+    try:
+        def enable_skill(skill_name: str) -> None:
+            nonlocal prompt_str
+            if not agent_utils._default_skill_dirs:
+                print_warning('Skill dir not setted.')
             else:
-                prompt_str = f'Use skill:{skill_name}.\n' + prompt_str
-    if skill_name:
-        try:
-            for i in skill_name:
-                enable_skill(i)
-        except:
-            enable_skill(skill_name)
-    if session.status.context_usage < 1e-4 and read_agents_md and Path('AGENTS.md').exists():
-        prompt_str = f'Read AGENTS.md.\n' + prompt_str
+                skill_found = False
+                for skill_dir in agent_utils._default_skill_dirs:
+                    if (Path(str(skill_dir)) / Path(skill_name) / 'SKILL.md').exists():
+                        skill_found = True
+                        break
+                if not skill_found:
+                    print_warning(f'Skill {skill_name} not found.')
+                else:
+                    prompt_str = f'Use skill:{skill_name}.\n' + prompt_str
+        if skill_name:
+            try:
+                for i in skill_name:
+                    enable_skill(i)
+            except:
+                enable_skill(skill_name)
+        if session.status.context_usage < 1e-4 and read_agents_md and Path('AGENTS.md').exists():
+            prompt_str = f'Read AGENTS.md.\n' + prompt_str
 
-    global _default_session
-    if info_print:
-        print_debug(f'Start...', end='\n\n')
+        global _default_session
+        if info_print:
+            print_debug(f'Start...', end='\n\n')
 
-    max_retries = 5
-    for attempt in range(max_retries):
-        # already canceled.
-        if session._cancel_event is not None and session._cancel_event.is_set():
+        max_retries = 5
+        for attempt in range(max_retries):
+            # already canceled.
+            if session._cancel_event is not None and session._cancel_event.is_set():
+                break
+            try:
+                async for message in session.prompt(
+                    prompt_str,
+                    merge_wire_messages=True,
+                ):
+                    if cancel_callable is not None and cancel_callable():
+                        session.cancel()
+                        break
+                    print_agent_json(
+                        lambda: message.model_dump_json(), output_function)
+                if info_print:
+                    _print_usage(session)
+                max_retries = 0
+            except Exception as e:
+                print_error(str(e))
+                import time
+                if "429" in str(e):
+                    wait_time = 4 ** attempt  # 1, 4, 16, 64, 128 秒
+                    print_warning(f"Rate limited. Waiting {wait_time}s...")
+                    time.sleep(wait_time)
+                    continue
+                elif attempt == max_retries - 1:
+                    raise
+                else:
+                    time.sleep(1)
             break
-        try:
-            async for message in session.prompt(
-                prompt_str,
-                merge_wire_messages=True,
-            ):
-                if cancel_callable is not None and cancel_callable():
-                    session.cancel()
-                    break
-                print_agent_json(
-                    lambda: message.model_dump_json(), output_function)
-            if info_print:
-                _print_usage(session)
-            max_retries = 0
-        except Exception as e:
-            print_error(str(e))
-            import time
-            if "429" in str(e):
-                wait_time = 4 ** attempt  # 1, 4, 16, 64, 128 秒
-                print_warning(f"Rate limited. Waiting {wait_time}s...")
-                time.sleep(wait_time)
-                continue
-            elif attempt == max_retries - 1:
-                raise
-            else:
-                time.sleep(1)
-        break
+    finally:
+        if close_session_after_prompt and session:
+            await close_session_async(session)
+
 
 
 def prompt(
@@ -489,6 +495,7 @@ def prompt(
     output_function: Callable[[Any], Any] | None = None,
     info_print: bool = True,
     cancel_callable: Callable[[], bool] | None = None,
+    close_session_after_prompt: bool = False,
 ) -> None:
     asyncio.run(
         prompt_async(
@@ -500,6 +507,7 @@ def prompt(
             output_function,
             info_print,
             cancel_callable,
+            close_session_after_prompt,
         ))
 
 
@@ -582,9 +590,11 @@ def async_prompt(
     info_print: bool = True,
     cancel_callable: Callable[[], bool] | None = None,
 ) -> Any:
+    session_created = None
     if session is None:
-        session = _create_default_session()
-    return run_thread(prompt, (prompt_str, session, read_agents_md, skill_name, output_function, info_print, cancel_callable))
+        session = create_session()
+        session_created = True
+    return run_thread(prompt, (prompt_str, session, read_agents_md, skill_name, output_function, info_print, cancel_callable, session_created))
 
 
 def async_fix_error(
