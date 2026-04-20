@@ -173,11 +173,15 @@ def get_system_prompt(
         if not is_sub_agent:
             spawn_doc = f'''{index}. Use `Spawn` for: "parallelizable independent subtasks", "large-context analysis or tasks needing different expertise", "permission-graded operations like read-only analysis or sandboxed execution".'''
             index += 1
-        if args.KIMI_OS != 'Windows':
+        if args.KIMI_OS == 'Windows':
+            shell_doc = f'''
+{index}. No Shell commands; use `Run`/`Python` instead.
+'''
+        else:
             shell_doc = f'''
 {index}. Shell: {args.KIMI_SHELL} 
 '''
-            index += 1
+        index += 1
         if plan_mode:
             plan_mode_doc = f'''
 {index}. Plan mode: draft plan, run `ExitPlanMode`, then execute.
