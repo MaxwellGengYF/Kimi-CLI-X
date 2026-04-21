@@ -74,6 +74,7 @@ according to the new git commits, update document `{i}`
 | [`docs/tutorials/2_manager.md`](docs/tutorials/2_manager.md) | **Manager 深度解析**。从源码层面剖析 `kimix_manager` 的三大核心模块（`company.py`、`designer.py`、`base.py`），讲解任务编排、Worker 并发调度、Designer/Programmer 双分支模式及完整工作流示例。 |
 | [`docs/tutorials/3_builtin_tools.md`](docs/tutorials/3_builtin_tools.md) | **内置工具完全指南**。系统介绍 Agent 的全部内置工具（文件 I/O、搜索、代码执行、进程管理、文档转换、计划模式、子代理等），并给出提示词引导策略与最佳实践。 |
 | [`docs/tutorials/4_skills.md`](docs/tutorials/4_skills.md) | **自定义 Skill 编写教程**。讲解 Skill 的设计原则、目录结构、`SKILL.md` 编写规范、附属资源组织方式、测试打包流程及安装使用方法。 |
+| [`docs/tutorials/5_server.md`](docs/tutorials/5_server.md) | **JSON-RPC 服务端教程**。介绍基于 TCP 的 JSON-RPC 2.0 协议格式、错误码、服务端接口、WebSocket 桥接及命令行启动参数。 |
 
 ### 配置参考
 
