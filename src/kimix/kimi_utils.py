@@ -1,3 +1,5 @@
+from kimi_cli.config import BackgroundConfig, LoopControl, SecretStr
+from kimi_agent_sdk import Config
 from kimix.agent_utils import *
 from kimix.agent_utils import run_process_with_error, percentage_str
 from kaos.path import KaosPath
@@ -35,20 +37,20 @@ _index_cache: OrderedDict[Any, Any] = OrderedDict()
 _MAX_INDEX_CACHE_SIZE: int = 3
 
 
-def _create_config(provider_dict: dict[str, Any] | None = None) -> Any:
+def _create_config(provider_dict: dict[str, Any] | None = None) -> Config:
     provider_dict = provider_dict if provider_dict is not None else agent_utils._default_provider
-    from kimi_agent_sdk import Config
-    from kimi_cli.config import LoopControl
     cfg = Config()
     # DO THIS: support other providers and models
     from kimi_cli.config import LLMModel, LLMProvider
+
     def _check_legal(value: str | None, start_with: str) -> bool:
         if value is None or type(value) != str:
             return False
         return value.startswith(start_with)
     if provider_dict is None:
         try:
-            provider_dict = json.loads((Path(__file__).parent / 'default_config.json').read_text(encoding='utf-8', errors='replace'))
+            provider_dict = json.loads(
+                (Path(__file__).parent / 'default_config.json').read_text(encoding='utf-8', errors='replace'))
             if type(provider_dict) != dict:
                 provider_dict = None
         except:
@@ -66,13 +68,14 @@ def _create_config(provider_dict: dict[str, Any] | None = None) -> Any:
         assert max_context_size is not None, "`max_context_size` must be provided in  config"
         assert model is not None, "model must be provided in config"
         assert url is not None, "url must be provided in config"
-        api_key = api_key=provider_dict.get('api_key', None)
+        api_key = provider_dict.get('api_key', None)
         if not api_key:
             api_key = os.environ.get("KIMI_API_KEY")
         if not api_key:
             api_key = os.environ.get("KIMIX_API_KEY")
         if not api_key:
-            print_warning('api_key not found. May config in JSON, or set to env `KIMI_API_KEY` or `KIMIX_API_KEY`')
+            print_warning(
+                'api_key not found. May config in JSON, or set to env `KIMI_API_KEY` or `KIMIX_API_KEY`')
             api_key = ''
         elif not api_key.startswith('sk'):
             print_warning('api_key is invalid, must start with `sk`')
@@ -82,8 +85,7 @@ def _create_config(provider_dict: dict[str, Any] | None = None) -> Any:
             type=provider_type,
             # example: "https://api.minimaxi.com/anthropic"
             base_url=url,
-            # TODO: delete this before push.
-            api_key=api_key,
+            api_key=SecretStr(api_key),
             custom_headers=provider_dict.get('custom_headers'),
             oauth=provider_dict.get('oauth'),
         )
@@ -95,8 +97,30 @@ def _create_config(provider_dict: dict[str, Any] | None = None) -> Any:
         cfg.providers = {
             name: provider
         }
-    if not cfg.loop_control:
-        cfg.loop_control = LoopControl()
+        # Set loop control
+        loop_control = provider_dict.get('loop_control')
+        if loop_control and isinstance(loop_control, dict):
+            lc = LoopControl()
+            for key, value in loop_control.items():
+                if hasattr(lc, key):
+                    setattr(lc, key, value)
+            cfg.loop_control = lc
+        def set_val(name):
+            v = provider_dict.get(name)
+            if v is not None:
+                setattr(cfg, name, v)
+        set_val('default_plan_mode')
+        set_val('default_yolo')
+        set_val('default_thinking')
+        set_val('show_thinking_stream')
+        # Set background
+        background = provider_dict.get('background')
+        if background and isinstance(background, dict):
+            bc = BackgroundConfig()
+            for key, value in background.items():
+                if hasattr(bc, key):
+                    setattr(bc, key, value)
+            cfg.background = bc
     return cfg
 
 
@@ -144,6 +168,7 @@ ${SPAWN}${SHELL}${PLAN_MODE}${YOLO_MODE}
 ${AGENTS_MD}${SKILLS}
 ''')
 _START_INDEX = 6
+
 
 def get_system_prompt(
         is_sub_agent: bool = False,
@@ -217,7 +242,6 @@ async def _create_session_async(
     session_id: Optional[str] = None,
     work_dir: Optional[KaosPath] = None,
     skills_dir: Optional[KaosPath] = None,
-    ralph_loop: Optional[bool] = None,
     thinking: Optional[bool] = None,
     yolo: Optional[bool] = None,
     agent_file: Optional[Path] = None,
@@ -233,14 +257,6 @@ async def _create_session_async(
     tool_call_failed_list: list[Any] = list()
     agent_utils._tool_call_failed_lists[session_id] = tool_call_failed_list
     cfg = _create_config(provider_dict)
-
-    # No ralph mode defaultly, manually do validate please
-    cfg.loop_control.max_ralph_iterations = agent_utils._ralph_iterations
-    cfg.loop_control.max_steps_per_turn = 10000
-    # custom config
-    if ralph_loop is not None:
-        cfg.loop_control.max_ralph_iterations = -1 if ralph_loop else 0
-
     session = None
     if agent_file is None:
         agent_file = agent_utils._default_agent_file
@@ -261,7 +277,8 @@ async def _create_session_async(
             config=cfg,
             agent_file=agent_file,
             tool_call_failed_list=tool_call_failed_list,
-            custom_system_prompt=get_system_prompt(is_sub_agent, plan_mode, yolo, work_dir),
+            custom_system_prompt=get_system_prompt(
+                is_sub_agent, plan_mode, yolo, work_dir),
         )
         if not session:
             print_debug(f'Session {session_id} not found.')
@@ -277,7 +294,8 @@ async def _create_session_async(
             config=cfg,
             agent_file=agent_file,
             tool_call_failed_list=tool_call_failed_list,
-            custom_system_prompt=get_system_prompt(is_sub_agent, plan_mode, yolo, work_dir),
+            custom_system_prompt=get_system_prompt(
+                is_sub_agent, plan_mode, yolo, work_dir),
         )
     return session
 
@@ -286,7 +304,6 @@ def create_session(
     session_id: Optional[str] = None,
     work_dir: Optional[KaosPath] = None,
     skills_dir: Optional[KaosPath] = None,
-    ralph_loop: Optional[bool] = None,
     thinking: Optional[bool] = None,
     yolo: Optional[bool] = None,
     agent_file: Optional[Path] = None,
@@ -298,7 +315,6 @@ def create_session(
         session_id,
         work_dir,
         skills_dir,
-        ralph_loop,
         thinking,
         yolo,
         agent_file,
@@ -492,7 +508,6 @@ async def prompt_async(
             await close_session_async(session)
 
 
-
 def prompt(
     prompt_str: str,
     session: Session | None = None,
@@ -633,16 +648,6 @@ def set_plan_mode(value: bool = True, resume: bool = True) -> None:
     if not _default_session:
         return
     clear_context(True, resume)
-
-
-def set_ralph_loop(value: int = -1, resume: bool = True) -> None:
-    if value < -1:
-        value = -1
-    agent_utils._ralph_iterations = value
-    if not _default_session:
-        return
-    clear_context(True, resume)
-
 
 def rag(
     query: str,

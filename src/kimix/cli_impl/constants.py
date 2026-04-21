@@ -12,7 +12,6 @@ COMMENT = """Always write ' Start writen by AGENT ' comment before code, Always 
 # Start writen by AGENT
 HELP_STR = '''Command line options:
   -c, --clean         - Delete cache file after quit
-  --ralph             - Continue work until done (auto-loop)
   --no_think          - Disable thinking mode
   --plan              - Enable plan mode
   --no_yolo           - Disable YOLO mode
@@ -35,8 +34,6 @@ Available commands:
   /think:off      - Disable thinking mode
   /plan:on        - Enable plan mode
   /plan:off       - Disable plan mode
-  /ralph:on       - Enable Ralph auto-loop mode
-  /ralph:off      - Disable Ralph auto-loop mode
   /script         - Write python script
   /cmd            - Write cmd 
   /cd             - change dir

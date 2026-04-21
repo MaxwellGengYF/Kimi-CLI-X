@@ -15,8 +15,6 @@ def set_arg() -> argparse.ArgumentParser:
                         help='Delete cache file after quit')
     parser.add_argument('-no_color', '--no_color', action='store_true',
                         help='Disable colorful print')
-    parser.add_argument('-ralph', '--ralph', action='store_true',
-                        help='Continue work until done (auto-loop)')
     parser.add_argument('-no_think', '--no_think', action='store_true',
                         help='Disable thinking mode')
     parser.add_argument('-plan', '--plan', action='store_true',
@@ -40,13 +38,6 @@ def set_arg() -> argparse.ArgumentParser:
     constants.CLEAN_MODE = args.clean
     if constants.CLEAN_MODE:
         print_debug('Clean mode ON, delete cache file after quit.')
-
-    if args.ralph:
-        agent_utils._ralph_iterations = -1
-        print_debug(
-            'Ralph loop ON, continue work until done(or running OUT of your TOKEN!!!).')
-    else:
-        agent_utils._ralph_iterations = 0
 
     if args.no_think:
         agent_utils._default_thinking = False

@@ -295,7 +295,6 @@ Default configuration values you can import and modify:
 
 ```python
 from agent_utils import (
-    _ralph_iterations,       # Max Ralph loop iterations (default: 0)
     _default_thinking,       # Deep thinking mode (default: True)
     _default_plan_mode,      # Plan mode (default: False)
     _default_yolo,           # Yolo mode (default: True)

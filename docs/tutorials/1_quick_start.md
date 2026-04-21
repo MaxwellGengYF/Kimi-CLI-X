@@ -180,7 +180,6 @@ Kimix 通过 JSON 配置文件初始化 LLM Provider。若启动时未通过 `--
 | 参数 | 说明 |
 |------|------|
 | `-c`, `--clean` | 退出时自动删除缓存文件 |
-| `--ralph` | 开启自动循环模式，持续工作直到任务完成（注意 Token 消耗） |
 | `--no_think` | 关闭思考模式（thinking mode） |
 | `--plan` | 开启计划模式（plan mode） |
 | `--no_yolo` | 关闭 YOLO 模式 |
@@ -213,7 +212,6 @@ uv run kimix --plan --clean
 | `/txt` | 进入多行文本输入模式（以 `/end` 结束，`/cancel` 取消） |
 | `/think:on` / `/think:off` | 开启 / 关闭思考模式（需要 LLM 支持） |
 | `/plan:on` / `/plan:off` | 开启 / 关闭计划模式 |
-| `/ralph:on` / `/ralph:off` | 开启 / 关闭 Ralph 自动循环模式 |
 | `/script` | 编写并执行 Python 脚本（以 `/end` 结束输入） |
 | `/cmd:<command>` | 执行系统命令 |
 | `/cd:<path>` | 切换当前工作目录 |

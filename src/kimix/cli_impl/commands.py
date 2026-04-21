@@ -141,26 +141,6 @@ def _cmd_plan(task_split, text_arr):
         clear_context(True, True)
     return None, False
 
-
-def _cmd_ralph(task_split, text_arr):
-    if len(task_split) < 2:
-        print_error('Command must be /ralph:on or /ralph:off')
-        return None, False
-    value = task_split[1].strip().lower()
-    if value == 'on':
-        agent_utils._ralph_iterations = -1
-        print_success('Ralph auto-loop mode enabled.')
-    elif value == 'off':
-        agent_utils._ralph_iterations = 0
-        print_success('Ralph auto-loop mode disabled.')
-    else:
-        print_error('Command must be /ralph:on or /ralph:off')
-        return None, False
-    if get_default_session():
-        clear_context(True, True)
-    return None, False
-
-
 def _cmd_txt(task_split, text_arr):
     print('\n>>>> Start input multiple-lines, end with /end, or cancel with /cancel')
     text = []
@@ -215,7 +195,6 @@ _command_map = {
     'validate': _cmd_validate,
     'think': _cmd_think,
     'plan': _cmd_plan,
-    'ralph': _cmd_ralph,
     'txt': _cmd_txt,
     'skill': _cmd_skill,
     'file': _cmd_file

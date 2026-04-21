@@ -308,7 +308,6 @@ def percentage_str(num: float) -> str:
     return f"{num * 100:.1f}%"
 
 
-_ralph_iterations: int = 0
 _default_thinking: bool = True
 _default_plan_mode: bool = False
 _default_yolo: bool = True
