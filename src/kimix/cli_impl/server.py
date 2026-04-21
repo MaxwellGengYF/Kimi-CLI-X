@@ -12,9 +12,8 @@ from pathlib import Path
 import kimix.agent_utils as agent_utils
 from kimi_agent_sdk import Session
 from kimix.kimi_utils import (
-    create_session, close_session as _close_kimi_session, prompt_async,
-    clear_context, set_plan_mode, set_ralph_loop,
-    close_session_async, _create_session_async,
+    close_session as _close_kimi_session, prompt_async,
+    _create_session_async,
 )
 from kimix.cli_impl.server_cmds import _command_map, _cmd_unknown, session_dict, SessionEntry
 from kimix.network.rpc_server import JSONRPCServer

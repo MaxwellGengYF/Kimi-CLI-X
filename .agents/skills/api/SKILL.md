@@ -111,13 +111,10 @@ errors = get_tool_call_errors(session)  # or session_id string
 ### Session Settings
 
 ```python
-from kimi_utils import set_plan_mode, set_ralph_loop, clear_context
+from kimi_utils import set_plan_mode, clear_context
 
 # Toggle plan mode (clears context automatically)
 set_plan_mode(True)
-
-# Set Ralph loop iterations (-1 = unlimited, 0 = disabled)
-set_ralph_loop(-1)
 ```
 
 ## RAG Search (kimi_utils.py)
@@ -380,7 +377,7 @@ from kimi_utils import (
     create_session, close_session, prompt, prompt_async,
     validate, rag, clear_context, print_usage,
     get_default_session, get_tool_call_errors,
-    set_plan_mode, set_ralph_loop,
+    set_plan_mode,
     read_file, prompt_path, fix_error, async_prompt
 )
 from agent_utils import (
