@@ -1,0 +1,106 @@
+from typing import Any
+import os
+from pathlib import Path
+import json
+import kimix.agent_utils as agent_utils
+from kimi_cli.config import BackgroundConfig, LoopControl, SecretStr  # type: ignore[attr-defined]
+from kimi_agent_sdk import Config
+from . import _globals
+
+
+def _ensure_text_search() -> tuple[Any, Any]:
+    """Lazy import of TextSearchIndex and SearchResult."""
+    if _globals.TextSearchIndex is None:
+        from my_tools.skill.faiss.text_search import TextSearchIndex as _TSI, SearchResult as _SR
+        _globals.TextSearchIndex = _TSI
+        _globals.SearchResult = _SR
+    return _globals.TextSearchIndex, _globals.SearchResult
+
+
+def _create_config(provider_dict: dict[str, Any] | None = None) -> Config:
+    from kimi_cli.config import LLMModel, LLMProvider
+    from kimix.agent_utils import print_debug, print_warning
+
+    provider_dict = provider_dict if provider_dict is not None else agent_utils._default_provider
+    cfg = Config()
+
+    def _check_legal(value: str | None, start_with: str) -> bool:
+        if value is None or type(value) != str:
+            return False
+        return value.startswith(start_with)
+    if provider_dict is None:
+        try:
+            provider_dict = json.loads(
+                (Path(__file__).parent.parent / 'default_config.json').read_text(encoding='utf-8', errors='replace'))
+            if type(provider_dict) != dict:
+                provider_dict = None
+        except:
+            pass
+    if provider_dict is not None:
+        model_name = provider_dict.get('model_name', 'unknown_model')
+        name = provider_dict.get('name', 'unknown')
+        print_debug(f'Using model `{model_name}` from provider `{name}`')
+        model = provider_dict.get('model')
+        max_context_size = provider_dict.get('max_context_size')
+        capabilities = set(provider_dict.get('capabilities', set()))
+        url = provider_dict.get('url')
+        provider_type = provider_dict.get("type")
+        assert provider_type is not None, "`provider_type` must be provided in  config"
+        assert max_context_size is not None, "`max_context_size` must be provided in  config"
+        assert type(model) == str, "model(str) must be provided in config"
+        assert url is not None, "url must be provided in config"
+        max_context_size = int(max_context_size)
+        api_key = provider_dict.get('api_key', None)
+        if not api_key:
+            api_key = os.environ.get("KIMI_API_KEY")
+        if not api_key:
+            api_key = os.environ.get("KIMIX_API_KEY")
+        if not api_key:
+            print_warning(
+                'api_key not found. May config in JSON, or set to env `KIMI_API_KEY` or `KIMIX_API_KEY`')
+            api_key = ''
+        elif not api_key.startswith('sk'):
+            print_warning('api_key is invalid, must start with `sk`')
+            api_key = ''
+
+        provider = LLMProvider(
+            type=provider_type,
+            # example: "https://api.minimaxi.com/anthropic"
+            base_url=url,
+            api_key=SecretStr(api_key),
+            custom_headers=provider_dict.get('custom_headers'),
+            oauth=provider_dict.get('oauth'),
+        )
+        cfg.default_model = model_name
+        cfg.models = {
+            model_name: LLMModel(
+                provider=name, model=model, max_context_size=max_context_size, capabilities=capabilities)
+        }
+        cfg.providers = {
+            name: provider
+        }
+        # Set loop control
+        loop_control = provider_dict.get('loop_control')
+        if loop_control and isinstance(loop_control, dict):
+            lc = LoopControl()
+            for key, value in loop_control.items():
+                if hasattr(lc, key):
+                    setattr(lc, key, value)
+            cfg.loop_control = lc
+        def set_val(name: str) -> None:
+            v = provider_dict.get(name)
+            if v is not None:
+                setattr(cfg, name, v)
+        set_val('default_plan_mode')
+        set_val('default_yolo')
+        set_val('default_thinking')
+        set_val('show_thinking_stream')
+        # Set background
+        background = provider_dict.get('background')
+        if background and isinstance(background, dict):
+            bc = BackgroundConfig()
+            for key, value in background.items():
+                if hasattr(bc, key):
+                    setattr(bc, key, value)
+            cfg.background = bc
+    return cfg
