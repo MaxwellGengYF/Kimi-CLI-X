@@ -1,20 +1,16 @@
-"""Text file indexer tool using FAISS for semantic search."""
-
 import hashlib
 import os
-import sys
-import re
+from dataclasses import dataclass
 from collections import OrderedDict
 from pathlib import Path
-from typing import Optional, Dict, Any, ClassVar
-from dataclasses import dataclass
-
-from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
-from kimi_cli.tools import SkipThisTool
+from typing import Any
+from kimi_agent_sdk import CallableTool2, ToolError, ToolOk
 from pydantic import BaseModel, Field
+from kimi_cli.tools import SkipThisTool
+from typing import override
+from kimi_cli.soul.approval import Approval
 
-
-def _get_text_search_index() -> Any:
+def _get_text_search_index():
     """Lazy import of TextSearchIndex to avoid hard faiss dependency at import time."""
     from .faiss.text_search import TextSearchIndex
     return TextSearchIndex
@@ -29,20 +25,10 @@ SUPPORTED_TEXT_EXTENSIONS = frozenset([
 ])
 
 
-@dataclass
-class IndexedCollection:
-    """Represents an indexed collection of files."""
-    directory: str
-    file_count: int
-    chunk_count: int
-    pipeline: Any  # RAGPipeline instance
-
-
 class IndexerParams(BaseModel):
     """Parameters for the indexer tool."""
-
     query: str = Field(
-        description="Search keywords (keywords only, not sentences)."
+        description="Search keywords/query."
     )
     top_k: int = Field(
         default=3,
@@ -50,40 +36,24 @@ class IndexerParams(BaseModel):
         le=10,
         description="Number of top results to return."
     )
-    content: bool = Field(
-        default=False,
-        description="Return full content of matched files."
-    )
-    negative: Optional[str] = Field(
+    negative: str | None = Field(
         default=None,
         description="Optional keywords to penalize in search results (exclude results matching these keywords)."
     )
 
 
-class SkillAnalyzer(CallableTool2[Any]):
+_MAX_INDEX_CACHE_SIZE = 3
+
+class SkillRag(CallableTool2[IndexerParams]):
     """Indexer tool for semantic search over text files."""
 
-    params: type[BaseModel] = IndexerParams
-    name: str = "SkillAnalyzer"
-    description: str = "A powerful search and retrieve relevant tool."
-    COLLECTION_NAME: ClassVar[str] = "work_dir_files"
-    PERSIST_DIR: ClassVar[str] = ".cache/chroma_db"
-    _collection_cache: ClassVar[dict[str, IndexedCollection]] = {}
-    _index_cache: ClassVar[OrderedDict[str, Any]] = OrderedDict()
-    _MAX_INDEX_CACHE_SIZE: ClassVar[int] = 3
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
-        try:
-            self._text_search_index_cls = _get_text_search_index()
-        except Exception:
-            raise SkipThisTool()
-        if not self._load_index():
-            raise SkipThisTool()
-
-    def _load_index(self, skill_path: list[Any] | None = None) -> bool:
+    name: str = "SkillRag"
+    description: str = "A powerful search and retrieve relevant tool for skill."
+    _index_cache = OrderedDict()
+    params: type[IndexerParams] = IndexerParams
+    def _load_index(self, skill_path: list[Any] | None = None):
         from kimix.agent_utils import get_skill_dirs
-        SKILL_PATHS = skill_path if skill_path is not None else get_skill_dirs()
+        SKILL_PATHS = skill_path if skill_path is not None else get_skill_dirs(False)
         search_paths = [str(Path(p).resolve()) for p in SKILL_PATHS]
         existing_paths = [p for p in search_paths if os.path.exists(p)]
 
@@ -103,10 +73,10 @@ class SkillAnalyzer(CallableTool2[Any]):
             self._index_cache[index_cache_key] = index
             cached = True
         else:
-            if len(self._index_cache) >= self._MAX_INDEX_CACHE_SIZE:
+            if len(self._index_cache) >= _MAX_INDEX_CACHE_SIZE:
                 oldest_key, _ = self._index_cache.popitem(last=False)
             index = self._text_search_index_cls(
-                cache_dir=cache_dir, lazy_load=True)
+                cache_dir=cache_dir)
             self._index_cache[index_cache_key] = index
 
         if os.path.exists(index_path):
@@ -147,11 +117,30 @@ class SkillAnalyzer(CallableTool2[Any]):
         self._search_paths = existing_paths
         self._stats = index.get_stats()
         return True
+    def __init__(self):
+        super().__init__(self.name, self.description, self.params)
+        import kimix.agent_utils as agent_utils
+        if not agent_utils._enable_rag:
+            raise SkipThisTool()
+        try:
+            self._text_search_index_cls = _get_text_search_index()
+        except Exception:
+            raise SkipThisTool()
+        agent_utils.print_debug('Loading RAG embedded model (can be slow)...')
+        if not self._load_index():
+            raise SkipThisTool()
 
-    async def __call__(self, params: IndexerParams) -> ToolReturnValue:
+
+    @override
+    async def __call__(self, params: IndexerParams):
         try:
             index = self._index
             search_paths = self._search_paths
+            if not self._load_index():
+                return ToolOk(
+                    output="No documents found to index.",
+                    brief="No documents found",
+                )
             stats = self._stats
 
             if stats['total_documents'] == 0:
@@ -176,34 +165,18 @@ class SkillAnalyzer(CallableTool2[Any]):
             ]
 
             for i, r in enumerate(results, 1):
-                rel_path = r.file_path
-                for base in search_bases:
-                    try:
-                        candidate = os.path.relpath(r.file_path, base)
-                        if not candidate.startswith('..'):
-                            rel_path = candidate
-                            break
-                    except ValueError:
-                        pass
-
+                rel_path = Path(r.file_path)
+                try:
+                    rel_path = rel_path.relative_to(Path('.').resolve())
+                except ValueError as e:
+                    pass
                 line_text = r.line_text
-                snippet = line_text[:200]
+                snippet = line_text[:100]
+                rel_path = str(rel_path)
                 output_lines.append(
                     f"{i}. [{r.score:.4f}] {rel_path}:{r.line_index + 1}")
                 output_lines.append(
-                    f"   {snippet}{'...' if len(line_text) > 200 else ''}")
-
-                if params.content:
-                    try:
-                        with open(r.file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                            full_content = f.read(2000)
-                        output_lines.append("\n   --- Full Content ---")
-                        output_lines.append(
-                            f"   {full_content}{'...' if len(full_content) == 2000 else ''}")
-                        output_lines.append("   --- End Content ---\n")
-                    except Exception:
-                        pass
-
+                    f"   {snippet}{'...' if len(line_text) > 100 else ''}")
             output_lines.append(
                 f"\nIndexed {stats['total_files']} files, {stats['total_documents']} lines.")
 
@@ -220,3 +193,4 @@ class SkillAnalyzer(CallableTool2[Any]):
                 output="",
                 brief="Tool error",
             )
+        

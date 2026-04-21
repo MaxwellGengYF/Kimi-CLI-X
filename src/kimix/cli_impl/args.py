@@ -25,6 +25,8 @@ def set_arg() -> argparse.ArgumentParser:
                         help='Specify custom skill directory(s)')
     parser.add_argument('--config', type=str, default=None,
                         help='Path to a JSON config file to load as default provider')
+    parser.add_argument('--rag', '-rag', action='store_true',
+                        help='Enable RAG tool')
     # server
     parser.add_argument('--server', action='store_true',
                         help='Enable server mode')
@@ -57,11 +59,10 @@ def set_arg() -> argparse.ArgumentParser:
     else:
         agent_utils._default_yolo = True
 
-    if args.server:
-        utils._server_mode = True
-        print_debug('Server mode ON.')
-    else:
-        utils._server_mode = False
+    utils._server_mode = bool(args.server)
+    agent_utils._enable_rag = bool(args.rag)
+    if agent_utils._enable_rag:
+        print_debug('Enable RAG.')
 
     # Handle --config argument
     if args.config:

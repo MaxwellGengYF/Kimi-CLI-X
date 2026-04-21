@@ -16,7 +16,6 @@ _temp_folder = Path.home() / '.kimi' / 'sessions'
 _temp_idx = 0
 _temp_set: dict[Path, int] = dict()
 
-
 def _estimate_tokens(text: str) -> int:
     """Rough estimation of token count (approximately 4 characters per token)."""
     return len(text) // 4

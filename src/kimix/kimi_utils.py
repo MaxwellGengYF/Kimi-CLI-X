@@ -165,7 +165,7 @@ Rules:
 3. For long tasks, use `Run`/`Python` with `run_in_background=true`, then manage via `TaskList`, `TaskOutput`, `Input`, `TaskStop`. Return control immediately after starting.
 4. Python path `${PYTHON_PATH}`, ALWAYS use this python.
 5. For complex or multi-step tasks, use `SetTodoList` to track progress.
-${SPAWN}${SHELL}${PLAN_MODE}${YOLO_MODE}
+${SPAWN}${SHELL}${PLAN_MODE}${YOLO_MODE}${RAG}
 ${AGENTS_MD}${SKILLS}
 ''')
 _START_INDEX = 6
@@ -188,25 +188,30 @@ def get_system_prompt(
         shell_doc = None
         agent_md_doc = None
         skill_doc = None
+        rag = None
         yolo_doc = None
         index = _START_INDEX
+        # Spawn
         if not is_sub_agent:
             spawn_doc = f'''{index}. Use `Spawn` for: "parallelizable independent subtasks", "large-context analysis or tasks needing different expertise", "permission-graded operations like read-only analysis or sandboxed execution".'''
             index += 1
+        # Shell
         if args.KIMI_OS == 'Windows':
             shell_doc = f'''
 {index}. No Shell commands; use `Run`/`Python` instead.
 '''
         else:
             shell_doc = f'''
-{index}. Shell: {args.KIMI_SHELL} 
+{index}. Shell: {args.KIMI_SHELL}.
 '''
         index += 1
+        # Plan
         if plan_mode:
             plan_mode_doc = f'''
 {index}. Plan mode: draft plan, run `ExitPlanMode`, then execute.
 '''
             index += 1
+        # Yolo
         if yolo:
             yolo_doc = f'''
 {index}. Yolo mode: act decisively without asking. Never write outside working directory or change system settings(if not asked).
@@ -221,7 +226,11 @@ AGENTS.md:
 {agent_md_doc}
 ```
 '''
-        if args.KIMI_SKILLS and args.KIMI_SHELL.lower() != 'no skills found.':
+        # Use RAG to search skill files, no need to list all skills
+        if agent_utils._enable_rag:
+            rag = f'{index}: Use `SkillRag` tool to search and retrieve skills.'
+            index += 1
+        elif args.KIMI_SKILLS and args.KIMI_SHELL.lower() != 'no skills found.':
             skill_doc = f'''
 Skills:
 {args.KIMI_SKILLS}
@@ -229,6 +238,7 @@ Skills:
         return _SYSTEM_PROMP.substitute(
             AGENT_ROLE=role_doc.strip(),
             PYTHON_PATH=sys.executable,
+            RAG=(rag.strip() + '\n') if rag else '',
             PLAN_MODE=(plan_mode_doc.strip() + '\n') if plan_mode_doc else '',
             SHELL=(shell_doc.strip() + '\n') if shell_doc else '',
             SPAWN=(spawn_doc.strip() + '\n') if spawn_doc else '',

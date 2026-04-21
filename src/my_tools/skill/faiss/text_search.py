@@ -41,6 +41,7 @@ def _get_faiss() -> Any:
 
 # Delay sentence_transformers import until needed
 SentenceTransformer = None
+DefaultModels = dict()
 
 def _get_sentence_transformer() -> Any:
     """Lazy import of SentenceTransformer."""
@@ -199,8 +200,7 @@ class TextSearchIndex:
                            '.vue', '.svelte', '.astro',
                            '.lock', '.sum', '.mod'}
     
-    def __init__(self, model_name: str = DEFAULT_MODEL, dimension: Optional[int] = None,
-                 cache_dir: Optional[str] = None, lazy_load: bool = True):
+    def __init__(self, model_name: str = DEFAULT_MODEL, cache_dir: Optional[str] = None):
         """
         Initialize the text search index.
         
@@ -211,9 +211,21 @@ class TextSearchIndex:
             lazy_load: If True, delay model loading until first use
         """
         self.model_name = model_name
-        self._dimension = dimension  # Store provided dimension for lazy loading
-        self._model = None  # Lazy load
-        self._lazy_load = lazy_load
+        ST = _get_sentence_transformer()
+        global DefaultModels
+        if not model_name in DefaultModels:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                logging.getLogger("sentence_transformers").setLevel(logging.ERROR)
+                model = ST(self.model_name, device='cpu')
+                DefaultModels[model_name] = model
+            model.show_progress_bar = False
+        else:
+            model = DefaultModels[model_name]
+        self._model = model
+        # Set dimension if not already set
+        # if self._dimension is None:
+        self._dimension = model.get_embedding_dimension()
         
         # FAISS index (use _index to avoid property conflict)
         self._index: Any = None  # faiss.Index when loaded
@@ -233,33 +245,16 @@ class TextSearchIndex:
         # Initialize FAISS index
         self._init_index()
     
-    
-    @property
-    def model(self) -> Any:
-        """Lazy load the sentence transformer model."""
-        if self._model is None:
-            ST = _get_sentence_transformer()
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                logging.getLogger("sentence_transformers").setLevel(logging.ERROR)
-                model = ST(self.model_name, device='cpu')
-            model.show_progress_bar = False
-            # Set dimension if not already set
-            if self._dimension is None:
-                self._dimension = model.get_sentence_embedding_dimension()
-            self._model = model
-        return self._model
-    
+        
     @property
     def dimension(self) -> int:
         """Get embedding dimension, loading model if necessary."""
         if self._dimension is None:
-            self._dimension = self.model.get_sentence_embedding_dimension()
+            self._dimension = self._model.get_embedding_dimension()
         return self._dimension
     
     @property
     def index(self) -> Any:
-        """Access the FAISS index (lazy initialization)."""
         return self._index
 
     def _init_index(self) -> None:
@@ -281,7 +276,7 @@ class TextSearchIndex:
     
     def _get_embeddings(self, texts: List[str]) -> np.ndarray:
         """Get embeddings for a list of texts."""
-        embeddings = self.model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
+        embeddings = self._model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
         embeddings = np.array(embeddings).astype('float32')
         return self._normalize_vectors(embeddings)
     
@@ -923,8 +918,6 @@ class TextSearchIndex:
         self.file_metadata = data.get('file_metadata', {})
         self.model_name = data['model_name']
         self._dimension = data['dimension']
-        # Reset model to trigger lazy loading
-        self._model = None
         
     
     def clear(self) -> None:
@@ -933,5 +926,4 @@ class TextSearchIndex:
         self.documents = []
         self.indexed_files = set()
         self.file_metadata = {}
-        self._model = None  # Reset model for lazy reload
 

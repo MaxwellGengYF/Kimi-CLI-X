@@ -11,3 +11,4 @@ agent:
     - "kimi_cli.tools.file:StrReplaceFile"
     - "kimi_cli.tools.web:SearchWeb"
     - "my_tools.web.fetch_url:FetchURL"
+    - "my_tools.skill:SkillRag"
