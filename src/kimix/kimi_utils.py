@@ -29,48 +29,30 @@ def _ensure_text_search() -> tuple[Any, Any]:
 
 
 _default_session: Session | None = None
-__env_initialized = False
 
 # RAG index cache (LRU cache with max size of 3)
 _index_cache: OrderedDict[Any, Any] = OrderedDict()
 _MAX_INDEX_CACHE_SIZE: int = 3
 
 
-def _init_model(check_config: bool) -> None:
-    def _check_legal(value: str | None, start_with: str) -> bool:
-        if value is None or type(value) != str:
-            return False
-        return value.startswith(start_with)
-
-    global __env_initialized
-    if __env_initialized:
-        return
-    __env_initialized = True
-    if check_config:
-        api_key = os.environ.get("KIMI_API_KEY")
-        if not _check_legal(api_key, 'sk'):
-            print_error('KIMI_API_KEY not found.')
-            exit(1)
-
-        if not _check_legal(os.environ.get("KIMI_BASE_URL"), 'http'):
-            os.environ["KIMI_BASE_URL"] = "https://api.kimi.com/coding/v1"
-        default_model = 'kimi-for-coding'
-        config_model = os.environ.get("KIMI_MODEL_NAME")
-        if not _check_legal(config_model, 'kimi'):
-            os.environ['KIMI_MODEL_NAME'] = default_model
-        elif config_model is not None and config_model != default_model:
-            default_model = config_model
-            print_debug(f'Using {config_model} model.')
-
-
 def _create_config(provider_dict: dict[str, Any] | None = None) -> Any:
     provider_dict = provider_dict if provider_dict is not None else agent_utils._default_provider
-    _init_model(provider_dict is None)
     from kimi_agent_sdk import Config
     from kimi_cli.config import LoopControl
     cfg = Config()
     # DO THIS: support other providers and models
     from kimi_cli.config import LLMModel, LLMProvider
+    def _check_legal(value: str | None, start_with: str) -> bool:
+        if value is None or type(value) != str:
+            return False
+        return value.startswith(start_with)
+    if provider_dict is None:
+        try:
+            provider_dict = json.loads((Path(__file__).parent / 'default_config.json').read_text(encoding='utf-8', errors='replace'))
+            if type(provider_dict) != dict:
+                provider_dict = None
+        except:
+            pass
     if provider_dict is not None:
         model_name = provider_dict.get('model_name', 'unknown_model')
         name = provider_dict.get('name', 'unknown')
@@ -84,12 +66,24 @@ def _create_config(provider_dict: dict[str, Any] | None = None) -> Any:
         assert max_context_size is not None, "`max_context_size` must be provided in  config"
         assert model is not None, "model must be provided in config"
         assert url is not None, "url must be provided in config"
+        api_key = api_key=provider_dict.get('api_key', None)
+        if not api_key:
+            api_key = os.environ.get("KIMI_API_KEY")
+        if not api_key:
+            api_key = os.environ.get("KIMIX_API_KEY")
+        if not api_key:
+            print_warning('api_key not found. May config in JSON, or set to env `KIMI_API_KEY` or `KIMIX_API_KEY`')
+            api_key = ''
+        elif not api_key.startswith('sk'):
+            print_warning('api_key is invalid, must start with `sk`')
+            api_key = ''
+
         provider = LLMProvider(
             type=provider_type,
             # example: "https://api.minimaxi.com/anthropic"
             base_url=url,
             # TODO: delete this before push.
-            api_key=provider_dict.get('api_key', ''),
+            api_key=api_key,
             custom_headers=provider_dict.get('custom_headers'),
             oauth=provider_dict.get('oauth'),
         )

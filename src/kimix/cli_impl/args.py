@@ -40,8 +40,6 @@ def set_arg() -> argparse.ArgumentParser:
     constants.CLEAN_MODE = args.clean
     if constants.CLEAN_MODE:
         print_debug('Clean mode ON, delete cache file after quit.')
-    else:
-        print_debug('Clean mode OFF.')
 
     if args.ralph:
         agent_utils._ralph_iterations = -1
@@ -49,35 +47,30 @@ def set_arg() -> argparse.ArgumentParser:
             'Ralph loop ON, continue work until done(or running OUT of your TOKEN!!!).')
     else:
         agent_utils._ralph_iterations = 0
-        print_debug('Ralph loop OFF.')
 
     if args.no_think:
         agent_utils._default_thinking = False
         print_debug('Thinking OFF.')
     else:
         agent_utils._default_thinking = True
-        print_debug('Thinking ON.')
 
     if args.plan:
         agent_utils._default_plan_mode = True
         print_debug('Plan mode ON.')
     else:
         agent_utils._default_plan_mode = False
-        print_debug('Plan mode OFF.')
 
     if args.no_yolo:
         agent_utils._default_yolo = False
         print_debug('YOLO OFF.')
     else:
         agent_utils._default_yolo = True
-        print_debug('YOLO ON.')
 
     if args.server:
         utils._server_mode = True
         print_debug('Server mode ON.')
     else:
         utils._server_mode = False
-        print_debug('Server mode OFF.')
 
     # Handle --config argument
     if args.config:
