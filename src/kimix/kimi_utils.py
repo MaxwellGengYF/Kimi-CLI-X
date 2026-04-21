@@ -61,13 +61,14 @@ def _create_config(provider_dict: dict[str, Any] | None = None) -> Config:
         print_debug(f'Using model `{model_name}` from provider `{name}`')
         model = provider_dict.get('model')
         max_context_size = provider_dict.get('max_context_size')
-        capabilities = provider_dict.get('capabilities', [])
+        capabilities = set(provider_dict.get('capabilities', set()))
         url = provider_dict.get('url')
         provider_type = provider_dict.get("type")
         assert provider_type is not None, "`provider_type` must be provided in  config"
         assert max_context_size is not None, "`max_context_size` must be provided in  config"
-        assert model is not None, "model must be provided in config"
+        assert type(model) == str, "model(str) must be provided in config"
         assert url is not None, "url must be provided in config"
+        max_context_size = int(max_context_size)
         api_key = provider_dict.get('api_key', None)
         if not api_key:
             api_key = os.environ.get("KIMI_API_KEY")
@@ -475,10 +476,7 @@ async def prompt_async(
             if session._cancel_event is not None and session._cancel_event.is_set():
                 break
             try:
-                async for message in session.prompt(
-                    prompt_str,
-                    merge_wire_messages=True,
-                ):
+                async for message in session.prompt(prompt_str,merge_wire_messages=True):
                     if cancel_callable is not None and cancel_callable():
                         session.cancel()
                         break
@@ -486,23 +484,20 @@ async def prompt_async(
                         lambda: message.model_dump_json(), output_function)
                 if info_print:
                     _print_usage(session)
-                max_retries = 0
+                break
             except KeyboardInterrupt as e:
                 if session:
                     session.cancel()
             except Exception as e:
                 print_error(str(e))
-                import time
-                if "429" in str(e):
-                    wait_time = 4 ** attempt  # 1, 4, 16, 64, 128 秒
+                if "429" in str(e) or "400" in str(e) or "500" in str(e) or "502" in str(e) or "503" in str(e):
+                    wait_time = min(2 ** attempt, 60)
                     print_warning(f"Rate limited. Waiting {wait_time}s...")
-                    time.sleep(wait_time)
-                    continue
+                    await asyncio.sleep(wait_time)
                 elif attempt == max_retries - 1:
                     raise
                 else:
-                    time.sleep(1)
-            break
+                    await asyncio.sleep(1)
     finally:
         if close_session_after_prompt and session:
             await close_session_async(session)
