@@ -8,3 +8,4 @@ requirements.txt
 .cache
 .index_cache
 uv.lock
+clone_submodule.py

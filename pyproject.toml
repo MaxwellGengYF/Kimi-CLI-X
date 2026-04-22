@@ -3,8 +3,8 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "kimi-agent-tools"
-version = "0.1.0"
+name = "kimix"
+version = "0.1.3"
 description = "Kimi Agent Tools - Custom tool collection for Kimi Agent SDK"
 readme = "README.md"
 license = { text = "MIT" }
@@ -75,7 +75,7 @@ all = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/kimix", "my_tools"]
+packages = ["src/kimix", "src/my_tools"]
 sources = ["src"]
 
 [tool.uv]
