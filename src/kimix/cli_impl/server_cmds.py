@@ -1,11 +1,11 @@
 from dataclasses import dataclass
 from pathlib import Path
-import kimix.agent_utils as agent_utils
+import kimix.base as base
 import threading
 import queue
 import os
 from kimix.cli_impl.constants import HELP_STR
-from kimix.kimi_utils import (
+from kimix.utils import (
     prompt_async,
     close_session_async, _create_session_async,
 )
@@ -39,7 +39,7 @@ async def _cmd_help(session_id: str, session: Session, cmd: str, arg: str, outpu
 async def _cmd_clear(session_id: str, session: Session, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
     new_session = await clear_context_async(session, force_create=True, resume=False, print_info=False)
     session_dict[session_id].session = new_session
-    from kimix.agent_utils import percentage_str
+    from kimix.base import percentage_str
     output_queue.put(f'Context cleared. Usage: {percentage_str(new_session.status.context_usage)}')
     return None
 
@@ -48,7 +48,7 @@ async def _cmd_summarize(session_id: str, session: Session, cmd: str, arg: str, 
     try:
         from kimix.summarize import generate_memory, read_memory
         from my_tools.common import _create_temp_file_name
-        from kimix.agent_utils import percentage_str
+        from kimix.base import percentage_str
         temp_file = _create_temp_file_name()
         Path(temp_file).unlink(missing_ok=True)
         last_usage = session.status.context_usage
@@ -66,7 +66,7 @@ async def _cmd_summarize(session_id: str, session: Session, cmd: str, arg: str, 
 
 
 async def _cmd_context(session_id: str, session: Session, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
-    from kimix.agent_utils import percentage_str
+    from kimix.base import percentage_str
     output_queue.put(f'Context usage: {percentage_str(session.status.context_usage)}')
     return None
 
@@ -101,7 +101,7 @@ async def _cmd_cd(session_id: str, session: Session, cmd: str, arg: str, output_
         return None
     try:
         os.chdir(arg)
-        agent_utils._default_skill_dirs = []
+        base._default_skill_dirs = []
         new_session = await clear_context_async(session, force_create=True, resume=True, print_info=False)
         session_dict[session_id].session = new_session
         output_queue.put(f'Changed directory to: {Path(".").resolve()}')

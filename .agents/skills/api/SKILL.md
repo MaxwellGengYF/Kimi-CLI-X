@@ -5,7 +5,7 @@ description: Guide for using Kimi API utilities (session management, prompts, RA
 
 # Kimi API Utilities Guide
 
-This guide explains how to use the utility functions from `kimix.kimi_utils` and `kimix.agent_utils` for session management, prompting, RAG search, colorful printing, and threading.
+This guide explains how to use the utility functions from `kimix.kimi_utils` and `kimix.base` for session management, prompting, RAG search, colorful printing, and threading.
 
 ## Session Management (kimix.kimi_utils)
 
@@ -158,12 +158,12 @@ for result in results:
         print(f"Content: {result.full_content[:200]}...")
 ```
 
-## Colorful Printing (kimix.agent_utils)
+## Colorful Printing (kimix.base)
 
 ### Basic Print Functions
 
 ```python
-from kimix.agent_utils import (
+from kimix.base import (
     print_success,    # Green bold - success messages
     print_error,      # Red bold - error messages
     print_warning,    # Yellow bold - warning messages
@@ -183,7 +183,7 @@ print_debug("Variable x = 42")
 ### Advanced Color Printing
 
 ```python
-from kimix.agent_utils import colorful_print, Color, BgColor, Style
+from kimix.base import colorful_print, Color, BgColor, Style
 
 # Full control over colors and styles
 colorful_print(
@@ -204,7 +204,7 @@ colorful_print(
 ### Print Agent JSON
 
 ```python
-from kimix.agent_utils import print_agent_json
+from kimix.base import print_agent_json
 
 # Pretty-print streaming messages from the agent session
 print_agent_json(
@@ -213,12 +213,12 @@ print_agent_json(
 )
 ```
 
-## Threading (kimix.agent_utils)
+## Threading (kimix.base)
 
 ### Running Functions in Background
 
 ```python
-from kimix.agent_utils import run_thread, sync_all
+from kimix.base import run_thread, sync_all
 
 # Run function in background thread (max 8 concurrent)
 def my_task(data):
@@ -246,7 +246,7 @@ thread = async_fix_error("python main.py", extra_prompt="Handle edge cases")
 ### Process Execution
 
 ```python
-from kimix.agent_utils import _run_process_with_log, run_process_with_error, run_script
+from kimix.base import _run_process_with_log, run_process_with_error, run_script
 
 # Run command and capture output
 output, returncode = _run_process_with_log("ls -la")
@@ -302,12 +302,12 @@ fix_error(
 )
 ```
 
-## Configuration Variables (kimix.agent_utils)
+## Configuration Variables (kimix.base)
 
 Default configuration values you can import and modify:
 
 ```python
-from kimix.agent_utils import (
+from kimix.base import (
     _default_thinking,       # Deep thinking mode (default: True)
     _default_plan_mode,      # Plan mode (default: False)
     _default_yolo,           # Yolo mode (default: True)
@@ -324,7 +324,7 @@ from kimix.agent_utils import (
 ### Skill Directories
 
 ```python
-from kimix.agent_utils import get_skill_dirs
+from kimix.base import get_skill_dirs
 
 # Auto-discover skill directories (checked paths: .agents/skills, .config/.agents/skills, .opencode/skills)
 dirs = get_skill_dirs(use_kaos_path=True)
@@ -336,7 +336,7 @@ dirs = get_skill_dirs(use_kaos_path=True)
 """Example script using Kimi API utilities."""
 from pathlib import Path
 from kimix.kimi_utils import create_session, prompt, rag, close_session, clear_context
-from kimix.agent_utils import print_success, print_error, print_info
+from kimix.base import print_success, print_error, print_info
 
 # Create session
 session = create_session(
@@ -398,7 +398,7 @@ from kimix.kimi_utils import (
     set_plan_mode, cancel_prompt, get_cancel_event,
     read_file, prompt_path, fix_error, async_prompt, async_fix_error
 )
-from kimix.agent_utils import (
+from kimix.base import (
     print_success, print_error, print_warning,
     print_info, print_debug, colorful_print,
     Color, BgColor, Style, run_thread, sync_all,

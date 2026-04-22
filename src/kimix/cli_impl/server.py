@@ -9,9 +9,9 @@ import queue
 import threading
 import uuid
 from pathlib import Path
-import kimix.agent_utils as agent_utils
+import kimix.base as base
 from kimi_agent_sdk import Session
-from kimix.kimi_utils import (
+from kimix.utils import (
     close_session as _close_kimi_session, prompt_async,
     _create_session_async,
 )

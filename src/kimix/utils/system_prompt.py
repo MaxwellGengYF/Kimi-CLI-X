@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 import os
 from kaos.path import KaosPath
-import kimix.agent_utils as agent_utils
+import kimix.base as base
 from kimi_cli.soul.agent import BuiltinSystemPromptArgs
 
 
@@ -28,8 +28,8 @@ def get_system_prompt(
         work_dir: Optional[KaosPath] = None) -> Callable[[BuiltinSystemPromptArgs], str]:
     agent_md = (Path(str(work_dir)) if work_dir is not None else Path(
         os.curdir)) / 'AGENTS.md'
-    plan_mode = plan_mode if plan_mode is not None else agent_utils._default_plan_mode
-    yolo = yolo if yolo is not None else agent_utils._default_yolo
+    plan_mode = plan_mode if plan_mode is not None else base._default_plan_mode
+    yolo = yolo if yolo is not None else base._default_yolo
 
     def system_prompt_func(args: BuiltinSystemPromptArgs) -> str:
         role_doc = 'coding sub-agent' if is_sub_agent else 'coding agent'
@@ -77,7 +77,7 @@ AGENTS.md:
 ```
 '''
         # Use RAG to search skill files, no need to list all skills
-        if agent_utils._enable_rag:
+        if base._enable_rag:
             rag = f'{index}: Use `SkillRag` tool to search and retrieve skills.'
             index += 1
         elif args.KIMI_SKILLS and args.KIMI_SHELL.lower() != 'no skills found.':

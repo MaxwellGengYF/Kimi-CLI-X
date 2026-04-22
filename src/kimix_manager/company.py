@@ -19,7 +19,7 @@ _temp_idx = 0
 
 
 def schedule_project(content: str, job_name: str = None):
-    from kimix.agent_utils import print_error
+    from kimix.base import print_error
     if _designer is None:
         print_error('Company not opened.')
         return
@@ -45,7 +45,7 @@ def start_work():
 
 
 def designer(content: str) -> Path | None:
-    from kimix.agent_utils import print_error
+    from kimix.base import print_error
     if _designer is None:
         print_error('Company not opened.')
         return
@@ -55,7 +55,7 @@ def designer(content: str) -> Path | None:
 
 
 def worker(job: Job):
-    from kimix.agent_utils import print_error
+    from kimix.base import print_error
     if _designer is None:
         print_error('Company not opened.')
         return

@@ -52,7 +52,7 @@ class SkillRag(CallableTool2[IndexerParams]):
     _index_cache = OrderedDict()
     params: type[IndexerParams] = IndexerParams
     def _load_index(self, skill_path: list[Any] | None = None):
-        from kimix.agent_utils import get_skill_dirs
+        from kimix.base import get_skill_dirs
         SKILL_PATHS = skill_path if skill_path is not None else get_skill_dirs(False)
         search_paths = [str(Path(p).resolve()) for p in SKILL_PATHS]
         existing_paths = [p for p in search_paths if os.path.exists(p)]
@@ -119,14 +119,14 @@ class SkillRag(CallableTool2[IndexerParams]):
         return True
     def __init__(self):
         super().__init__(self.name, self.description, self.params)
-        import kimix.agent_utils as agent_utils
-        if not agent_utils._enable_rag:
+        import kimix.base as base
+        if not base._enable_rag:
             raise SkipThisTool()
         try:
             self._text_search_index_cls = _get_text_search_index()
         except Exception:
             raise SkipThisTool()
-        agent_utils.print_debug('Loading RAG embedded model (can be slow)...')
+        base.print_debug('Loading RAG embedded model (can be slow)...')
         if not self._load_index():
             raise SkipThisTool()
 

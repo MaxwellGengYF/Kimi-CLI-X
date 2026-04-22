@@ -20,9 +20,6 @@
         "reserved_context_size": 50000,
         "compaction_trigger_ratio": 0.85
     },
-    "default_plan_mode": false,
-    "default_yolo": true,
-    "default_thinking": true,
     "show_thinking_stream": true,
     "temperature": 0.7,
     "top_p": 0.9,

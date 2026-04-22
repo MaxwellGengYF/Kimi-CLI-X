@@ -2,7 +2,7 @@ from typing import Any
 import os
 from pathlib import Path
 import json
-import kimix.agent_utils as agent_utils
+import kimix.base as base
 from kimi_cli.config import BackgroundConfig, LoopControl, SecretStr, NotificationConfig, MCPConfig, OAuthRef  # type: ignore[attr-defined]
 from kimi_agent_sdk import Config
 from . import _globals
@@ -19,9 +19,9 @@ def _ensure_text_search() -> tuple[Any, Any]:
 
 def _create_config(provider_dict: dict[str, Any] | None = None) -> Config:
     from kimi_cli.config import LLMModel, LLMProvider
-    from kimix.agent_utils import print_debug, print_warning
+    from kimix.base import print_debug, print_warning
 
-    provider_dict = provider_dict if provider_dict is not None else agent_utils._default_provider
+    provider_dict = provider_dict if provider_dict is not None else base._default_provider
     cfg = Config()
 
     def _check_legal(value: str | None, start_with: str) -> bool:
@@ -99,9 +99,6 @@ def _create_config(provider_dict: dict[str, Any] | None = None) -> Config:
             v = provider_dict.get(name)
             if v is not None:
                 setattr(cfg, name, v)
-        set_val('default_plan_mode')
-        set_val('default_yolo')
-        set_val('default_thinking')
         set_val('show_thinking_stream')
         # Set notifications
         notifications = provider_dict.get('notifications')

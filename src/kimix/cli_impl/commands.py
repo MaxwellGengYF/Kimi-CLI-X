@@ -1,11 +1,11 @@
 import os
 from pathlib import Path
 
-import kimix.agent_utils as agent_utils
+import kimix.base as base
 from . import constants
 from .utils import _input, _split_text
-from kimix.kimi_utils import (
-    print_success, print_error, print_warning, print_info,
+from kimix.base import print_success, print_error, print_warning, print_info
+from kimix.utils import (
     prompt, clear_context, get_default_session, fix_error, validate,
     print_usage
 )
@@ -74,7 +74,7 @@ def _cmd_cd(task_split, text_arr):
     path = ':'.join(task_split[1:])
     try:
         os.chdir(path)
-        agent_utils._default_skill_dirs = []
+        base._default_skill_dirs = []
         if get_default_session():
             clear_context(True, True)
         print_success(f'Changed directory to: {Path(".").resolve()}')
@@ -110,10 +110,10 @@ def _cmd_think(task_split, text_arr):
         return None, False
     value = task_split[1].strip().lower()
     if value == 'on':
-        agent_utils._default_thinking = True
+        base._default_thinking = True
         print_success('Thinking mode enabled.')
     elif value == 'off':
-        agent_utils._default_thinking = False
+        base._default_thinking = False
         print_success('Thinking mode disabled.')
     else:
         print_error('Command must be /think:on or /think:off')
@@ -129,10 +129,10 @@ def _cmd_plan(task_split, text_arr):
         return None, False
     value = task_split[1].strip().lower()
     if value == 'on':
-        agent_utils._default_plan_mode = True
+        base._default_plan_mode = True
         print_success('Plan mode enabled.')
     elif value == 'off':
-        agent_utils._default_plan_mode = False
+        base._default_plan_mode = False
         print_success('Plan mode disabled.')
     else:
         print_error('Command must be /plan:on or /plan:off')

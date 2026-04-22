@@ -3,8 +3,8 @@ from pathlib import Path
 import os
 
 from kimix_manager.base import Worker, get_worker, Job, add_worker
-from kimix.kimi_utils import prompt, create_session, close_session, validate
-from kimix.agent_utils import print_error, get_skill_dirs, print_warning, print_success
+from kimix.utils import prompt, create_session, close_session, validate
+from kimix.base import print_error, get_skill_dirs, print_warning, print_success
 from my_tools.check_fmt import check_json
 
 

@@ -1,5 +1,5 @@
 from string import Template
-from kimix.kimi_utils import *
+from kimix.utils import *
 generate_memory = Template('''Please summarize our session with:
 1. **Project Overview**: Brief description of the project and its purpose
 2. **Key Decisions**: Important decisions made during our session
@@ -16,8 +16,8 @@ read '${memory_file}' and remember.
 
 def summarize(temp_file: str | None = None) -> None:
     from pathlib import Path
-    from kimix.kimi_utils import prompt, get_default_session, print_warning, clear_context
-    from kimix.agent_utils import percentage_str, print_success, print_error
+    from kimix.utils import prompt, get_default_session, print_warning, clear_context
+    from kimix.base import percentage_str, print_success, print_error
     from my_tools.common import _create_temp_file_name
     if not get_default_session() or get_default_session().status.context_usage <= 1e-5:
         print_warning('Context is empty.')
@@ -54,7 +54,7 @@ def summarize_mistake(result_file: str, session = None) -> None:
     if not errors:
         print_warning('No errors.')
         return
-    from kimix.kimi_utils import prompt
+    from kimix.utils import prompt
     from my_tools.common import _maybe_export_output
     prompt(_maybe_export_output(summarize_mistakes_prompt.substitute(
         errors='\n'.join(str(e) for e in errors),
@@ -63,8 +63,8 @@ def summarize_mistake(result_file: str, session = None) -> None:
     
 def summarize_session(old_session, temp_file: str | None = None, create_session_func: Callable | None = None):
     from pathlib import Path
-    from kimix.kimi_utils import prompt, print_warning
-    from kimix.agent_utils import percentage_str, print_success
+    from kimix.utils import prompt, print_warning
+    from kimix.base import percentage_str, print_success
     from my_tools.common import _create_temp_file_name
     if old_session.status.context_usage <= 1e-5:
         print_warning('Context is empty.')

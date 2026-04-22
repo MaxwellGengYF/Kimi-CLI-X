@@ -1,6 +1,6 @@
 from typing import Optional, Any, Callable
 from kimi_agent_sdk import Session
-from kimix.agent_utils import print_success, run_process_with_error, run_thread
+from kimix.base import print_success, run_process_with_error, run_thread
 from .prompt import prompt
 from .session import _create_default_session
 

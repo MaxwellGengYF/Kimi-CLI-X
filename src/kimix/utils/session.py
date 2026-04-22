@@ -4,8 +4,8 @@ from pathlib import Path
 import os
 from kaos.path import KaosPath
 from kimi_agent_sdk import Session
-import kimix.agent_utils as agent_utils
-from kimix.agent_utils import print_success, print_debug, percentage_str
+import kimix.base as base
+from kimix.base import print_success, print_debug, percentage_str
 from . import _globals
 from .config import _create_config
 from .system_prompt import get_system_prompt
@@ -57,11 +57,11 @@ async def _create_session_async(
         session_id = str(_globals._session_idx)
         _globals._session_idx += 1
     tool_call_failed_list: list[Any] = list()
-    agent_utils._tool_call_failed_lists[session_id] = tool_call_failed_list
+    base._tool_call_failed_lists[session_id] = tool_call_failed_list
     cfg = _create_config(provider_dict)
     session = None
     if agent_file is None:
-        agent_file = agent_utils._default_agent_file
+        agent_file = base._default_agent_file
     else:
         if type(agent_file) is not Path:
             agent_file = Path(agent_file)
@@ -72,10 +72,10 @@ async def _create_session_async(
             session_id=session_id,
             work_dir=work_dir if work_dir is not None else KaosPath(os.curdir),
             skills_dirs=_ensure_skill_dirs(
-                skills_dir) if skills_dir is not None else agent_utils.get_skill_dirs(),
-            yolo=yolo if yolo is not None else agent_utils._default_yolo,
-            plan_mode=plan_mode if plan_mode is not None else agent_utils._default_plan_mode,
-            thinking=thinking if thinking is not None else agent_utils._default_thinking,
+                skills_dir) if skills_dir is not None else base.get_skill_dirs(),
+            yolo=yolo if yolo is not None else base._default_yolo,
+            plan_mode=plan_mode if plan_mode is not None else base._default_plan_mode,
+            thinking=thinking if thinking is not None else base._default_thinking,
             config=cfg,
             agent_file=agent_file,
             tool_call_failed_list=tool_call_failed_list,
@@ -89,10 +89,10 @@ async def _create_session_async(
             session_id=session_id,
             work_dir=work_dir if work_dir is not None else KaosPath(os.curdir),
             skills_dirs=_ensure_skill_dirs(
-                skills_dir) if skills_dir is not None else agent_utils.get_skill_dirs(),
-            yolo=yolo if yolo is not None else agent_utils._default_yolo,
-            plan_mode=plan_mode if plan_mode is not None else agent_utils._default_plan_mode,
-            thinking=thinking if thinking is not None else agent_utils._default_thinking,
+                skills_dir) if skills_dir is not None else base.get_skill_dirs(),
+            yolo=yolo if yolo is not None else base._default_yolo,
+            plan_mode=plan_mode if plan_mode is not None else base._default_plan_mode,
+            thinking=thinking if thinking is not None else base._default_thinking,
             config=cfg,
             agent_file=agent_file,
             tool_call_failed_list=tool_call_failed_list,
@@ -133,7 +133,7 @@ def get_tool_call_errors(session: Session | str | None = None) -> str:
         id = session
     else:
         id = session.id
-    lst = agent_utils._tool_call_failed_lists.get(id, None)
+    lst = base._tool_call_failed_lists.get(id, None)
     s = ''
     if lst:
         for i in lst:
@@ -147,7 +147,7 @@ def close_session(session: Session) -> None:
     if not session:
         return
     try:
-        del agent_utils._tool_call_failed_lists[session.id]
+        del base._tool_call_failed_lists[session.id]
     except:
         pass
     asyncio.run(session.close())
@@ -157,7 +157,7 @@ async def close_session_async(session: Session) -> None:
     if not session:
         return
     try:
-        del agent_utils._tool_call_failed_lists[session.id]
+        del base._tool_call_failed_lists[session.id]
     except:
         pass
     await session.close()

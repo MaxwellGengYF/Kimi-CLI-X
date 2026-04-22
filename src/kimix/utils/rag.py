@@ -2,7 +2,7 @@ from typing import Any, List, Optional
 import os
 from pathlib import Path
 import hashlib
-from kimix.agent_utils import print_warning
+from kimix.base import print_warning
 from . import _globals
 from .config import _ensure_text_search
 

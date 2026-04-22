@@ -1,6 +1,6 @@
 from . import constants
 from .core import _run_cli
-from kimix.kimi_utils import delete_session_dir
+from kimix.utils import delete_session_dir
 
 
 def cli():

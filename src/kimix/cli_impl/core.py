@@ -4,10 +4,9 @@ from . import constants
 from .utils import _input, _split_text, server_mode
 from .args import set_arg
 from .commands import _command_map, _cmd_unknown
-from kimix.agent_utils import print_debug
-from kimix.kimi_utils import (
-    print_success, print_error, print_warning, print_info,
-    prompt, sync_all, _create_default_session, get_default_session
+from kimix.base import print_debug, print_success, print_error, print_warning, print_info, sync_all
+from kimix.utils import (
+    prompt, _create_default_session, get_default_session
 )
 exec_ctx: dict = {}
 def _client_cli():

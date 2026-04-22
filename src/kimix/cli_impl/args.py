@@ -1,8 +1,8 @@
-import kimix.agent_utils as agent_utils
+import kimix.base as base
 from kaos.path import KaosPath
 from pathlib import Path
 from . import constants
-from kimix.kimi_utils import print_debug, print_warning
+from kimix.base import print_debug, print_warning
 from . import utils
 
 DEFAULT_HOST = "127.0.0.1"
@@ -35,33 +35,33 @@ def set_arg() -> argparse.ArgumentParser:
     parser.add_argument("--ws-port", type=int, default=None, help="WebSocket bridge port (optional)")
     args = parser.parse_args()
     if args.no_color:
-        agent_utils._colorful_print = False
+        base._colorful_print = False
 
     constants.CLEAN_MODE = args.clean
     if constants.CLEAN_MODE:
         print_debug('Clean mode ON, delete cache file after quit.')
 
     if args.no_think:
-        agent_utils._default_thinking = False
+        base.set_default_thinking(False)
         print_debug('Thinking OFF.')
     else:
-        agent_utils._default_thinking = True
+        base.set_default_thinking(True)
 
     if args.plan:
-        agent_utils._default_plan_mode = True
+        base.set_default_plan_mode(True)
         print_debug('Plan mode ON.')
     else:
-        agent_utils._default_plan_mode = False
+        base.set_default_plan_mode(False)
 
     if args.no_yolo:
-        agent_utils._default_yolo = False
+        base.set_default_yolo(False)
         print_debug('YOLO OFF.')
     else:
-        agent_utils._default_yolo = True
+        base.set_default_yolo(True)
 
     utils._server_mode = bool(args.server)
-    agent_utils._enable_rag = bool(args.rag)
-    if agent_utils._enable_rag:
+    base._enable_rag = bool(args.rag)
+    if base._enable_rag:
         print_debug('Enable RAG.')
 
     # Handle --config argument
@@ -78,7 +78,7 @@ def set_arg() -> argparse.ArgumentParser:
         if config_path.exists() and config_path.is_file():
             try:
                 with open(config_path, 'r', encoding='utf-8') as f:
-                    agent_utils._default_provider = json.load(f)
+                    base.set_default_provider(json.load(f))
                 print_debug(f'{str(config_path)} loaded')
             except json.JSONDecodeError as e:
                 print_warning(
@@ -91,6 +91,7 @@ def set_arg() -> argparse.ArgumentParser:
 
     # Handle --skill-dir argument
     if args.skill_dir:
+        skill_dirs = list(base._default_skill_dirs)
         for skill_dir in args.skill_dir:
             skill_dir_path = Path(skill_dir)
             if not skill_dir_path.is_absolute():
@@ -98,9 +99,9 @@ def set_arg() -> argparse.ArgumentParser:
             # Normalize the path (resolve ., .., and symlinks)
             skill_dir_path = skill_dir_path.resolve()
             if skill_dir_path.exists() and skill_dir_path.is_dir():
-                agent_utils._default_skill_dirs.append(
-                    KaosPath(skill_dir_path))
+                skill_dirs.append(KaosPath(skill_dir_path))
                 print_debug(f'Skill dir added: {str(skill_dir_path)}')
             else:
                 print_warning(f'Skill dir not found: {str(skill_dir_path)}')
+        base.set_default_skill_dirs(skill_dirs)
     return parser

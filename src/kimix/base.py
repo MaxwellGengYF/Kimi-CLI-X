@@ -315,6 +315,43 @@ _default_agent_file_dir: Path = Path(__file__).parent
 _default_agent_file: Path = _default_agent_file_dir / 'agent_worker.yaml'
 _default_skill_dirs: list[Any] = []
 _default_provider: dict[str, Any] | None = None
+
+
+def set_default_thinking(value: bool) -> None:
+    global _default_thinking
+    _default_thinking = value
+
+
+def set_default_plan_mode(value: bool) -> None:
+    global _default_plan_mode
+    _default_plan_mode = value
+
+
+def set_default_yolo(value: bool) -> None:
+    global _default_yolo
+    _default_yolo = value
+
+
+def set_default_agent_file_dir(value: Path) -> None:
+    global _default_agent_file_dir
+    _default_agent_file_dir = value
+
+
+def set_default_agent_file(value: Path) -> None:
+    global _default_agent_file
+    _default_agent_file = value
+
+
+def set_default_skill_dirs(value: list[Any]) -> None:
+    global _default_skill_dirs
+    _default_skill_dirs = value
+
+
+def set_default_provider(value: dict[str, Any] | None) -> None:
+    global _default_provider
+    _default_provider = value
+
+
 # The failed-list for tool call that
 # tuple: function-name, arguments, output, message
 _tool_call_failed_lists: dict[str, list[tuple[str, str, str, str]]] = dict()

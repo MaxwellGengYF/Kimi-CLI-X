@@ -2,10 +2,10 @@ from typing import Any, Callable, Optional
 import asyncio
 from pathlib import Path
 from kimi_agent_sdk import Session
-import kimix.agent_utils as agent_utils
-from kimix.agent_utils import print_debug, print_warning, print_error, print_agent_json
+import kimix.base as base
+from kimix.base import print_debug, print_warning, print_error, print_agent_json
 from . import _globals
-from .session import get_default_session, close_session_async, _create_default_session, _print_usage
+from .session import close_session_async, _create_default_session, _print_usage
 
 
 async def prompt_async(
@@ -26,11 +26,11 @@ async def prompt_async(
     try:
         def enable_skill(skill_name: str) -> None:
             nonlocal prompt_str
-            if not agent_utils._default_skill_dirs:
+            if not base._default_skill_dirs:
                 print_warning('Skill dir not setted.')
             else:
                 skill_found = False
-                for skill_dir in agent_utils._default_skill_dirs:
+                for skill_dir in base._default_skill_dirs:
                     if (Path(str(skill_dir)) / Path(skill_name) / 'SKILL.md').exists():
                         skill_found = True
                         break
