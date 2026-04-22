@@ -24,6 +24,18 @@
     "default_yolo": true,
     "default_thinking": true,
     "show_thinking_stream": true,
+    "temperature": 0.7,
+    "top_p": 0.9,
+    "top_k": 50,
+    "notifications": {
+        "enabled": true,
+        "sound": true,
+        "desktop": true
+    },
+    "mcp": {
+        "enabled": true,
+        "servers": []
+    },
     "background": {
         "max_running_tasks": 4,
         "read_max_bytes": 30000,

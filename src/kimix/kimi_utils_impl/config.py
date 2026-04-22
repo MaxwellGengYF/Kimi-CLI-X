@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 import json
 import kimix.agent_utils as agent_utils
-from kimi_cli.config import BackgroundConfig, LoopControl, SecretStr  # type: ignore[attr-defined]
+from kimi_cli.config import BackgroundConfig, LoopControl, SecretStr, NotificationConfig, MCPConfig, OAuthRef  # type: ignore[attr-defined]
 from kimi_agent_sdk import Config
 from . import _globals
 
@@ -62,7 +62,16 @@ def _create_config(provider_dict: dict[str, Any] | None = None) -> Config:
         elif not api_key.startswith('sk'):
             print_warning('api_key is invalid, must start with `sk`')
             api_key = ''
-
+        oath_dict = provider_dict.get('oauth')
+        oath : OAuthRef | None = None
+        if isinstance(oath_dict, dict):
+            oath = OAuthRef()
+            oath.storage = oath_dict.get('storage', 'file')
+            oath.key = oath_dict.get('key', '')
+            assert isinstance(oath.storage, str), 'oath.storage must be str'
+            assert isinstance(oath.key, str), 'oath.key must be str'
+        else:
+            oath = None
         provider = LLMProvider(
             type=provider_type,
             # example: "https://api.minimaxi.com/anthropic"
@@ -95,6 +104,26 @@ def _create_config(provider_dict: dict[str, Any] | None = None) -> Config:
         set_val('default_yolo')
         set_val('default_thinking')
         set_val('show_thinking_stream')
+        # Set notifications
+        notifications = provider_dict.get('notifications')
+        if notifications and isinstance(notifications, dict):
+            nc = NotificationConfig()
+            for key, value in notifications.items():
+                if hasattr(nc, key):
+                    setattr(nc, key, value)
+            cfg.notifications = nc
+        # Set mcp
+        mcp = provider_dict.get('mcp')
+        if mcp and isinstance(mcp, dict):
+            mc = MCPConfig()
+            for key, value in mcp.items():
+                if hasattr(mc, key):
+                    setattr(mc, key, value)
+            cfg.mcp = mc
+        # Set LLM override settings
+        set_val('temperature')
+        set_val('top_p')
+        set_val('top_k')
         # Set background
         background = provider_dict.get('background')
         if background and isinstance(background, dict):

@@ -10,7 +10,7 @@ def add_and_commit(filepath: str, commit_name: str) -> str:
         check=False,
     )
     if result.returncode != 0:
-        raise RuntimeError(f"git diff failed: {result.stderr.strip()}")
+        raise RuntimeError(f"git add failed: {result.stderr.strip()}")
     result = subprocess.run(
         ["git", "commit", "-m", commit_name],
         capture_output=True,
@@ -18,7 +18,7 @@ def add_and_commit(filepath: str, commit_name: str) -> str:
         check=False,
     )
     if result.returncode != 0:
-        raise RuntimeError(f"git diff failed: {result.stderr.strip()}")
+        raise RuntimeError(f"git add failed: {result.stderr.strip()}")
     return result.stdout
 
 if __name__ == "__main__":

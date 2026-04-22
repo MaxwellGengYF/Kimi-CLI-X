@@ -79,6 +79,7 @@ def set_arg() -> argparse.ArgumentParser:
             try:
                 with open(config_path, 'r', encoding='utf-8') as f:
                     agent_utils._default_provider = json.load(f)
+                print_debug(f'{str(config_path)} loaded')
             except json.JSONDecodeError as e:
                 print_warning(
                     f'Invalid JSON in config file: {str(config_path)} ({e})')
