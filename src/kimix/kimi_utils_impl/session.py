@@ -193,7 +193,13 @@ def _print_usage(session: Session, time_seconds: float | None = None) -> None:
     if not getattr(_globals._should_print_usage, 'value', False):
         return
     s = percentage_str(session.status.context_usage)
-    time_text = f'  time: {time_seconds:.2f} seconds' if time_seconds is not None else ''
+    if time_seconds is not None:
+        hours = int(time_seconds) // 3600
+        minutes = (int(time_seconds) % 3600) // 60
+        seconds = int(time_seconds) % 60
+        time_text = f'  time: {hours}:{minutes:02d}:{seconds:02d}'
+    else:
+        time_text = ''
     print_success(
         f'Finished, context usage: {s}{time_text}'
     )
