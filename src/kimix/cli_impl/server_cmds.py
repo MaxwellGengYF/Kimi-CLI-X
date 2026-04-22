@@ -15,7 +15,7 @@ class SessionEntry:
     client_id: str
     session: Session
     thread: threading.Thread | None = None
-    task_queue: queue.Queue | None = None
+    task_queue: queue.Queue[object] | None = None
     stop_event: threading.Event | None = None
     output_queue: queue.Queue[str] | None = None
     running: bool = False
@@ -31,9 +31,8 @@ async def clear_context_async(session: Session, force_create: bool = False, resu
     await close_session_async(session)
     return await _create_session_async(session_id=session.id, resume=resume)
 
-
 async def _cmd_help(session_id: str, session: Session, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
-    output_queue.put(HELP_STR)
+    output_queue.put(SERVER_HELP_STR)
     return None
 
 
@@ -64,10 +63,6 @@ async def _cmd_summarize(session_id: str, session: Session, cmd: str, arg: str, 
         output_queue.put(f"[error] {e}")
     return None
 
-
-async def _cmd_exit(session_id: str, session: Session, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
-    output_queue.put('bye!')
-    return None
 
 
 async def _cmd_context(session_id: str, session: Session, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
@@ -115,56 +110,6 @@ async def _cmd_cd(session_id: str, session: Session, cmd: str, arg: str, output_
     return None
 
 
-async def _cmd_fix(session_id: str, session: Session, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
-    if not arg:
-        output_queue.put('[error] Command must be /fix:<command>')
-        return None
-    from kimix.agent_utils import run_process_with_error
-    result = run_process_with_error(arg, ('error',), skip_success=True)
-    if result is None:
-        output_queue.put('No error.')
-        return None
-    prompt_str = f'Fix "error" from command {arg}:\n{result}\n'
-    try:
-        from my_tools.common import _maybe_export_output
-        prompt_str = _maybe_export_output(prompt_str)
-    except Exception:
-        pass
-    return prompt_str
-
-
-async def _cmd_think(session_id: str, session: Session, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
-    value = arg.strip().lower()
-    if value == 'on':
-        agent_utils._default_thinking = True
-        output_queue.put('Thinking mode enabled.')
-    elif value == 'off':
-        agent_utils._default_thinking = False
-        output_queue.put('Thinking mode disabled.')
-    else:
-        output_queue.put('[error] Command must be /think:on or /think:off')
-        return None
-    new_session = await clear_context_async(session, force_create=True, resume=True, print_info=False)
-    if new_session is not None:
-        session_dict[session_id].session = new_session
-    return None
-
-
-
-async def _cmd_txt(session_id: str, session: Session, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
-    if not arg:
-        output_queue.put('[error] Command must be /txt:<text>')
-        return None
-    return arg
-
-
-async def _cmd_skill(session_id: str, session: Session, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
-    if not arg:
-        output_queue.put('[error] Command must be /skill:<name>')
-        return None
-    return f'Use skill:{arg}.\n'
-
-
 async def _cmd_file(session_id: str, session: Session, cmd: str, arg: str, output_queue: queue.Queue[str]) -> str | None:
     if not arg:
         output_queue.put('[error] Command must be /file:<path>')
@@ -192,14 +137,14 @@ _command_map = {
     'help': _cmd_help,
     'clear': _cmd_clear,
     'summarize': _cmd_summarize,
-    'exit': _cmd_exit,
     'context': _cmd_context,
     'script': _cmd_script,
     'cmd': _cmd_cmd,
     'cd': _cmd_cd,
-    'fix': _cmd_fix,
-    'think': _cmd_think,
-    'txt': _cmd_txt,
-    'skill': _cmd_skill,
     'file': _cmd_file
 }
+
+SERVER_HELP_STR = (
+    "Available server commands:\n"
+    + "\n".join(f"  /{cmd}" for cmd in _command_map.keys())
+)

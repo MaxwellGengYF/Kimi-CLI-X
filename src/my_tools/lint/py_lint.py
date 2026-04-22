@@ -154,8 +154,11 @@ class MypyCheck(CallableTool2):
             output += f"\nProject root: {project_root}"
 
         output = await _maybe_export_output_async(output)
+        if errors == 0:
+            return ToolOk(output=output)
+            
         return ToolError(
             output=output,
-            message=f"Found {errors} error(s), {warnings} warning(s) in {file_path.name}",
-            brief=f"Python type errors: {errors} error(s), {warnings} warning(s)",
+            message=f"",
+            brief=f"Python syntax check failed",
         )
