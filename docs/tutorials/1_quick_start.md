@@ -4,7 +4,22 @@
 
 ---
 
-## 一、Git Submodule 的拉取
+## 一、快速安装
+
+如果你只想快速体验 Kimix，可直接通过 pip 安装：
+
+```bash
+# 安装
+pip install kimix
+# 运行
+python -m kimix.cli
+```
+
+如需从源码进行更深入的定制或开发，请参考下方的详细步骤。
+
+---
+
+## 二、Git Submodule 的拉取
 
 Kimix 项目依赖部分通过 Git Submodule 管理。在首次获取代码后，需要确保所有子模块都已正确拉取。
 
@@ -47,7 +62,7 @@ git submodule update --init --recursive
 
 ---
 
-## 二、使用 uv 安装与运行
+## 三、使用 uv 安装与运行
 
 推荐使用 [uv](https://docs.astral.sh/uv/) 进行 Python 包管理和环境隔离。以下是 Kimix 的标准安装流程：
 
@@ -83,7 +98,7 @@ uv run kimix
 
 ---
 
-## 三、环境变量配置
+## 四、环境变量配置
 
 在运行 Kimix 之前，需要配置以下环境变量（代码逻辑参考 `src\kimix\kimi_utils.py`）：
 
@@ -118,11 +133,11 @@ $env:KIMI_MODEL_NAME="kimi-for-coding"
 
 ---
 
-## 四、CLI 基本用法
+## 五、CLI 基本用法
 
 Kimix 的命令行接口分为「启动参数」和「交互命令」两部分，以下内容整理自 `src\kimix\cli.py`。
 
-### 3.1 初始化 LLM 配置
+### 4.1 初始化 LLM 配置
 
 Kimix 通过 JSON 配置文件初始化 LLM Provider。若启动时未通过 `--config` 指定自定义配置，将自动使用项目内置的默认配置（`src\kimix\default_config.json`）：
 
@@ -173,7 +188,7 @@ Kimix 通过 JSON 配置文件初始化 LLM Provider。若启动时未通过 `--
 }
 ```
 
-### 3.2 启动参数
+### 4.2 启动参数
 
 在启动 `kimix` 时，可附加以下选项来控制行为：
 
@@ -192,7 +207,7 @@ Kimix 通过 JSON 配置文件初始化 LLM Provider。若启动时未通过 `--
 uv run kimix --plan --clean
 ```
 
-### 3.3 交互命令
+### 4.3 交互命令
 
 进入 Kimix 交互式终端后，可通过以下命令与 Agent 交互：
 
