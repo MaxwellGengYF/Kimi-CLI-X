@@ -65,9 +65,8 @@ def _create_config(provider_dict: dict[str, Any] | None = None) -> Config:
         oath_dict = provider_dict.get('oauth')
         oath : OAuthRef | None = None
         if isinstance(oath_dict, dict):
-            oath = OAuthRef()
+            oath = OAuthRef(key=oath_dict.get('key', ''))
             oath.storage = oath_dict.get('storage', 'file')
-            oath.key = oath_dict.get('key', '')
             assert isinstance(oath.storage, str), 'oath.storage must be str'
             assert isinstance(oath.key, str), 'oath.key must be str'
         else:
@@ -78,7 +77,7 @@ def _create_config(provider_dict: dict[str, Any] | None = None) -> Config:
             base_url=url,
             api_key=SecretStr(api_key),
             custom_headers=provider_dict.get('custom_headers'),
-            oauth=provider_dict.get('oauth'),
+            oauth=oath,
         )
         cfg.default_model = model_name
         cfg.models = {
