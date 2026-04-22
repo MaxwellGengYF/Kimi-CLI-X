@@ -1,3 +1,4 @@
+from kimix.agent_utils import *
 from ._globals import (
     TextSearchIndex,
     SearchResult,
