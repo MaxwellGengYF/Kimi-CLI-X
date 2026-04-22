@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "kimix"
-version = "0.1.3"
+version = "0.1.4"
 description = "Kimi Agent Tools - Custom tool collection for Kimi Agent SDK"
 readme = "README.md"
 license = { text = "MIT" }
@@ -20,8 +20,8 @@ dependencies = [
     "playwright",
     "markdownify",
     "pykaos",
-    "kimi-cli",
-    "kimi-agent-sdk",
+    "kimi-cli-x",
+    "kimi-agent-sdk-x",
 ]
 
 [project.optional-dependencies]
@@ -90,8 +90,8 @@ members = [
 ]
 
 [tool.uv.sources]
-kimi-cli = { workspace = true }
-kimi-agent-sdk = { workspace = true }
+kimi-cli-x = { workspace = true }
+kimi-agent-sdk-x = { workspace = true }
 kosong = { workspace = true }
 pykaos = { workspace = true }
 
