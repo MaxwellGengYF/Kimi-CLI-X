@@ -54,7 +54,7 @@ def rag(
 
     # Create cache key from path
     normalized = os.path.abspath(search_path)
-    cache_key_hash = hashlib.md5(normalized.encode()).hexdigest()[:12]
+    cache_key_hash = hashlib.md5(normalized.encode()).hexdigest()
     index_path = f".index_cache/{cache_key_hash}"
     cache_dir = ".cache/text_search"
 

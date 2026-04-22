@@ -62,7 +62,7 @@ class SkillRag(CallableTool2[IndexerParams]):
 
         normalized = "|".join(sorted(os.path.abspath(p)
                               for p in existing_paths))
-        cache_key = hashlib.md5(normalized.encode()).hexdigest()[:12]
+        cache_key = hashlib.md5(normalized.encode()).hexdigest()
         index_path = f".index_cache/{cache_key}"
         cache_dir = ".cache/text_search"
 
