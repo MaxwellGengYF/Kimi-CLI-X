@@ -159,7 +159,7 @@ Kimix 通过 JSON 配置文件初始化 LLM Provider。若启动时未通过 `--
 
 | 字段 | 必填 | 说明 |
 |------|------|------|
-| `type` | 是 | Provider 类型，如 `kimi`、`anthropic` |
+| `type` | 是 | Provider 类型，如 `openai`, `kimi`, `anthropic` |
 | `model` | 是 | 实际请求的模型名称 |
 | `url` | 是 | API 基础地址 |
 | `max_context_size` | 是 | 最大上下文长度（token 数） |

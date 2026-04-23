@@ -19,6 +19,7 @@ class Search:
         self.k1: float = k1
         self.b: float = b
         self._docs: list[str] = []
+        self._line_indices: list[int] = []
         self._doc_lengths_arr: NDArray[np.int32] = np.empty(0, dtype=np.int32)
         self._term_to_id: dict[str, int] = {}
         self._posting_docs: list[NDArray[np.int32]] = []
@@ -65,13 +66,14 @@ class Search:
         return [text[i : i + self.n] for i in range(len(text) - self.n + 1)]
 
     def _process_chunk(
-        self, lines: list[str]
-    ) -> tuple[list[str], list[int], list[Counter[str]]]:
+        self, lines: list[str], start_idx: int = 0
+    ) -> tuple[list[str], list[int], list[Counter[str]], list[int]]:
         """Process a chunk of lines: tokenize and count term frequencies."""
         docs: list[str] = []
         doc_lengths: list[int] = []
         counters: list[Counter[str]] = []
-        for line in lines:
+        line_indices: list[int] = []
+        for offset, line in enumerate(lines):
             stripped = line.strip()
             if not stripped:
                 continue
@@ -79,7 +81,8 @@ class Search:
             tokens = self._tokenize(stripped)
             doc_lengths.append(len(tokens))
             counters.append(Counter(tokens))
-        return docs, doc_lengths, counters
+            line_indices.append(start_idx + offset)
+        return docs, doc_lengths, counters, line_indices
 
     def _build_index(self, content: str) -> None:
         """Build inverted index from content string."""
@@ -94,8 +97,9 @@ class Search:
         docs: list[str]
         doc_lengths: list[int]
         counters: list[Counter[str]]
+        line_indices: list[int]
         if total_lines < self._CHUNK_SIZE:
-            docs, doc_lengths, counters = self._process_chunk(lines)
+            docs, doc_lengths, counters, line_indices = self._process_chunk(lines, 0)
         else:
             chunks = [
                 lines[i : i + self._CHUNK_SIZE]
@@ -104,18 +108,21 @@ class Search:
             docs = []
             doc_lengths = []
             counters = []
+            line_indices = []
             with ThreadPoolExecutor() as executor:
                 futures = [
-                    executor.submit(self._process_chunk, chunk)
-                    for chunk in chunks
+                    executor.submit(self._process_chunk, chunk, i)
+                    for i, chunk in enumerate(chunks)
                 ]
                 for future in futures:
-                    chunk_docs, chunk_dl, chunk_counters = future.result()
+                    chunk_docs, chunk_dl, chunk_counters, chunk_li = future.result()
                     docs.extend(chunk_docs)
                     doc_lengths.extend(chunk_dl)
                     counters.extend(chunk_counters)
+                    line_indices.extend(chunk_li)
 
         self._docs = docs
+        self._line_indices = line_indices
         self._doc_lengths_arr = np.array(doc_lengths, dtype=np.int32)
         self.N = len(self._docs)
 
@@ -201,20 +208,10 @@ class Search:
         results: list[dict[str, Any]] = []
         for doc_id, score in zip(top_doc_ids, top_scores):
             doc_id_int = int(doc_id)
-            matched_terms: list[str] = []
-            for token in query_tokens:
-                tid = self._term_to_id.get(token)
-                if tid is not None:
-                    docs = self._posting_docs[tid]
-                    pos = np.searchsorted(docs, doc_id_int)
-                    if pos < len(docs) and int(docs[pos]) == doc_id_int:
-                        matched_terms.append(token)
-
             results.append({
                 "doc_id": doc_id_int,
                 "score": float(score),
-                "text": self._docs[doc_id_int],
-                "matched_terms": matched_terms,
+                "line_index": self._line_indices[doc_id_int],
             })
 
         return results

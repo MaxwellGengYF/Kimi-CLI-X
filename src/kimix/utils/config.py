@@ -39,7 +39,6 @@ def _create_config(provider_dict: dict[str, Any] | None = None) -> Config:
     if provider_dict is not None:
         model_name = provider_dict.get('model_name', 'unknown_model')
         name = provider_dict.get('name', 'unknown')
-        print_debug(f'Using model `{model_name}` from provider `{name}`')
         model = provider_dict.get('model')
         max_context_size = provider_dict.get('max_context_size')
         capabilities = set(provider_dict.get('capabilities', set()))
@@ -95,11 +94,11 @@ def _create_config(provider_dict: dict[str, Any] | None = None) -> Config:
                 if hasattr(lc, key):
                     setattr(lc, key, value)
             cfg.loop_control = lc
-        def set_val(name: str) -> None:
+        def set_val(name: str, type_var: type) -> None:
             v = provider_dict.get(name)
             if v is not None:
-                setattr(cfg, name, v)
-        set_val('show_thinking_stream')
+                setattr(cfg, name, type_var(v))
+        set_val('show_thinking_stream', bool)
         # Set notifications
         notifications = provider_dict.get('notifications')
         if notifications and isinstance(notifications, dict):
@@ -117,9 +116,10 @@ def _create_config(provider_dict: dict[str, Any] | None = None) -> Config:
                     setattr(mc, key, value)
             cfg.mcp = mc
         # Set LLM override settings
-        set_val('temperature')
-        set_val('top_p')
-        set_val('top_k')
+        set_val('max_tokens', int)
+        set_val('temperature', float)
+        set_val('top_p', float)
+        set_val('top_k', int)
         # Set background
         background = provider_dict.get('background')
         if background and isinstance(background, dict):

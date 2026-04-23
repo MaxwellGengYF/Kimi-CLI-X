@@ -7,6 +7,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
+from .bm25 import Search
+
 
 class FileReader:
     """Recursively scan text files under given paths and maintain a JSON mapping
@@ -15,7 +17,6 @@ class FileReader:
 
     __slots__ = ("paths", "output_path", "_mapping", "_max_workers")
 
-    _HASH_CHUNK = 262_144  # 256 KB
 
     def __init__(self, paths: list[Path], output_path: Path) -> None:
         self.paths = [Path(p).resolve() for p in paths]
@@ -42,7 +43,7 @@ class FileReader:
         h = hashlib.sha256()
         with path.open("rb") as f:
             while True:
-                chunk = f.read(self._HASH_CHUNK)
+                chunk = f.read()
                 if not chunk:
                     break
                 h.update(chunk)
@@ -62,7 +63,7 @@ class FileReader:
                     return None
                 h.update(chunk)
                 while True:
-                    chunk = f.read(self._HASH_CHUNK)
+                    chunk = f.read()
                     if not chunk:
                         break
                     h.update(chunk)
@@ -124,3 +125,87 @@ class FileReader:
         if current != self._mapping:
             self._mapping = current
             self._write()
+
+
+class FileBuilder:
+    """Build a BM25-searchable index over text files."""
+
+    def __init__(
+        self,
+        paths: list[Path],
+        output_path: Path,
+        n: int = 2,
+        k1: float = 1.2,
+        b: float = 0.75,
+    ) -> None:
+        self.file_reader = FileReader(paths, output_path)
+        self.paths = [Path(p).resolve() for p in paths]
+        self._n = n
+        self._k1 = k1
+        self._b = b
+        self._search: Search | None = None
+        self._doc_info: list[dict[str, Any]] = []
+        self._build()
+
+    def _collect_files(self) -> list[tuple[str, Path]]:
+        files: list[tuple[str, Path]] = []
+        for root in self.paths:
+            if not root.exists():
+                continue
+            if root.is_file():
+                files.append((root.name, root))
+                continue
+            for file_path in root.rglob("*"):
+                if file_path.is_file():
+                    rel = str(file_path.relative_to(root)).replace("\\", "/")
+                    files.append((rel, file_path))
+        return files
+
+    def _build(self) -> None:
+        lines: list[str] = []
+        doc_info: list[dict[str, Any]] = []
+        for rel, abs_path in self._collect_files():
+            try:
+                with abs_path.open("r", encoding="utf-8", errors="replace") as f:
+                    for line_idx, line in enumerate(f):
+                        stripped = line.strip()
+                        if stripped:
+                            lines.append(f"{rel}: {stripped}")
+                            doc_info.append({"path": rel, "line_index": line_idx})
+            except OSError:
+                continue
+        self._doc_info = doc_info
+        if lines:
+            self._search = Search("\n".join(lines), n=self._n, k1=self._k1, b=self._b)
+        else:
+            self._search = None
+
+    def search(self, keywords: str, top_k: int = 5) -> list[dict[str, Any]]:
+        if self._search is None:
+            return []
+        raw_results = self._search.search(keywords, top_k=top_k)
+        results: list[dict[str, Any]] = []
+        for r in raw_results:
+            info = self._doc_info[r["doc_id"]]
+            results.append({
+                "doc_id": r["doc_id"],
+                "score": r["score"],
+                "path": info["path"],
+                "line_index": info["line_index"] + 1, # one-start
+            })
+        return results
+
+    def update(self) -> None:
+        self.file_reader.update()
+        self._build()
+
+
+def formatted_print(results: list[dict[str, Any]]) -> str:
+    """Convert search results into a human-readable formatted string."""
+    if not results:
+        return "No results found."
+
+    lines: list[str] = []
+    for i, r in enumerate(results, start=1):
+        lines.append(f"[{i}] {r['path']} (line {r['line_index']})  score={r['score']:.4f}")
+    return "\n".join(lines)
