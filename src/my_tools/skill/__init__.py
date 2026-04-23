@@ -18,8 +18,6 @@ class IndexerParams(BaseModel):
     )
 
 
-_MAX_INDEX_CACHE_SIZE = 3
-
 
 class SkillRag(CallableTool2[IndexerParams]):
     """Indexer tool for semantic search over text files."""

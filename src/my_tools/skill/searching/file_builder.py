@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
-from .bm25 import Search
+from .bm25 import InvertedIndex, NgramTokenizer, Searcher
 
 
 class FileReader:
@@ -79,12 +79,18 @@ class FileReader:
             if not root.exists():
                 continue
             if root.is_file():
-                rel = str(root.relative_to(cwd)).replace("\\", "/")
+                try:
+                    rel = str(root.relative_to(cwd)).replace("\\", "/")
+                except ValueError:
+                    rel = root.name
                 files.append((rel, root))
                 continue
             for file_path in root.rglob("*"):
                 if file_path.is_file():
-                    rel = str(file_path.relative_to(cwd)).replace("\\", "/")
+                    try:
+                        rel = str(file_path.relative_to(cwd)).replace("\\", "/")
+                    except ValueError:
+                        rel = str(file_path.relative_to(root)).replace("\\", "/")
                     files.append((rel, file_path))
         return files
 
@@ -119,7 +125,7 @@ class FileReader:
             json.dump(self._mapping, f, indent=2, ensure_ascii=False)
             f.write("\n")
 
-    def update(self) -> None:
+    def update(self) -> bool:
         """Re-scan directories and rewrite JSON if any file was created,
         deleted, or modified.
         """
@@ -147,7 +153,7 @@ class FileBuilder:
         self._n = n
         self._k1 = k1
         self._b = b
-        self._search: Search | None = None
+        self._search: Searcher | None = None
         self._doc_info: list[dict[str, Any]] = []
         self._build()
 
@@ -158,31 +164,42 @@ class FileBuilder:
             if not root.exists():
                 continue
             if root.is_file():
-                rel = str(root.relative_to(cwd)).replace("\\", "/")
+                try:
+                    rel = str(root.relative_to(cwd)).replace("\\", "/")
+                except ValueError:
+                    rel = root.name
                 files.append((rel, root))
                 continue
             for file_path in root.rglob("*"):
                 if file_path.is_file():
-                    rel = str(file_path.relative_to(cwd)).replace("\\", "/")
+                    try:
+                        rel = str(file_path.relative_to(cwd)).replace("\\", "/")
+                    except ValueError:
+                        rel = str(file_path.relative_to(root)).replace("\\", "/")
                     files.append((rel, file_path))
         return files
 
     def _build(self) -> None:
-        lines: list[str] = []
+        index = InvertedIndex()
+        tokenizer = NgramTokenizer(n=self._n)
         doc_info: list[dict[str, Any]] = []
+        doc_id = 0
         for rel, abs_path in self._collect_files():
             try:
                 with abs_path.open("r", encoding="utf-8", errors="replace") as f:
                     for line_idx, line in enumerate(f):
                         stripped = line.strip()
                         if stripped:
-                            lines.append(f"{rel}: {stripped}")
+                            tokens = tokenizer.tokenize(f"{rel}: {stripped}")
+                            index.add_document(doc_id, tokens)
                             doc_info.append({"path": rel, "line_index": line_idx})
+                            doc_id += 1
             except OSError:
                 continue
         self._doc_info = doc_info
-        if lines:
-            self._search = Search("\n".join(lines), n=self._n, k1=self._k1, b=self._b)
+        if doc_id > 0:
+            index.finalize(stop_threshold=1.0)
+            self._search = Searcher(index, tokenizer=tokenizer, k1=self._k1, b=self._b)
         else:
             self._search = None
 
@@ -191,13 +208,13 @@ class FileBuilder:
             return []
         raw_results = self._search.search(keywords, top_k=top_k)
         results: list[dict[str, Any]] = []
-        for r in raw_results:
-            info = self._doc_info[r["doc_id"]]
+        for doc_id, score in raw_results:
+            info = self._doc_info[doc_id]
             results.append({
-                "doc_id": r["doc_id"],
-                "score": r["score"],
+                "doc_id": doc_id,
+                "score": score,
                 "path": info["path"],
-                "line_index": info["line_index"] + 1, # one-start
+                "line_index": info["line_index"] + 1,
             })
         return results
 

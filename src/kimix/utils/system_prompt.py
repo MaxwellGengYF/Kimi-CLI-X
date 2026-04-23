@@ -25,7 +25,8 @@ def get_system_prompt(
         is_sub_agent: bool = False,
         plan_mode: bool | None = None,
         yolo: bool | None = None,
-        work_dir: Optional[KaosPath] = None) -> Callable[[BuiltinSystemPromptArgs], str]:
+        work_dir: Optional[KaosPath] = None,
+        skills_dirs: Optional[list[KaosPath]] = None) -> Callable[[BuiltinSystemPromptArgs], str]:
     agent_md = (Path(str(work_dir)) if work_dir is not None else Path(
         os.curdir)) / 'AGENTS.md'
     plan_mode = plan_mode if plan_mode is not None else base._default_plan_mode
@@ -77,14 +78,16 @@ AGENTS.md:
 ```
 '''
         # Use RAG to search skill files, no need to list all skills
-        if base._enable_rag:
-            rag = f'{index}: Use `SkillRag` tool to search and retrieve skills.'
-            index += 1
-        elif args.KIMI_SKILLS and args.KIMI_SHELL.lower() != 'no skills found.':
+        rag = f'{index}: Use `SkillRag` tool to search and retrieve skills.'
+        index += 1
+        if skills_dirs:
             skill_doc = f'''
-Skills:
-{args.KIMI_SKILLS}
+Skills dirs:
+```
 '''
+            for i in skills_dirs:
+                skill_doc += f'{str(i)}\n'.replace('\\', '/')
+            skill_doc += '```'
         return _SYSTEM_PROMP.substitute(
             AGENT_ROLE=role_doc.strip(),
             PYTHON_PATH=sys.executable,

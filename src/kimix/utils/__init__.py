@@ -3,8 +3,6 @@ from ._globals import (
     SearchResult,
     _default_session,
     _session_idx,
-    _index_cache,
-    _MAX_INDEX_CACHE_SIZE,
     _should_print_usage,
 )
 from .config import _create_config, _ensure_text_search
@@ -30,15 +28,12 @@ from .session import (
 from .prompt import prompt_async, prompt, validate, prompt_path
 from .fix_error import fix_error, async_prompt, async_fix_error
 from .utils import read_file, set_plan_mode
-from .rag import rag
 
 __all__ = [
     "TextSearchIndex",
     "SearchResult",
     "_default_session",
     "_session_idx",
-    "_index_cache",
-    "_MAX_INDEX_CACHE_SIZE",
     "_should_print_usage",
     "_create_config",
     "_ensure_text_search",
@@ -70,5 +65,4 @@ __all__ = [
     "async_fix_error",
     "read_file",
     "set_plan_mode",
-    "rag",
 ]

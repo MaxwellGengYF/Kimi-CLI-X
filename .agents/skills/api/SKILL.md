@@ -1,11 +1,11 @@
 ---
 name: api
-description: Guide for using Kimi API utilities (session management, prompts, RAG, colorful printing, threading)
+description: Guide for using Kimi API utilities (session management, prompts, colorful printing, threading)
 ---
 
 # Kimi API Utilities Guide
 
-This guide explains how to use the utility functions from `kimix.kimi_utils` and `kimix.base` for session management, prompting, RAG search, colorful printing, and threading.
+This guide explains how to use the utility functions from `kimix.kimi_utils` and `kimix.base` for session management, prompting, colorful printing, and threading.
 
 ## Session Management (kimix.kimi_utils)
 
@@ -134,32 +134,6 @@ from kimix.kimi_utils import set_plan_mode
 
 # Toggle plan mode (clears context automatically)
 set_plan_mode(value=True, resume=True)
-```
-
-## RAG Search (kimix.kimi_utils)
-
-Perform semantic search on files using `TextSearchIndex` with an LRU cache (max 3 indices).
-
-```python
-from kimix.kimi_utils import rag, TextSearchIndex, SearchResult
-
-# Basic search
-results = rag(
-    query="authentication middleware",
-    file_path="./src",                 # Optional: path to search (default: current dir)
-    top_k=5,                           # Optional: number of results (default: 5)
-    content=False,                     # Optional: include full file content in results
-    refresh=False,                     # Optional: force re-index
-    hybrid_search=True,                # Optional: hybrid semantic + keyword search
-    negative="deprecated"              # Optional: keywords to penalize
-)
-
-# Process results
-for result in results:
-    print(f"File: {result.file_path}")
-    print(f"Score: {result.score}")
-    if hasattr(result, 'full_content'):
-        print(f"Content: {result.full_content[:200]}...")
 ```
 
 ## Colorful Printing (kimix.base)
@@ -321,7 +295,6 @@ from kimix.base import (
     _quiet,                  # If True, suppresses print_debug
     _colorful_print,         # If False, disables ANSI colors
     _print_func,             # Optional custom print handler (text, end) -> None
-    _enable_rag,             # Enable RAG search functionality
 )
 ```
 
@@ -381,7 +354,7 @@ kaos_path = make_kaos_dir("./my_folder")
 ```python
 """Example script using Kimi API utilities."""
 from pathlib import Path
-from kimix.kimi_utils import create_session, prompt, rag, close_session, clear_context
+from kimix.kimi_utils import create_session, prompt, close_session, clear_context
 from kimix.base import print_success, print_error, print_info
 
 # Create session
@@ -392,21 +365,9 @@ session = create_session(
 )
 
 try:
-    # Search for relevant code
-    print_info("Searching for authentication code...")
-    results = rag(
-        query="auth middleware",
-        file_path="./src",
-        top_k=3,
-        content=True
-    )
-    
-    # Build context from results
-    context = "\n\n".join([r.full_content for r in results if hasattr(r, 'full_content')])
-    
-    # Prompt with context
+    # Prompt with custom message
     prompt(
-        f"Review this authentication code:\n\n{context}",
+        "Review this authentication code",
         session=session
     )
     
@@ -424,8 +385,7 @@ finally:
 1. **Always close sessions** - Use `close_session()` when done to free resources
 2. **Use colorful prints** - Makes output more readable and organized
 3. **Handle errors** - Wrap prompts in try/except blocks
-4. **Leverage RAG** - Use `rag()` for finding relevant code/context
-5. **Background tasks** - Use `run_thread()` for long-running operations
+4. **Background tasks** - Use `run_thread()` for long-running operations
 6. **Session reuse** - Reuse sessions for related prompts to save context
 7. **Clear context** - Call `clear_context()` when switching topics
 8. **Validate conditions** - Use `validate()` for yes/no checks via the agent
@@ -439,12 +399,11 @@ finally:
 # Core utilities
 from kimix.kimi_utils import (
     create_session, close_session, close_session_async,
-    prompt, prompt_async, validate, rag, clear_context, print_usage,
+    prompt, prompt_async, validate, clear_context, print_usage,
     get_default_session, get_tool_call_errors,
     set_plan_mode, cancel_prompt, get_cancel_event,
     read_file, prompt_path, fix_error, async_prompt, async_fix_error,
-    context_path, delete_session_dir, make_kaos_dir,
-    TextSearchIndex, SearchResult
+    context_path, delete_session_dir, make_kaos_dir
 )
 from kimix.base import (
     print_success, print_error, print_warning,

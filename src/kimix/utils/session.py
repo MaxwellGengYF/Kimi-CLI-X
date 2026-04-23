@@ -67,12 +67,12 @@ async def _create_session_async(
             agent_file = Path(agent_file)
         if not agent_file.is_absolute():
             agent_file = Path(__file__).parent.parent / agent_file
+    skills_dirs = _ensure_skill_dirs(skills_dir) if skills_dir is not None else base.get_skill_dirs()
     if resume:
         session = await Session.resume(
             session_id=session_id,
             work_dir=work_dir if work_dir is not None else KaosPath(os.curdir),
-            skills_dirs=_ensure_skill_dirs(
-                skills_dir) if skills_dir is not None else base.get_skill_dirs(),
+            skills_dirs=skills_dirs,
             yolo=yolo if yolo is not None else base._default_yolo,
             plan_mode=plan_mode if plan_mode is not None else base._default_plan_mode,
             thinking=thinking if thinking is not None else base._default_thinking,
@@ -80,7 +80,7 @@ async def _create_session_async(
             agent_file=agent_file,
             tool_call_failed_list=tool_call_failed_list,
             custom_system_prompt=get_system_prompt(
-                is_sub_agent, plan_mode, yolo, work_dir),
+                is_sub_agent, plan_mode, yolo, work_dir, skills_dirs),
         )
         if not session:
             print_debug(f'Session {session_id} not found.')
@@ -88,8 +88,7 @@ async def _create_session_async(
         session = await Session.create(
             session_id=session_id,
             work_dir=work_dir if work_dir is not None else KaosPath(os.curdir),
-            skills_dirs=_ensure_skill_dirs(
-                skills_dir) if skills_dir is not None else base.get_skill_dirs(),
+            skills_dirs=skills_dirs,
             yolo=yolo if yolo is not None else base._default_yolo,
             plan_mode=plan_mode if plan_mode is not None else base._default_plan_mode,
             thinking=thinking if thinking is not None else base._default_thinking,
@@ -97,7 +96,7 @@ async def _create_session_async(
             agent_file=agent_file,
             tool_call_failed_list=tool_call_failed_list,
             custom_system_prompt=get_system_prompt(
-                is_sub_agent, plan_mode, yolo, work_dir),
+                is_sub_agent, plan_mode, yolo, work_dir, skills_dirs),
         )
     return session
 
