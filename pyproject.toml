@@ -37,12 +37,6 @@ image_process = [
     "pytesseract>=0.3.10",
 ]
 
-# Vector search / embeddings
-rag = [
-    "faiss-cpu",
-    "sentence_transformers",
-]
-
 # Development dependencies
 dev = [
     "pytest>=7.0.0",
@@ -51,26 +45,14 @@ dev = [
     "mypy>=1.5.0",
 ]
 
-# lint
-lint = [
-    "tree-sitter>=0.24.0",
-    "tree-sitter-javascript>=0.23.0",
-    "tree-sitter-typescript>=0.23.0",
-]
-
 # All optional dependencies
 all = [
     "pymupdf>=1.23.0",
     "pdfplumber>=0.10.0",
-    "faiss-cpu",
-    "sentence_transformers",
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
     "ruff>=0.1.0",
     "mypy>=1.5.0",
-    "tree-sitter>=0.24.0",
-    "tree-sitter-javascript>=0.23.0",
-    "tree-sitter-typescript>=0.23.0",
 ]
 
 [tool.hatch.build.targets.wheel]

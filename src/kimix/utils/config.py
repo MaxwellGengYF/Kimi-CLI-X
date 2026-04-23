@@ -117,6 +117,7 @@ def _create_config(provider_dict: dict[str, Any] | None = None) -> Config:
             cfg.mcp = mc
         # Set LLM override settings
         set_val('max_tokens', int)
+        set_val('thinking_effort', str)
         set_val('temperature', float)
         set_val('top_p', float)
         set_val('top_k', int)

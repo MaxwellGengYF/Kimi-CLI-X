@@ -74,15 +74,17 @@ class FileReader:
     def _collect_files(self) -> list[tuple[str, Path]]:
         """Gather all candidate *(rel_path, abs_path)* pairs."""
         files: list[tuple[str, Path]] = []
+        cwd = Path.cwd()
         for root in self.paths:
             if not root.exists():
                 continue
             if root.is_file():
-                files.append((root.name, root))
+                rel = str(root.relative_to(cwd)).replace("\\", "/")
+                files.append((rel, root))
                 continue
             for file_path in root.rglob("*"):
                 if file_path.is_file():
-                    rel = str(file_path.relative_to(root)).replace("\\", "/")
+                    rel = str(file_path.relative_to(cwd)).replace("\\", "/")
                     files.append((rel, file_path))
         return files
 
@@ -125,6 +127,8 @@ class FileReader:
         if current != self._mapping:
             self._mapping = current
             self._write()
+            return True
+        return False
 
 
 class FileBuilder:
@@ -149,15 +153,17 @@ class FileBuilder:
 
     def _collect_files(self) -> list[tuple[str, Path]]:
         files: list[tuple[str, Path]] = []
+        cwd = Path.cwd()
         for root in self.paths:
             if not root.exists():
                 continue
             if root.is_file():
-                files.append((root.name, root))
+                rel = str(root.relative_to(cwd)).replace("\\", "/")
+                files.append((rel, root))
                 continue
             for file_path in root.rglob("*"):
                 if file_path.is_file():
-                    rel = str(file_path.relative_to(root)).replace("\\", "/")
+                    rel = str(file_path.relative_to(cwd)).replace("\\", "/")
                     files.append((rel, file_path))
         return files
 
@@ -196,8 +202,8 @@ class FileBuilder:
         return results
 
     def update(self) -> None:
-        self.file_reader.update()
-        self._build()
+        if self.file_reader.update():
+            self._build()
 
 
 def formatted_print(results: list[dict[str, Any]]) -> str:
