@@ -3,7 +3,7 @@
     "name": "moonshot",
     "model": "kimi-for-coding",
     "max_context_size": 262144,
-    "capabilities": ["thinking"],
+    "capabilities": ["always_thinking"],
     "url": "https://api.kimi.com/coding/v1",
     "type": "kimi",
     "loop_control": {
@@ -15,7 +15,7 @@
     },
     "max_tokens": 65536,
     "show_thinking_stream": true,
-    "thinking_effort": "off",
+    "thinking_effort": "low",
     "background": {
         "max_running_tasks": 4,
         "read_max_bytes": 30000,
