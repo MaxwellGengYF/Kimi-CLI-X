@@ -1,3 +1,4 @@
+from typing import Any
 from pathlib import Path
 import os
 
@@ -42,6 +43,6 @@ Or enter any prompt to send to the agent.
 '''
 # End writen by AGENT
 
-CLEAN_MODE = None
-globals_dict = {}
-locals_dict = {}
+CLEAN_MODE: bool | None = None
+globals_dict: dict[str, Any] = {}
+locals_dict: dict[str, Any] = {}

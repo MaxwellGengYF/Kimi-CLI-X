@@ -1,3 +1,4 @@
+from typing import Any
 from pathlib import Path
 
 from . import constants
@@ -8,13 +9,13 @@ from kimix.base import print_debug, print_success, print_error, print_warning, p
 from kimix.utils import (
     prompt, _create_default_session, get_default_session
 )
-exec_ctx: dict = {}
-def _client_cli():
+exec_ctx: dict[str, Any] = {}
+def _client_cli() -> None:
     global exec_ctx
     input_str = None
     _create_default_session(False)
     assert get_default_session()
-    text_arr = []
+    text_arr: list[str] = []
 
     while True:
         try:
@@ -33,9 +34,9 @@ def _client_cli():
                 task = input_str[1:]
                 split_idx = task.strip().find(':')
                 if split_idx >= 0:
-                    task_split = (task[:split_idx], task[split_idx+1:])
+                    task_split = [task[:split_idx], task[split_idx+1:]]
                 else:
-                    task_split = (task,)
+                    task_split = [task]
                 handler = _command_map.get(task_split[0], _cmd_unknown)
                 new_input_str, should_break = handler(task_split, text_arr)
                 if should_break:
@@ -89,7 +90,7 @@ def _client_cli():
             print_error(str(e))
 
 
-def _run_cli():
+def _run_cli() -> None:
     global exec_ctx
     exec_ctx = {
         '__name__': '__main__'

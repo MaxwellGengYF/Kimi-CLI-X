@@ -1,3 +1,4 @@
+from typing import Any
 import os
 from pathlib import Path
 
@@ -11,41 +12,41 @@ from kimix.utils import (
 )
 
 
-def _cmd_help(task_split, text_arr):
+def _cmd_help(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     print(constants.HELP_STR)
     return None, False
 
 
-def _cmd_clear(task_split, text_arr):
+def _cmd_clear(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     clear_context()
     return None, False
 
 
-def _cmd_summarize(task_split, text_arr):
+def _cmd_summarize(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     from kimix.summarize import summarize
     summarize()
     return None, False
 
 
-def _cmd_exit(task_split, text_arr):
+def _cmd_exit(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     print_success('bye!')
     return None, True
 
 
-def _cmd_context(task_split, text_arr):
+def _cmd_context(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     print_usage()
     return None, False
 
 
-def _cmd_script(task_split, text_arr):
+def _cmd_script(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     print('\n>>>> Start input multiple-lines, end with /end')
-    text = []
+    text_lines: list[str] = []
     while True:
         s = _input('', text_arr)
         if s.strip() == '/end':
             break
-        text.append(s)
-    text = '\n'.join(text)
+        text_lines.append(s)
+    text = '\n'.join(text_lines)
     try:
         exec(text, constants.globals_dict, constants.locals_dict)
         print_success('Done.')
@@ -54,7 +55,7 @@ def _cmd_script(task_split, text_arr):
     return None, False
 
 
-def _cmd_cmd(task_split, text_arr):
+def _cmd_cmd(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     if len(task_split) < 2:
         print_error('Command must be /cmd:xx yy')
         return None, False
@@ -67,7 +68,7 @@ def _cmd_cmd(task_split, text_arr):
     return None, False
 
 
-def _cmd_cd(task_split, text_arr):
+def _cmd_cd(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     if len(task_split) < 2:
         print_error('Command must be /cd:PATH')
         return None, False
@@ -83,7 +84,7 @@ def _cmd_cd(task_split, text_arr):
     return None, False
 
 
-def _cmd_fix(task_split, text_arr):
+def _cmd_fix(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     if len(task_split) < 2:
         print_error('Command must be /fix:<command>')
         return None, False
@@ -95,7 +96,7 @@ def _cmd_fix(task_split, text_arr):
     return None, False
 
 
-def _cmd_validate(task_split, text_arr):
+def _cmd_validate(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     if len(task_split) < 2:
         print_error('Command must be /validate:prompt')
         return None, False
@@ -104,7 +105,7 @@ def _cmd_validate(task_split, text_arr):
     return None, False
 
 
-def _cmd_think(task_split, text_arr):
+def _cmd_think(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     if len(task_split) < 2:
         print_error('Command must be /think:on or /think:off')
         return None, False
@@ -123,7 +124,7 @@ def _cmd_think(task_split, text_arr):
     return None, False
 
 
-def _cmd_plan(task_split, text_arr):
+def _cmd_plan(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     if len(task_split) < 2:
         print_error('Command must be /plan:on or /plan:off')
         return None, False
@@ -141,9 +142,9 @@ def _cmd_plan(task_split, text_arr):
         clear_context(True, True)
     return None, False
 
-def _cmd_txt(task_split, text_arr):
+def _cmd_txt(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     print('\n>>>> Start input multiple-lines, end with /end, or cancel with /cancel')
-    text = []
+    text: list[str] = []
     while True:
         s = _input('', text_arr)
         if s.strip() == '/end':
@@ -152,12 +153,12 @@ def _cmd_txt(task_split, text_arr):
             text.clear()
             break
         text.append(s)
-    for i in _split_text(text):
+    for i in _split_text(text):  # type: ignore[no-untyped-call]
         text_arr.append(i)
     return None, False
 
 
-def _cmd_skill(task_split, text_arr):
+def _cmd_skill(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     if len(task_split) < 2:
         print_error('Command must be /skill:xx')
         return None, False
@@ -165,19 +166,19 @@ def _cmd_skill(task_split, text_arr):
     return None, False
 
 
-def _cmd_file(task_split, text_arr):
+def _cmd_file(task_split: list[str], text_arr: list[str]) -> tuple[str | None, bool]:
     if len(task_split) != 2:
         print_error(f'command format error, must be /file:path')
         return None, False
-    file_name = ':'.join(task_split[1:])
-    file_name = Path(file_name)
-    if not file_name.is_file():
-        print_error(f'file not found: {file_name}')
+    file_name_str = ':'.join(task_split[1:])
+    file_path = Path(file_name_str)
+    if not file_path.is_file():
+        print_error(f'file not found: {file_path}')
         return None, False
-    return file_name.read_text(encoding='utf-8', errors='replace'), False
+    return file_path.read_text(encoding='utf-8', errors='replace'), False
 
 
-def _cmd_unknown(task_split, text_arr):
+def _cmd_unknown(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     print_warning('Unrecognized command.')
     return None, False
 

@@ -3,7 +3,7 @@ from .core import _run_cli
 from kimix.utils import delete_session_dir
 
 
-def cli():
+def cli() -> None:
     try:
         _run_cli()
     finally:

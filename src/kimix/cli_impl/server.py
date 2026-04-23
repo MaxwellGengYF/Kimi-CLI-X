@@ -106,6 +106,8 @@ def is_session_finished(client_id: int, session_id: str) -> bool:
         return False
     if entry.task_queue is None:
         return False
+    if entry.output_queue is None:
+        return False
     return not entry.running and entry.task_queue.empty() and entry.output_queue.empty()
 
 # RPC function

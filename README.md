@@ -6,6 +6,8 @@
 pip install kimix
 # 运行
 python -m kimix.cli
+# 或
+python -m kimix
 ```
 
 ![teasor](teasor.png)

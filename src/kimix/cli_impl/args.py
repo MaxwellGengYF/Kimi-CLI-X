@@ -99,7 +99,7 @@ def set_arg() -> argparse.ArgumentParser:
             # Normalize the path (resolve ., .., and symlinks)
             skill_dir_path = skill_dir_path.resolve()
             if skill_dir_path.exists() and skill_dir_path.is_dir():
-                skill_dirs.append(KaosPath(skill_dir_path))
+                skill_dirs.append(KaosPath(str(skill_dir_path)))
                 print_debug(f'Skill dir added: {str(skill_dir_path)}')
             else:
                 print_warning(f'Skill dir not found: {str(skill_dir_path)}')

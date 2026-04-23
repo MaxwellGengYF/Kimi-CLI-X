@@ -5,16 +5,16 @@ def server_mode() -> bool:
     return _server_mode
 
 
-def _input(text: str, text_arr: list) -> str:
+def _input(text: str, text_arr: list[str]) -> str:
     if text_arr is None or len(text_arr) == 0:
         return input(text)
     v = text_arr.pop(0)
     return v
 
 
-def _split_text(lines):
-    text_arr = []
-    current_text = []
+def _split_text(lines: list[str]) -> list[str]:
+    text_arr: list[str] = []
+    current_text: list[str] = []
     for line in lines:
         strip_line = line.strip()
         if len(strip_line) == 0:

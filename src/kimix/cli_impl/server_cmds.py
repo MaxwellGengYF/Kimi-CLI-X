@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 import kimix.base as base
 import threading
 import queue
@@ -15,7 +16,7 @@ class SessionEntry:
     client_id: str
     session: Session
     thread: threading.Thread | None = None
-    task_queue: queue.Queue[object] | None = None
+    task_queue: queue.Queue[tuple[Callable[[], None], queue.Queue[str]]] | None = None
     stop_event: threading.Event | None = None
     output_queue: queue.Queue[str] | None = None
     running: bool = False

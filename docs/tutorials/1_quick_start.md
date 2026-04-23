@@ -13,6 +13,8 @@
 pip install kimix
 # 运行
 python -m kimix.cli
+# 或
+python -m kimix
 ```
 
 如需从源码进行更深入的定制或开发，请参考下方的详细步骤。
