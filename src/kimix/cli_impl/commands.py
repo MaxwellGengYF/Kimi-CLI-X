@@ -88,7 +88,7 @@ def _cmd_fix(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     if len(task_split) < 2:
         print_error('Command must be /fix:<command>')
         return None, False
-    command_to_fix = task_split[1].strip()
+    command_to_fix = (':'.join(task_split[1:])).strip()
     if not command_to_fix:
         print_error('Command must be /fix:<command>')
         return None, False
