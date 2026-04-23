@@ -73,6 +73,8 @@ async def prompt_async(
                     session.cancel()
             except Exception as e:
                 print_error(str(e))
+                if session:
+                    session.cancel()
                 if "429" in str(e) or "400" in str(e) or "500" in str(e) or "502" in str(e) or "503" in str(e):
                     wait_time = min(2 ** attempt, 60)
                     print_warning(f"Rate limited. Waiting {wait_time}s...")
