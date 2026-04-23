@@ -12,7 +12,7 @@ from kimi_cli.soul.approval import Approval
 
 def _get_text_search_index():
     """Lazy import of TextSearchIndex to avoid hard faiss dependency at import time."""
-    from .faiss.text_search import TextSearchIndex
+    from my_tools.skill.faiss.text_search import TextSearchIndex
     return TextSearchIndex
 
 
@@ -124,7 +124,8 @@ class SkillRag(CallableTool2[IndexerParams]):
             raise SkipThisTool()
         try:
             self._text_search_index_cls = _get_text_search_index()
-        except Exception:
+        except Exception as e:
+            base.print_debug(f'RAG load failed, skipped: {str(e)}')
             raise SkipThisTool()
         base.print_debug('Loading RAG embedded model (can be slow)...')
         if not self._load_index():

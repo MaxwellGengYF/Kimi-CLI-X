@@ -4,7 +4,8 @@ FAISS-based Text Search System
 This module provides semantic text search capabilities using FAISS and sentence embeddings.
 It can index text files (line by line) and perform similarity searches.
 """
-
+from sentence_transformers import SentenceTransformer as ST
+import faiss
 import os
 import hashlib
 import json
@@ -22,34 +23,9 @@ warnings.filterwarnings("ignore", message="builtin type swigvarlink has no __mod
 warnings.filterwarnings("ignore", message="builtin type SwigPyPacked has no __module__ attribute", category=DeprecationWarning)
 warnings.filterwarnings("ignore", message="builtin type SwigPyObject has no __module__ attribute", category=DeprecationWarning)
 
-# Lazy import of faiss
-faiss = None
 
-def _get_faiss() -> Any:
-    """Lazy import of faiss."""
-    global faiss
-    if faiss is None:
-        try:
-            import faiss as _faiss
-            faiss = _faiss
-        except ImportError:
-            raise ImportError(
-                "faiss is required for RAG/search features. "
-                "Install it with: uv pip install faiss-cpu"
-            )
-    return faiss
-
-# Delay sentence_transformers import until needed
-SentenceTransformer = None
 DefaultModels = dict()
 
-def _get_sentence_transformer() -> Any:
-    """Lazy import of SentenceTransformer."""
-    global SentenceTransformer
-    if SentenceTransformer is None:
-        from sentence_transformers import SentenceTransformer as ST
-        SentenceTransformer = ST
-    return SentenceTransformer
 
 # Suppress transformers loading warnings
 logging.getLogger("transformers").setLevel(logging.ERROR)
@@ -211,7 +187,6 @@ class TextSearchIndex:
             lazy_load: If True, delay model loading until first use
         """
         self.model_name = model_name
-        ST = _get_sentence_transformer()
         global DefaultModels
         if not model_name in DefaultModels:
             with warnings.catch_warnings():
@@ -267,11 +242,11 @@ class TextSearchIndex:
     def _ensure_index(self) -> None:
         """Ensure FAISS index is initialized with correct dimension."""
         if self._index is None:
-            self._index = _get_faiss().IndexFlatIP(self.dimension)
+            self._index = faiss.IndexFlatIP(self.dimension)
     
     def _normalize_vectors(self, vectors: np.ndarray) -> np.ndarray:
         """Normalize vectors for cosine similarity."""
-        _get_faiss().normalize_L2(vectors)
+        faiss.normalize_L2(vectors)
         return vectors
     
     def _get_embeddings(self, texts: List[str]) -> np.ndarray:
@@ -868,7 +843,7 @@ class TextSearchIndex:
         # Save FAISS index
         self._ensure_index()
         assert self._index is not None
-        _get_faiss().write_index(self._index, str(save_dir / 'faiss.index'))
+        faiss.write_index(self._index, str(save_dir / 'faiss.index'))
         # Save documents and metadata
         data = {
             'documents': [
@@ -899,7 +874,7 @@ class TextSearchIndex:
         save_dir = Path(save_path)
 
         # Load FAISS index (already initialized by read_index)
-        self._index = _get_faiss().read_index(str(save_dir / 'faiss.index'))
+        self._index = faiss.read_index(str(save_dir / 'faiss.index'))
 
         # Load metadata
         with open(save_dir / 'metadata.pkl', 'rb') as f:
