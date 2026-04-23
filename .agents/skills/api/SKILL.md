@@ -27,7 +27,8 @@ session = create_session(
     plan_mode=False,                   # Optional: enable plan mode
     resume=False,                      # Optional: resume existing session
     agent_file=None,                   # Optional: Path to custom agent_worker.yaml
-    provider_dict=None                 # Optional: custom LLM provider config dict
+    provider_dict=None,                # Optional: custom LLM provider config dict
+    is_sub_agent=False                 # Optional: mark as sub-agent session
 )
 
 # Close session when done
@@ -101,13 +102,16 @@ event = get_cancel_event(session)
 ### Context Management
 
 ```python
-from kimix.kimi_utils import clear_context, print_usage, delete_session_dir
+from kimix.kimi_utils import clear_context, print_usage, delete_session_dir, context_path
 
 # Clear current context and start fresh
 clear_context(force_create=True, resume=True, print_info=True)
 
 # Print current context usage
 print_usage(session)
+
+# Get the default session context storage path
+path = context_path()  # Returns ~/.kimi/sessions
 
 # Delete all session directories (~/.kimi/sessions)
 delete_session_dir()
@@ -137,7 +141,7 @@ set_plan_mode(value=True, resume=True)
 Perform semantic search on files using `TextSearchIndex` with an LRU cache (max 3 indices).
 
 ```python
-from kimix.kimi_utils import rag
+from kimix.kimi_utils import rag, TextSearchIndex, SearchResult
 
 # Basic search
 results = rag(
@@ -167,7 +171,7 @@ from kimix.base import (
     print_success,    # Green bold - success messages
     print_error,      # Red bold - error messages
     print_warning,    # Yellow bold - warning messages
-    print_info,       # Magenta - info messages
+    print_info,       # Magenta bold - info messages
     print_debug,      # Cyan - debug messages (silent if _quiet=True)
     print_string,     # Plain text (respects _print_func)
 )
@@ -321,6 +325,29 @@ from kimix.base import (
 )
 ```
 
+### Configuration Setters
+
+```python
+from kimix.base import (
+    set_default_thinking,
+    set_default_plan_mode,
+    set_default_yolo,
+    set_default_agent_file_dir,
+    set_default_agent_file,
+    set_default_skill_dirs,
+    set_default_provider,
+)
+
+# Set default configuration values
+set_default_thinking(True)
+set_default_plan_mode(False)
+set_default_yolo(True)
+set_default_agent_file_dir(Path("./custom_agents"))
+set_default_agent_file(Path("./custom_agent.yaml"))
+set_default_skill_dirs(["./skills", "./more_skills"])
+set_default_provider({"name": "custom", "api_key": "..."})
+```
+
 ### Skill Directories
 
 ```python
@@ -328,6 +355,25 @@ from kimix.base import get_skill_dirs
 
 # Auto-discover skill directories (checked paths: .agents/skills, .config/.agents/skills, .opencode/skills)
 dirs = get_skill_dirs(use_kaos_path=True)
+```
+
+### Utility Functions
+
+```python
+from kimix.base import percentage_str
+
+# Format number as percentage string
+s = percentage_str(0.7533)  # Returns "75.3%"
+```
+
+### Path Utilities
+
+```python
+from kimix.kimi_utils import make_kaos_dir
+from kaos.path import KaosPath
+
+# Convert any path to KaosPath
+kaos_path = make_kaos_dir("./my_folder")
 ```
 
 ## Complete Example
@@ -396,13 +442,17 @@ from kimix.kimi_utils import (
     prompt, prompt_async, validate, rag, clear_context, print_usage,
     get_default_session, get_tool_call_errors,
     set_plan_mode, cancel_prompt, get_cancel_event,
-    read_file, prompt_path, fix_error, async_prompt, async_fix_error
+    read_file, prompt_path, fix_error, async_prompt, async_fix_error,
+    context_path, delete_session_dir, make_kaos_dir,
+    TextSearchIndex, SearchResult
 )
 from kimix.base import (
     print_success, print_error, print_warning,
     print_info, print_debug, colorful_print,
     Color, BgColor, Style, run_thread, sync_all,
-    run_process_with_error, get_skill_dirs
+    run_process_with_error, get_skill_dirs, percentage_str,
+    set_default_thinking, set_default_plan_mode, set_default_yolo,
+    set_default_agent_file, set_default_skill_dirs, set_default_provider
 )
 
 # Standard library
