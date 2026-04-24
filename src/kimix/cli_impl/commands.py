@@ -5,10 +5,10 @@ from pathlib import Path
 import kimix.base as base
 from . import constants
 from .utils import _input, _split_text
-from kimix.base import print_success, print_error, print_warning, print_info
+from kimix.base import print_success, print_error, print_warning, print_info, colorful_text, Color
 from kimix.utils import (
     prompt, clear_context, get_default_session, fix_error, validate,
-    print_usage
+    print_usage, execute_plan
 )
 
 
@@ -126,7 +126,19 @@ def _cmd_think(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
 
 def _cmd_plan(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     if len(task_split) < 2:
-        print_error('Command must be /plan:on or /plan:off')
+        print(f'\n>>>> Make a plan: input multiple-lines, end with {colorful_text('/end', Color.YELLOW)}, cancel with {colorful_text('/cancel', Color.YELLOW)}')
+        text: list[str] = []
+        while True:
+            s = _input('', text_arr)
+            if s.strip() == '/end':
+                break
+            if s.strip() == '/cancel':
+                text.clear()
+                break
+            text.append(s)
+        prompt_str = '\n'.join(text)
+        if prompt_str.strip():
+            execute_plan(prompt_str)
         return None, False
     value = task_split[1].strip().lower()
     if value == 'on':
@@ -143,7 +155,7 @@ def _cmd_plan(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     return None, False
 
 def _cmd_txt(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
-    print('\n>>>> Start input multiple-lines, end with /end, or cancel with /cancel')
+    print(f'\n>>>> Start input multiple-lines, end with {colorful_text('/end', Color.YELLOW)}, cancel with {colorful_text('/cancel', Color.YELLOW)}')
     text: list[str] = []
     while True:
         s = _input('', text_arr)
@@ -153,7 +165,7 @@ def _cmd_txt(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
             text.clear()
             break
         text.append(s)
-    for i in _split_text(text):  # type: ignore[no-untyped-call]
+    for i in _split_text(text):
         text_arr.append(i)
     return None, False
 

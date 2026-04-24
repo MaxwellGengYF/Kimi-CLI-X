@@ -86,6 +86,9 @@ def _client_cli() -> None:
                                session=get_default_session())
                     except KeyboardInterrupt as e:
                         print_warning('Keyboard Interrupt.')
+        except KeyboardInterrupt as e:
+            print_success('\nbye.')
+            break
         except Exception as e:
             print_error(str(e))
 

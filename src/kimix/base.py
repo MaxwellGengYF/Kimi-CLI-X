@@ -68,22 +68,12 @@ _colorful_print = True
 _print_func: Callable[[str, str], Any] | None = None
 
 
-def colorful_print(
+def colorful_text(
     text: str,
     fg: Optional[Color] = None,
     bg: Optional[BgColor] = None,
     styles: Optional[list[Style]] = None,
-    end: str = "\n"
-) -> None:
-    """Print text with optional colors and styles.
-
-    Args:
-        text: The text to print
-        fg: Foreground color
-        bg: Background color
-        styles: List of text styles to apply
-        end: String to append at the end (default: newline)
-    """
+):
     if not _colorful_print:
         if _print_func:
             _print_func(text, end)
@@ -101,6 +91,17 @@ def colorful_print(
 
     if codes:
         text = f"\033[{';'.join(map(str, codes))}m{text}\033[0m"
+    return text
+
+
+def colorful_print(
+    text: str,
+    fg: Optional[Color] = None,
+    bg: Optional[BgColor] = None,
+    styles: Optional[list[Style]] = None,
+    end: str = "\n"
+) -> None:
+    text = colorful_text(text, fg, bg, styles)
     if _print_func:
         _print_func(text, end)
     else:
