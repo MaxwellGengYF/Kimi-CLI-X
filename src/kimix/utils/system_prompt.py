@@ -42,9 +42,9 @@ def get_system_prompt(
         rag = None
         yolo_doc = None
         index = _START_INDEX
-        # Spawn
+        # Agent
         if not is_sub_agent:
-            spawn_doc = f'''{index}. Use `Spawn` for: "parallelizable independent subtasks", "large-context analysis or tasks needing different expertise", "permission-graded operations like read-only analysis or sandboxed execution".'''
+            spawn_doc = f'''{index}. Use `Agent` for: "parallelizable independent subtasks", "large-context analysis or tasks needing different expertise", "permission-graded operations like read-only analysis or sandboxed execution".'''
             index += 1
         # Shell
         if args.KIMI_OS == 'Windows':

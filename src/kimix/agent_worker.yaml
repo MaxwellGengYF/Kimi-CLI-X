@@ -22,7 +22,7 @@ agent:
     - "my_tools.web.fetch_url:FetchURL"
     - "kimi_cli.tools.plan:ExitPlanMode"
     - "kimi_cli.tools.plan.enter:EnterPlanMode"
-    - "my_tools.agent:Spawn"
+    - "my_tools.agent:Agent"
     - "my_tools.office:Docx2md"
     - "my_tools.pdf:Pdf2md"
     - "my_tools.lint:SyntaxLint"

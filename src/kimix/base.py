@@ -161,34 +161,6 @@ def _process_lru() -> None:
         _threads = [p for p in _threads if p.is_alive()]
 
 
-_commands: dict[str, Any] = {
-    'Python': ('code', 'run_in_background'),
-    'Run': ('path', 'args', 'timeout', 'run_in_background'),
-    'TaskOutput': ('task_id', 'block', 'wait_time'),
-    'TaskStop': 'task_id',
-    'Rm': 'path',
-    'Mkdir': 'path',
-    'Ls': 'directory',
-    'Glob': ('pattern'),
-    'Grep': ('pattern', 'path'),
-    'ReadFile': ('path', 'line_offset', 'n_lines'),
-    'WriteFile': 'path',
-    'StrReplaceFile': 'path',
-    'Input': 'text',
-    'Wait': 'timeout',
-    'SetTodoList': 'todos',
-    'cpplint': ('file_path', 'project_root', 'verbose'),
-    'FetchURL': 'url',
-    'SearchWeb': ('query', 'limit', 'include_content'),
-    'spawn': ('prompt', 'thinking'),
-    'GrepAnalyzer': ('query', 'directory', 'top_k', 'refresh'),
-}
-_new_commands: dict[str, str | tuple[str]] = dict()
-for k, v in _commands.items():
-    _new_commands[k.lower()] = v
-_commands = _new_commands
-
-
 def print_agent_json(get_message: Callable[[], str], output_function: Callable[[str], Any] | None = None) -> None:
     json_str = None
     try:

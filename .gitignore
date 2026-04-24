@@ -1,11 +1,8 @@
 __pycache__
 agent.py
-kaos/
-kimi_agent_sdk/
-kimi_cli/
-kosong/
 requirements.txt
 .*cache
 *cache
+.kimix_cache/
 uv.lock
 clone_submodule.py

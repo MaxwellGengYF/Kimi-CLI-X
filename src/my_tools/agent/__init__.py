@@ -25,9 +25,9 @@ class SubAgentParams(BaseModel):
     )
 
 
-class Spawn(CallableTool2):
-    name: str = "Spawn"
-    description: str = "Spawn an isolated sub-agent to handle a specific task."
+class Agent(CallableTool2):
+    name: str = "Agent"
+    description: str = "Agent an isolated sub-agent to handle a specific task."
     params: type[SubAgentParams] = SubAgentParams
 
     async def __call__(self, params: SubAgentParams) -> ToolReturnValue:

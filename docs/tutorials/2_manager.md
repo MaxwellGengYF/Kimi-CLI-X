@@ -149,7 +149,7 @@ Designer(folder: str, clear=False)
 
 这是**程序员/执行者**的角色。流程如下：
 
-1. **创建 LLM 会话**：使用默认的 `agent_worker.yaml` 配置（具备 `Python`、`Run`、`StrReplaceFile`、`Spawn` 等开发工具）。
+1. **创建 LLM 会话**：使用默认的 `agent_worker.yaml` 配置（具备 `Python`、`Run`、`StrReplaceFile`、`Agent` 等开发工具）。
 2. **构建前缀**：
    - 若 `job.skills` 非空，则在每个 step 前加上 `use skill:xxx.` 的指令；
    - 若 `job.directory` 非空，则加上 `in dir \`xxx\`` 的上下文约束。
