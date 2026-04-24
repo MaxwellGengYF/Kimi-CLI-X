@@ -5,6 +5,7 @@ import re
 import os
 from pathlib import Path
 from my_tools.common import _maybe_export_output
+from kimi_cli.tools import SkipThisTool
 
 class Params(BaseModel):
     docx_path: str = Field(
@@ -20,6 +21,12 @@ class Docx2md(CallableTool2):
     name: str = "Docx2md"
     description: str = "Convert Word documents (DOCX) to Markdown format, preserving paragraphs, tables, and basic formatting."
     params: type[Params] = Params
+    def __init__(self) -> None:
+        try:
+            from docx import Document
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+        except:
+            raise SkipThisTool()
 
     async def __call__(self, params: Params) -> ToolReturnValue:
         # Validate DOCX path

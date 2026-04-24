@@ -55,9 +55,8 @@ def check_dependencies():
         missing.append("pillow")
     
     if missing:
-        print(f"Error: Missing required packages: {', '.join(missing)}")
-        print(f"Install with: pip install {' '.join(missing)}")
-        sys.exit(1)
+        return False
+    return True
 
 
 def extract_text_with_fitz(pdf_path: str, page_num: int) -> str:
@@ -315,7 +314,6 @@ def pdf_to_markdown(
     if not os.path.exists(pdf_path):
         raise FileNotFoundError(f"PDF file not found: {pdf_path}")
     
-    check_dependencies()
     
     # Setup output directory
     if output_path:

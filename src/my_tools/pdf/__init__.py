@@ -1,6 +1,6 @@
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
-
+from kimi_cli.tools import SkipThisTool
 
 class Params(BaseModel):
     pdf_path: str = Field(
@@ -32,7 +32,13 @@ class Pdf2md(CallableTool2):
     name: str = "Pdf2md"
     description: str = "Convert a PDF document to Markdown format, with optional image extraction, OCR, and table extraction."
     params: type[Params] = Params
-
+    def __init__(self) -> None:
+        try:
+            from .pdf_to_md import check_dependencies
+            if not check_dependencies():
+                raise SkipThisTool()
+        except:
+            raise SkipThisTool()
     async def __call__(self, params: Params) -> ToolReturnValue:
         import os
         import sys
