@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 import threading
 
 WRITING_PATH = threading.local()
-MAGIC_SPLIT_STR = '\nMagicSplit9fbf5c1387a34\n'
+MAGIC_SPLIT_STR = '\n>>>>>>>>>>9fbf5c1387a34\n'
 
 
 def set_writing_path(path: Path | None):

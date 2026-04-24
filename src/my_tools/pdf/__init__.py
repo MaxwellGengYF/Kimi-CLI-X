@@ -33,6 +33,7 @@ class Pdf2md(CallableTool2):
     description: str = "Convert a PDF document to Markdown format, with optional image extraction, OCR, and table extraction."
     params: type[Params] = Params
     def __init__(self) -> None:
+        super().__init__(self.name, self.description, self.params)
         try:
             from .pdf_to_md import check_dependencies
             if not check_dependencies():

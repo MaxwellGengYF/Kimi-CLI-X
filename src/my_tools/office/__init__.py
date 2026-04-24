@@ -22,6 +22,7 @@ class Docx2md(CallableTool2):
     description: str = "Convert Word documents (DOCX) to Markdown format, preserving paragraphs, tables, and basic formatting."
     params: type[Params] = Params
     def __init__(self) -> None:
+        super().__init__(self.name, self.description, self.params)
         try:
             from docx import Document
             from docx.enum.text import WD_ALIGN_PARAGRAPH

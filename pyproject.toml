@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "kimix"
-version = "0.1.6"
+version = "0.1.7"
 description = "Kimi Agent Tools - Custom tool collection for Kimi Agent SDK"
 readme = "README.md"
 license = { text = "MIT" }
@@ -73,7 +73,7 @@ members = [
 [tool.uv.sources]
 kimi-cli-x = { workspace = true }
 kimi-agent-sdk-x = { workspace = true }
-kosong = { workspace = true }
+kosong-x = { workspace = true }
 pykaos = { workspace = true }
 
 [tool.ruff]
