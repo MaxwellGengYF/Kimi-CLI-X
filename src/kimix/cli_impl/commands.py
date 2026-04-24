@@ -137,8 +137,14 @@ def _cmd_plan(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
                 break
             text.append(s)
         prompt_str = '\n'.join(text)
+        def ask_if_use_cache(path: str):
+            v = input(f'found cache `{path}`, load it and continue? (y/n) ')
+            if v.strip().lower() == 'y':
+                return True
+            return False
+            
         if prompt_str.strip():
-            execute_plan(prompt_str)
+            execute_plan(prompt_str, ask_if_use_cache)
         return None, False
     value = task_split[1].strip().lower()
     if value == 'on':

@@ -1,4 +1,4 @@
-# Kimi-CLI-X 文档中心
+# Kimi-CLI-X
 
 ## 快速安装
 ```bash

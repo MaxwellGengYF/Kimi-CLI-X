@@ -1,6 +1,8 @@
 from string import Template
 from typing import Any, Callable, Optional
 import asyncio
+import json
+import hashlib
 from pathlib import Path
 from kimi_agent_sdk import Session
 import kimix.base as base
@@ -8,6 +10,58 @@ from kimix.base import print_debug, print_warning, print_error, print_agent_json
 from . import _globals
 from .session import close_session_async, _create_default_session, _print_usage, clear_context
 from my_tools.common import _export_to_temp_file
+
+
+class PlanLoader:
+    def __init__(self, file_path: str | Path) -> None:
+        self.file_path = Path(file_path)
+        self.steps_count: int = 0
+        self.plan_file_path: str = ""
+        self.plan_file_hash: str = ""
+        self.memory_file_path: str = ""
+        self.memory_file_hash: str = ""
+        self.finished_step_count: int = 0
+
+    def load(self) -> None:
+        if self.file_path.exists():
+            with open(self.file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            self.steps_count = data.get('steps_count', 0)
+            self.plan_file_path = data.get('plan_file_path', '')
+            self.memory_file_path = data.get('memory_file_path', '')
+            self.plan_file_hash = data.get('plan_file_hash', '')
+            self.memory_file_hash = data.get('memory_file_hash', '')
+            self.finished_step_count = data.get('finished_step_count', 0)
+
+    def delete(self) -> None:
+        import os
+        if self.file_path.exists():
+            try:
+                os.unlink(self.file_path)
+            except:
+                pass
+
+    def store(self) -> None:
+        self.file_path.parent.mkdir(parents=True, exist_ok=True)
+        data = {
+            'steps_count': self.steps_count,
+            'plan_file_path': self.plan_file_path,
+            'plan_file_hash': self.plan_file_hash,
+            'memory_file_path': self.memory_file_path,
+            'memory_file_hash': self.memory_file_hash,
+            'finished_step_count': self.finished_step_count,
+        }
+        with open(self.file_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2)
+
+    @staticmethod
+    def compute_file_hash(file_path: str | Path) -> str:
+        path = Path(file_path)
+        if not path.exists():
+            return ""
+        with open(path, 'rb') as f:
+            return hashlib.sha256(f.read()).hexdigest()
+
 
 async def prompt_async(
     prompt_str: str,
@@ -24,7 +78,7 @@ async def prompt_async(
         session = _create_default_session()
         close_session_after_prompt = False
     prompt_str = prompt_str.strip()
-    if len(prompt_str) > 128000: # too long, save to file
+    if len(prompt_str) > 65536:  # too long, save to file
         name, new_id = _export_to_temp_file(content=prompt_str)
         prompt_str = f'read and execute: `{name}`'
     try:
@@ -133,7 +187,7 @@ def validate(
 
 def _make_new_plan_file() -> Path:
     import uuid
-    return Path.home() / '.kimi' / 'plan' / Path('plan_' + str(uuid.uuid8()).replace('-', '') + '.md')
+    return Path.home() / '.kimi' / 'plan' / Path('plan_' + str(uuid.uuid1()).replace('-', '') + '.md')
 
 
 _execute_plan_summarize = '''Please summarize our session with:
@@ -146,61 +200,127 @@ _execute_plan_summarize = '''Please summarize our session with:
 run `Note` tool, record it.'''
 
 
-def execute_plan(prompt_str: str) -> None:
+def execute_plan(prompt_str: str, ask_if_use_cache: Callable[[str], bool] | None = None) -> None:
     from kimix.base import _default_plan_mode
     import os
-    assert (not _default_plan_mode), 'Can not use this in auto-plan mode. (use /plan:off)'
+    assert (
+        not _default_plan_mode), 'Can not use this in auto-plan mode. (use /plan:off)'
     from my_tools.note import set_writing_path, is_note_called, read_file
+
+    cache_file = Path.home() / '.kimi' / 'plan' / '.cache.json'
+    plan_loader: PlanLoader | None = None
+    use_cache = False
+
+    if ask_if_use_cache is not None and cache_file.exists():
+        plan_loader = PlanLoader(cache_file)
+        plan_loader.load()
+        cached_plan_path = Path(plan_loader.plan_file_path)
+        if cached_plan_path.exists():
+            current_hash = PlanLoader.compute_file_hash(cached_plan_path)
+            if current_hash == plan_loader.plan_file_hash and plan_loader.finished_step_count > 0 and plan_loader.finished_step_count < plan_loader.steps_count:
+                use_cache = ask_if_use_cache(str(cached_plan_path))
+                if use_cache:
+                    if not plan_loader.memory_file_path:
+                        print_error('Memory file path missing in cache.')
+                        return
+                    mem_path = Path(plan_loader.memory_file_path)
+                    if not mem_path.exists():
+                        print_error('Memory file does not match cache.')
+                        return
+                    mem_hash = PlanLoader.compute_file_hash(mem_path)
+                    if mem_hash != plan_loader.memory_file_hash:
+                        print_error(
+                            'Memory file hash does not match cache.')
+                        return
+                    print_debug(
+                        f'Using cache, jumping to step {plan_loader.finished_step_count}.')
+
     try:
-        plan_file = _make_new_plan_file()
-        set_writing_path(plan_file)
-        try:
-            os.unlink(plan_file)
-        except:
-            pass
-        if plan_file.exists():
-            print_error(f'plan file {plan_file} already exists. quit.')
-            return
-        prompt_str = f'''
+        if not use_cache:
+            # Step 1: generate plan
+            plan_file = _make_new_plan_file()
+            set_writing_path(plan_file)
+            try:
+                os.unlink(plan_file)
+            except:
+                pass
+            if plan_file.exists():
+                print_error(f'plan file {plan_file} already exists. quit.')
+                return
+            prompt_str = f'''
 make a plan for this requirement:
 ```
 {prompt_str}
 ```
 Call `Note` tool per step to record the plan.
 '''
-        task_finished = False
-        for i in range(4):
-            prompt(prompt_str)
-            if not is_note_called():
-                print_warning(
-                    f'Prompt did not write the proper plan. let it try again({i}/4).')
-            else:
-                task_finished = True
-                break
-        if not task_finished:
-            print_error('Execute plan failed, the plan file cannot generated.')
-            return
-        steps = read_file(plan_file)
+            task_finished = False
+            for i in range(4):
+                prompt(prompt_str)
+                if not is_note_called():
+                    print_warning(
+                        f'Prompt did not write the proper plan. let it try again({i + 1}/4).')
+                else:
+                    task_finished = True
+                    break
+            if not task_finished:
+                print_error(
+                    'Execute plan failed, the plan file cannot generated.')
+                return
+            steps = read_file(plan_file)
+            if plan_loader is None:
+                plan_loader = PlanLoader(cache_file)
+            plan_loader.steps_count = len(steps)
+            plan_loader.plan_file_path = str(plan_file)
+            plan_loader.plan_file_hash = PlanLoader.compute_file_hash(
+                plan_file)
+            plan_loader.finished_step_count = 0
+            plan_loader.memory_file_path = ""
+            plan_loader.memory_file_hash = ""
+            plan_loader.store()
+        else:
+            assert plan_loader is not None
+            plan_file = Path(plan_loader.plan_file_path)
+            steps = read_file(plan_file)
+
         memory_file: Path | None = None
         if not steps:
             print_warning('No plan made, quit.')
             return
-        for idx in range(len(steps)):
+
+        if use_cache and plan_loader and plan_loader.finished_step_count > 0 and plan_loader.memory_file_path:
+            memory_file = Path(plan_loader.memory_file_path)
+
+        # Step 2: execute plan
+        start_idx = plan_loader.finished_step_count if plan_loader is not None else 0
+        for idx in range(start_idx, len(steps)):
             print_info(f'Executing step {idx}.')
             step = steps[idx]
             prompt_str = ''
             list = read_file(memory_file)
             if list:
-                prompt_str += f'## Memory:\n{'\n'.join(list)}\n\n'
+                joined_str = '\n'.join(list)
+                prompt_str += f'## Memory:\n{joined_str}\n\n'
             set_writing_path(None)
             prompt_str += f'## Implement:\n{step}'
             clear_context()
             prompt(prompt_str)
-            if idx != len(steps) - 1: # not last
+            if idx != len(steps) - 1:  # not last
+                if plan_loader is not None:
+                    plan_loader.finished_step_count = idx + 1
+                    plan_loader.store()
+                    
                 memory_file = _make_new_plan_file()
                 set_writing_path(memory_file)
                 prompt(_execute_plan_summarize)
+                if plan_loader is not None:
+                    plan_loader.memory_file_path = str(memory_file)
+                    plan_loader.memory_file_hash = PlanLoader.compute_file_hash(
+                        memory_file)
+                    plan_loader.store()
             set_writing_path(None)
+        if plan_loader is not None:
+            plan_loader.delete()
     finally:
         set_writing_path(None)
 

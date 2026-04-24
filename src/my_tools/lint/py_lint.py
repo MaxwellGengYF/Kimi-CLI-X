@@ -158,7 +158,7 @@ class MypyCheck(CallableTool2):
             return ToolOk(output=output)
             
         return ToolError(
-            output=output,
-            message=f"",
+            output="",
+            message=output,
             brief=f"Python syntax check failed",
         )
