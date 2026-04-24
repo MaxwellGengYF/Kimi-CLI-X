@@ -25,7 +25,7 @@ from .session import (
     print_usage,
     clear_context,
 )
-from .prompt import prompt_async, prompt, validate, prompt_path
+from .prompt import prompt_async, prompt, validate, prompt_path, execute_plan
 from .fix_error import fix_error, async_prompt, async_fix_error
 from .utils import read_file, set_plan_mode
 
@@ -57,6 +57,7 @@ __all__ = [
     "print_usage",
     "clear_context",
     "prompt_async",
+    "execute_plan",
     "prompt",
     "validate",
     "prompt_path",

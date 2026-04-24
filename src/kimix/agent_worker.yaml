@@ -26,6 +26,7 @@ agent:
     - "my_tools.office:Docx2md"
     - "my_tools.pdf:Pdf2md"
     - "my_tools.lint:SyntaxLint"
+    - "my_tools.note:Note"
     # - "kimi_cli.tools.shell:Shell"
     # - "my_tools.file:FileInfo"
     # - "my_tools.img:ImageToText"
