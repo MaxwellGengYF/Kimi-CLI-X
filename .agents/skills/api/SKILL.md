@@ -243,14 +243,8 @@ proc = run_script("./script.py")
 ## File Operations (kimix.kimi_utils)
 
 ```python
-from kimix.kimi_utils import read_file, prompt_path
+from kimix.kimi_utils import prompt_path
 from pathlib import Path
-
-# Read file content
-content = read_file(Path("config.yaml"))
-
-# Read and split by delimiter
-sections = read_file(Path("docs.txt"), split_word="===SECTION===")
 
 # Prompt with file content
 prompt_path(Path("instructions.txt"))
@@ -402,7 +396,7 @@ from kimix.kimi_utils import (
     prompt, prompt_async, validate, clear_context, print_usage,
     get_default_session, get_tool_call_errors,
     set_plan_mode, cancel_prompt, get_cancel_event,
-    read_file, prompt_path, fix_error, async_prompt, async_fix_error,
+    prompt_path, fix_error, async_prompt, async_fix_error,
     context_path, delete_session_dir, make_kaos_dir
 )
 from kimix.base import (

@@ -1,4 +1,5 @@
 import argparse
+import re
 import subprocess
 import shutil
 import sys
@@ -43,6 +44,70 @@ def publish_package(token: str) -> int:
     return run_cmd(["uv", "publish", f"--token={token}"], cwd=str(CURRENT_ROOT))
 
 
+def bump_patch_version(version: str) -> str:
+    """将版本号的最后一段 +1，例如 0.52.0 -> 0.52.1"""
+    parts = version.split(".")
+    parts[-1] = str(int(parts[-1]) + 1)
+    return ".".join(parts)
+
+
+def update_dependency_in_content(content: str, package_name: str, new_version: str) -> str:
+    """在 TOML 内容中更新所有对 package_name 的版本引用"""
+    pattern = rf'({re.escape(package_name)})(==|>=|<=|~=|!=|>|<)(\d+(?:\.\d+)*)'
+
+    def replacer(m: re.Match[str]) -> str:
+        return f"{m.group(1)}{m.group(2)}{new_version}"
+
+    return re.sub(pattern, replacer, content)
+
+
+def bump_version() -> None:
+    """依次询问并升级 4 个包的版本，同时同步更新所有 pyproject.toml 中的依赖"""
+    packages = [
+        ("kosong-x", CURRENT_ROOT / "kimi-cli" / "packages" / "kosong" / "pyproject.toml"),
+        ("kimi-cli-x", CURRENT_ROOT / "kimi-cli" / "pyproject.toml"),
+        ("kimi-agent-sdk-x", CURRENT_ROOT / "kimi-agent-sdk" / "python" / "pyproject.toml"),
+        ("kimix", CURRENT_ROOT / "pyproject.toml"),
+    ]
+
+    all_toml_paths = [p for _, p in packages]
+
+    for pkg_name, toml_path in packages:
+        content = toml_path.read_text(encoding="utf-8")
+        m = re.search(r'^version\s*=\s*"([^"]+)"', content, re.MULTILINE)
+        if not m:
+            print(f"⚠️  未在 {toml_path} 中找到 {pkg_name} 的 version 字段，已跳过")
+            continue
+
+        old_ver = m.group(1)
+        new_ver = bump_patch_version(old_ver)
+
+        if not confirm_step(f"升级版本 {old_ver} -> {new_ver}", pkg_name):
+            print(f"跳过包: {pkg_name}")
+            continue
+
+        # 1) 更新本包的 version 字段
+        new_content = re.sub(
+            rf'^(version\s*=\s*"){re.escape(old_ver)}(")',
+            rf'\g<1>{new_ver}\g<2>',
+            content,
+            count=1,
+            flags=re.MULTILINE,
+        )
+        toml_path.write_text(new_content, encoding="utf-8")
+        print(f"✅ {toml_path}: version {old_ver} -> {new_ver}")
+
+        # 2) 更新所有 pyproject.toml 中对该包的依赖版本
+        for other_path in all_toml_paths:
+            other_content = other_path.read_text(encoding="utf-8")
+            updated = update_dependency_in_content(other_content, pkg_name, new_ver)
+            if updated != other_content:
+                other_path.write_text(updated, encoding="utf-8")
+                print(f"   📦 已同步依赖: {other_path}")
+
+    print("\n🎉 版本升级处理完毕！")
+
+
 def process_package(name: str, cwd: str | None, token: str) -> bool:
     """
     处理单个包的发布流程
@@ -76,11 +141,19 @@ def process_package(name: str, cwd: str | None, token: str) -> bool:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="发布 Python 包工具")
-    parser.add_argument("--token", required=True, help="PyPI/仓库的发布 token")
+    parser.add_argument("--token", default=None, help="PyPI/仓库的发布 token")
+    parser.add_argument("--bump-version", action="store_true", help="仅执行版本升级")
     args = parser.parse_args()
-    token = args.token
 
-    # 定义三个包及其工作目录
+    if args.bump_version:
+        bump_version()
+        return
+
+    token = args.token
+    if not token:
+        parser.error("--token 是发布时的必填参数")
+
+    # 定义四个包及其工作目录
     packages = [
         ("kosong-x", "kimi-cli\\packages\\kosong"),
         ("kimi-cli-x", "kimi-cli"),

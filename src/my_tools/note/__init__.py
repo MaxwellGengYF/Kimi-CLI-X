@@ -15,7 +15,8 @@ MAGIC_SPLIT_STR = '\n>>>>>>>>>>9fbf5c1387a34\n'
 
 
 def set_writing_path(path: Path | None):
-    setattr(WRITING_PATH, 'trigger', False)
+    if path is not None:
+        setattr(WRITING_PATH, 'trigger', False)
     setattr(WRITING_PATH, 'value', path)
 
 
@@ -33,7 +34,10 @@ def read_file(path: Path | None) -> list[str]:
         return []
     text = path.read_text(encoding='utf-8', errors='replace')
     if text:
-        return text.split(MAGIC_SPLIT_STR)
+        lst: list[str] = text.split(MAGIC_SPLIT_STR)
+        for i, v in enumerate(lst):
+            lst[i] = v.strip()
+        return lst
     return []
 
 
@@ -53,17 +57,17 @@ class Note(CallableTool2):
         if path is None:
             return ToolError(
                 output="",
-                message="Writing path is not set. Call set_writing_path first.",
-                brief="No writing path configured",
+                message="Note tool invalid",
+                brief="invalid tool.",
             )
         try:
-            setattr(WRITING_PATH, 'trigger', True)
             previous_exists = path.exists()
             await anyio.to_thread.run_sync(lambda: path.parent.mkdir(parents=True, exist_ok=True))
             async with await anyio.open_file(path, 'a', encoding='utf-8') as f:
                 if previous_exists:
                     await f.write(MAGIC_SPLIT_STR)
                 await f.write(params.content)
+            setattr(WRITING_PATH, 'trigger', True)
             return ToolOk(output=f"Note appended to {path}")
         except Exception as exc:
             return ToolError(

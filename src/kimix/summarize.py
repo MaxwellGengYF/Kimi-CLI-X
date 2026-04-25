@@ -2,18 +2,6 @@ from string import Template
 from kimix.base import print_warning
 from typing import Callable
 from kimix.utils import *
-generate_memory = Template('''Please summarize our session with:
-1. **Project Overview**: Brief description of the project and its purpose
-2. **Key Decisions**: Important decisions made during our session
-3. **Current State**: What has been completed so far
-4. **Important Files**: Key code files and their roles
-5. **TODOs/Pending Tasks**: Any unfinished tasks or next steps
-6. **Technical Notes**: Relevant technical details to remember
-Use WriteFile tool to create/update to '${memory_file}' with this structured content. Be concise but comprehensive.''')
-
-read_memory = Template('''
-read '${memory_file}' and remember.
-'''.strip())
 
 
 def summarize(temp_file: str | None = None) -> None:
@@ -31,25 +19,30 @@ def summarize(temp_file: str | None = None) -> None:
     except:
         pass
     last_usage = get_default_session().status.context_usage
-    prompt(generate_memory.substitute(
-        memory_file=temp_file), info_print=False)
+    from kimix.base import generate_memory
+    lines = []
+    def export_func(text: str, is_thinking: bool):
+        if not is_thinking:
+            lines.append(text) 
+    prompt(generate_memory, info_print=False, output_function=export_func)
     clear_context(print_info=False)
-    prompt(read_memory.substitute(memory_file=temp_file), info_print=False)
+    if lines:
+        memory_content = '\n'.join(lines)
+        prompt(f'Remember this:\n```\n{memory_content}\n```\nno tool calling, no any action', info_print=False)
+    else:
+        print_warning('No memory generated.')
+        return
     new_usage = get_default_session().status.context_usage
     print_success(
         f'Compact from {percentage_str(last_usage)} to {percentage_str(new_usage)}')
 
 summarize_mistakes_prompt = Template('''Please analyze and summarize the following tool call errors:
-
 $errors
-
 Provide a structured summary with:
 1. **Error Patterns**: Common types of errors and their causes
 2. **Root Causes**: Underlying reasons for the mistakes
 3. **Corrective Actions**: How to avoid or fix these errors
-4. **Key Learnings**: Important takeaways for future interactions
-
-Save this summary to: $result_file''')
+4. **Key Learnings**: Important takeaways for future interactions''')
 
 def summarize_mistake(result_file: str, session = None) -> None:
     errors = get_tool_call_errors(session)
@@ -64,6 +57,7 @@ def summarize_mistake(result_file: str, session = None) -> None:
     )), session=session, info_print=False)
     
 def summarize_session(old_session, temp_file: str | None = None, create_session_func: Callable | None = None):
+    from kimix.base import generate_memory
     from pathlib import Path
     from kimix.utils import prompt
     from kimix.base import percentage_str, print_success
@@ -78,14 +72,22 @@ def summarize_session(old_session, temp_file: str | None = None, create_session_
     except:
         pass
     last_usage = old_session.status.context_usage
-    prompt(generate_memory.substitute(
-        memory_file=temp_file), info_print=False, session=old_session)
+    lines = []
+    def export_func(text: str, is_thinking: bool):
+        if not is_thinking:
+            lines.append(text) 
+    prompt(generate_memory, info_print=False, session=old_session, output_function=export_func)
     close_session(old_session)
     if create_session_func:
         new_session = create_session_func()
     else:
         new_session = create_session()
-    prompt(read_memory.substitute(memory_file=temp_file), info_print=False, session=new_session)
+    if lines:
+        memory_content = '\n'.join(lines)
+        prompt(f'Remember this:\n```\n{memory_content}\n```\nno tool calling, no any action', info_print=False)
+    else:
+        print_warning('No memory generated.')
+        return
     new_usage = new_session.status.context_usage
     print_success(
         f'Compact from {percentage_str(last_usage)} to {percentage_str(new_usage)}')

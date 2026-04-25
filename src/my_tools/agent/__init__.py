@@ -46,9 +46,9 @@ class Agent(CallableTool2):
         try:
             output_strs = []
 
-            def output_function(fn: str) -> None:
+            def output_function(fn: str, is_thinking: bool) -> None:
                 # Main agent no need to get thinking-output
-                if fn and not fn.startswith('[Think]'):
+                if fn and not is_thinking:
                     output_strs.append(fn)
 
             async def prompt_async(cancel_callable=None):
@@ -110,7 +110,7 @@ class Agent(CallableTool2):
 
                 output_strs = []
 
-                def output_function(fn):
+                def output_function(fn: str, is_thinking: bool) -> None:
                     if fn:
                         output_strs.append(fn)
 

@@ -74,12 +74,6 @@ def colorful_text(
     bg: Optional[BgColor] = None,
     styles: Optional[list[Style]] = None,
 ):
-    if not _colorful_print:
-        if _print_func:
-            _print_func(text, end)
-        else:
-            print(text, end=end)
-        return
     codes: list[int] = []
 
     if styles:
@@ -101,6 +95,12 @@ def colorful_print(
     styles: Optional[list[Style]] = None,
     end: str = "\n"
 ) -> None:
+    if not _colorful_print:
+        if _print_func:
+            _print_func(text, end)
+        else:
+            print(text, end=end)
+        return
     text = colorful_text(text, fg, bg, styles)
     if _print_func:
         _print_func(text, end)
@@ -162,7 +162,7 @@ def _process_lru() -> None:
         _threads = [p for p in _threads if p.is_alive()]
 
 
-def print_agent_json(get_message: Callable[[], str], output_function: Callable[[str], Any] | None = None) -> None:
+def print_agent_json(get_message: Callable[[], str], output_function: Callable[[str, bool], Any] | None = None) -> None:
     json_str = None
     try:
         json_str = get_message()
@@ -175,7 +175,7 @@ def print_agent_json(get_message: Callable[[], str], output_function: Callable[[
         if type(item) == str:
             if not (item.find('<choice>') >= 0 and item.find('</choice>') >= 0):
                 if output_function:
-                    output_function(item)
+                    output_function(item, False)
                 if _print_func:
                     _print_func(item, '\n')
                 else:
@@ -185,7 +185,7 @@ def print_agent_json(get_message: Callable[[], str], output_function: Callable[[
             if think_content:
                 think_content = f"[Think] {think_content}"
                 if output_function:
-                    output_function(think_content)
+                    output_function(think_content, True)
                 colorful_print(think_content,
                                fg=Color.BRIGHT_CYAN, end='\n')
         elif item.get("type") == "text":
@@ -193,7 +193,7 @@ def print_agent_json(get_message: Callable[[], str], output_function: Callable[[
             if text_content:
                 if not (text_content.find('<choice>') >= 0 and text_content.find('</choice>') >= 0):
                     if output_function:
-                        output_function(text_content)
+                        output_function(text_content, False)
                     if _print_func:
                         _print_func(f"\n{text_content}", '\n')
                     else:
@@ -361,3 +361,12 @@ def get_skill_dirs(use_kaos_path: bool = True) -> list[Any]:
             ]
         return _default_skill_dirs
     return []
+
+
+generate_memory = '''Please summarize our session concisely with:
+1. **Project Overview**: Brief description of the project and its purpose
+2. **Key Decisions**: Important decisions made during our session
+3. **Current State**: What has been completed so far
+4. **Important Files**: Key code files and their roles
+5. **TODOs/Pending Tasks**: Any unfinished tasks or next steps
+6. **Technical Notes**: Relevant technical details to remember'''

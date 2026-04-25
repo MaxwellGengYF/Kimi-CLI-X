@@ -38,7 +38,7 @@ def async_prompt(
     # settings
     read_agents_md: bool = False,
     skill_name: str | None = None,
-    output_function: Callable[[Any], Any] | None = None,
+    output_function: Callable[[str, bool], Any] | None = None,
     info_print: bool = True,
     cancel_callable: Callable[[], bool] | None = None,
 ) -> Any:

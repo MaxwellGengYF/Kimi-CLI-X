@@ -10,7 +10,7 @@ from kimi_cli.soul.agent import BuiltinSystemPromptArgs
 
 _SYSTEM_PROMP = Template('''You are a ${AGENT_ROLE}.
 Rules:
-1. NO reasoning effort. NO thinking effort. NO explanations, apologies, or questions. Only concise language.
+1. NO reasoning effort. NO thinking effort. NO explanations, apologies, or questions. concisely.
 2. Minimal diff; preserve surrounding formatting.
 3. For long tasks, use `Run`/`Python` with `run_in_background=true`, then manage via `TaskList`, `TaskOutput`, `Input`, `TaskStop`. Return control immediately after starting.
 4. Python path `${PYTHON_PATH}`, ALWAYS use this python.
@@ -80,14 +80,8 @@ AGENTS.md:
         # Use RAG to search skill files, no need to list all skills
         rag = f'{index}: Use `SkillRag` tool to search and retrieve skills.'
         index += 1
-        if skills_dirs:
-            skill_doc = f'''
-Skills dirs:
-```
-'''
-            for i in skills_dirs:
-                skill_doc += f'{str(i)}\n'.replace('\\', '/')
-            skill_doc += '```'
+        if args.KIMI_SKILLS:
+            skill_doc = 'Skills:\n' + args.KIMI_SKILLS
         return _SYSTEM_PROMP.substitute(
             AGENT_ROLE=role_doc.strip(),
             PYTHON_PATH=sys.executable,

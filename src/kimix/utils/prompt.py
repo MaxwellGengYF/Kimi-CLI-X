@@ -61,6 +61,8 @@ class PlanLoader:
             return ""
         with open(path, 'rb') as f:
             return hashlib.sha256(f.read()).hexdigest()
+    def compute_hash(content: str) -> str:
+        return hashlib.sha256(content.encode('utf-8', 'replace')).hexdigest()
 
 
 async def prompt_async(
@@ -69,7 +71,7 @@ async def prompt_async(
     # settings
     read_agents_md: bool = False,
     skill_name: str | None = None,
-    output_function: Callable[[Any], Any] | None = None,
+    output_function: Callable[[str, bool], Any] | None = None,
     info_print: bool = True,
     cancel_callable: Callable[[], bool] | None = None,
     close_session_after_prompt: bool = False,
@@ -152,7 +154,7 @@ def prompt(
     # settings
     read_agents_md: bool = False,
     skill_name: str | None = None,
-    output_function: Callable[[Any], Any] | None = None,
+    output_function: Callable[[str, bool], Any] | None = None,
     info_print: bool = True,
     cancel_callable: Callable[[], bool] | None = None,
     close_session_after_prompt: bool = False,
@@ -190,17 +192,7 @@ def _make_new_plan_file() -> Path:
     return Path.home() / '.kimi' / 'plan' / Path('plan_' + str(uuid.uuid1()).replace('-', '') + '.md')
 
 
-_execute_plan_summarize = '''Please summarize our session with:
-1. **Project Overview**: Brief description of the project and its purpose
-2. **Key Decisions**: Important decisions made during our session
-3. **Current State**: What has been completed so far
-4. **Important Files**: Key code files and their roles
-5. **TODOs/Pending Tasks**: Any unfinished tasks or next steps
-6. **Technical Notes**: Relevant technical details to remember
-run `Note` tool, record it.'''
-
-
-def execute_plan(prompt_str: str, ask_if_use_cache: Callable[[str], bool] | None = None) -> None:
+def execute_plan(prompt_str: str, ask_if_use_cache: Callable[[str], bool] | None = None, ask_if_execute_plan: Callable[[list[str], int], bool] | None = None) -> None:
     from kimix.base import _default_plan_mode
     import os
     assert (
@@ -220,18 +212,18 @@ def execute_plan(prompt_str: str, ask_if_use_cache: Callable[[str], bool] | None
             if current_hash == plan_loader.plan_file_hash and plan_loader.finished_step_count > 0 and plan_loader.finished_step_count < plan_loader.steps_count:
                 use_cache = ask_if_use_cache(str(cached_plan_path))
                 if use_cache:
-                    if not plan_loader.memory_file_path:
-                        print_error('Memory file path missing in cache.')
-                        return
-                    mem_path = Path(plan_loader.memory_file_path)
-                    if not mem_path.exists():
-                        print_error('Memory file does not match cache.')
-                        return
-                    mem_hash = PlanLoader.compute_file_hash(mem_path)
-                    if mem_hash != plan_loader.memory_file_hash:
-                        print_error(
-                            'Memory file hash does not match cache.')
-                        return
+                    # if not plan_loader.memory_file_path:
+                    #     print_error('Memory file path missing in cache.')
+                    #     return
+                    # mem_path = Path(plan_loader.memory_file_path)
+                    # if not mem_path.exists():
+                    #     print_error('Memory file does not match cache.')
+                    #     return
+                    # mem_hash = PlanLoader.compute_file_hash(mem_path)
+                    # if mem_hash != plan_loader.memory_file_hash:
+                    #     print_error(
+                    #         'Memory file hash does not match cache.')
+                    #     return
                     print_debug(
                         f'Using cache, jumping to step {plan_loader.finished_step_count}.')
 
@@ -293,6 +285,9 @@ Call `Note` tool per step to record the plan.
 
         # Step 2: execute plan
         start_idx = plan_loader.finished_step_count if plan_loader is not None else 0
+        if (ask_if_execute_plan is not None) and (not ask_if_execute_plan(steps, start_idx)):
+            print_warning('plan quit')
+            return
         for idx in range(start_idx, len(steps)):
             print_info(f'Executing step {idx}.')
             step = steps[idx]
@@ -309,14 +304,26 @@ Call `Note` tool per step to record the plan.
                 if plan_loader is not None:
                     plan_loader.finished_step_count = idx + 1
                     plan_loader.store()
-                    
+
                 memory_file = _make_new_plan_file()
-                set_writing_path(memory_file)
-                prompt(_execute_plan_summarize)
+                from kimix.base import generate_memory
+                lines = []
+                def export_func(text: str, is_thinking: bool):
+                    if not is_thinking:
+                        lines.append(text) 
+                prompt(generate_memory, export_func)
+                if lines:
+                    memory_content = '\n'.join(lines)
+                    memory_file.write_text(memory_content, encoding='utf-8', errors='replace')
+                else:
+                    memory_file = None
                 if plan_loader is not None:
-                    plan_loader.memory_file_path = str(memory_file)
-                    plan_loader.memory_file_hash = PlanLoader.compute_file_hash(
-                        memory_file)
+                    if memory_file:
+                        plan_loader.memory_file_path = str(memory_file)
+                        plan_loader.memory_file_hash = PlanLoader.compute_hash(memory_content)
+                    else:
+                        plan_loader.memory_file_path = ''
+                        plan_loader.memory_file_hash = ''
                     plan_loader.store()
             set_writing_path(None)
         if plan_loader is not None:
