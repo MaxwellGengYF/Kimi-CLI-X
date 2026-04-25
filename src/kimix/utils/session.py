@@ -4,6 +4,7 @@ from pathlib import Path
 import os
 from kaos.path import KaosPath
 from kimi_agent_sdk import Session
+from kosong.chat_provider import ChatProvider
 import kimix.base as base
 from kimix.base import print_success, print_debug, percentage_str
 from . import _globals
@@ -51,6 +52,7 @@ async def _create_session_async(
     resume: bool = False,
     plan_mode: Optional[bool] = None,
     provider_dict: dict[str, Any] | None = None,
+    chat_provider: ChatProvider | None = None,
     is_sub_agent: bool = False,
 ) -> Session:
     if session_id is None:
@@ -81,6 +83,7 @@ async def _create_session_async(
             tool_call_failed_list=tool_call_failed_list,
             custom_system_prompt=get_system_prompt(
                 is_sub_agent, plan_mode, yolo, work_dir, skills_dirs),
+            chat_provider=chat_provider,
         )
         if not session:
             print_debug(f'Session {session_id} not found.')
@@ -97,6 +100,7 @@ async def _create_session_async(
             tool_call_failed_list=tool_call_failed_list,
             custom_system_prompt=get_system_prompt(
                 is_sub_agent, plan_mode, yolo, work_dir, skills_dirs),
+            chat_provider=chat_provider,
         )
     return session
 
@@ -111,17 +115,19 @@ def create_session(
     resume: bool = False,
     plan_mode: Optional[bool] = None,
     provider_dict: dict[str, Any] | None = None,
+    chat_provider: ChatProvider | None = None,
 ) -> Session:
     return asyncio.run(_create_session_async(
-        session_id,
-        work_dir,
-        skills_dir,
-        thinking,
-        yolo,
-        agent_file,
-        resume,
-        plan_mode,
-        provider_dict
+        session_id=session_id,
+        work_dir=work_dir,
+        skills_dir=skills_dir,
+        thinking=thinking,
+        yolo=yolo,
+        agent_file=agent_file,
+        resume=resume,
+        plan_mode=plan_mode,
+        provider_dict=provider_dict,
+        chat_provider=chat_provider,
     ))
 
 

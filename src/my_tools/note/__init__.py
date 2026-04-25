@@ -54,8 +54,8 @@ class Note(CallableTool2):
         if path is None:
             return ToolError(
                 output="",
-                message="Writing path is not set. Call set_writing_path first.",
-                brief="No writing path configured",
+                message="Note tool invalid",
+                brief="invalid tool.",
             )
         try:
             previous_exists = path.exists()
