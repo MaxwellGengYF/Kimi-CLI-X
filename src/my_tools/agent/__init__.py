@@ -21,7 +21,7 @@ class SubAgentParams(BaseModel):
     )
     run_in_background: bool = Field(
         default=False,
-        description="Run in an independent background process. Returns immediately with a task_id. Use TaskList, TaskOutput, and TaskWait to manage."
+        description="Run in an independent background process. Returns immediately with a task_id. Use TaskList, TaskOutput to manage."
     )
 
 
@@ -111,7 +111,7 @@ class Agent(CallableTool2):
                 output_strs = []
 
                 def output_function(fn: str, is_thinking: bool) -> None:
-                    if fn:
+                    if fn and (not is_thinking):
                         output_strs.append(fn)
 
                 async def prompt_async(cancel_callable=None):
@@ -126,7 +126,6 @@ class Agent(CallableTool2):
                         import kimix.utils as utils
                         await utils.prompt_async(prompt_str=params.prompt, session=session,
                                                 output_function=output_function, cancel_callable=cancel_callable)
-                        print('After prompt')
                     except Exception as e:
                         return str(e)
                     finally:
