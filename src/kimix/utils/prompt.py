@@ -190,16 +190,6 @@ def _make_new_plan_file() -> Path:
     return Path.home() / '.kimi' / 'plan' / Path('plan_' + str(uuid.uuid1()).replace('-', '') + '.md')
 
 
-_execute_plan_summarize = '''Please summarize our session with:
-1. **Project Overview**: Brief description of the project and its purpose
-2. **Key Decisions**: Important decisions made during our session
-3. **Current State**: What has been completed so far
-4. **Important Files**: Key code files and their roles
-5. **TODOs/Pending Tasks**: Any unfinished tasks or next steps
-6. **Technical Notes**: Relevant technical details to remember
-run `Note` tool, record it.'''
-
-
 def execute_plan(prompt_str: str, ask_if_use_cache: Callable[[str], bool] | None = None) -> None:
     from kimix.base import _default_plan_mode
     import os
@@ -312,7 +302,8 @@ Call `Note` tool per step to record the plan.
                     
                 memory_file = _make_new_plan_file()
                 set_writing_path(memory_file)
-                prompt(_execute_plan_summarize)
+                from kimix.base import generate_memory
+                prompt(generate_memory)
                 if plan_loader is not None:
                     plan_loader.memory_file_path = str(memory_file)
                     plan_loader.memory_file_hash = PlanLoader.compute_file_hash(

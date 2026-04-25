@@ -2,22 +2,11 @@ from string import Template
 from kimix.base import print_warning
 from typing import Callable
 from kimix.utils import *
-generate_memory = Template('''Please summarize our session with:
-1. **Project Overview**: Brief description of the project and its purpose
-2. **Key Decisions**: Important decisions made during our session
-3. **Current State**: What has been completed so far
-4. **Important Files**: Key code files and their roles
-5. **TODOs/Pending Tasks**: Any unfinished tasks or next steps
-6. **Technical Notes**: Relevant technical details to remember
-Use WriteFile tool to create/update to '${memory_file}' with this structured content. Be concise but comprehensive.''')
-
-read_memory = Template('''
-read '${memory_file}' and remember.
-'''.strip())
 
 
 def summarize(temp_file: str | None = None) -> None:
     from pathlib import Path
+    from my_tools.note import set_writing_path, read_file, is_note_called
     from kimix.utils import prompt, get_default_session, clear_context
     from kimix.base import percentage_str, print_success
     from my_tools.common import _create_temp_file_name
@@ -31,10 +20,21 @@ def summarize(temp_file: str | None = None) -> None:
     except:
         pass
     last_usage = get_default_session().status.context_usage
-    prompt(generate_memory.substitute(
-        memory_file=temp_file), info_print=False)
+    set_writing_path(Path(temp_file))
+    from kimix.base import generate_memory
+    try:
+        prompt(generate_memory, info_print=False)
+        if not is_note_called():
+            print_warning('Compact failed, LLM did not call `Note` tool or call tool failed.')
+            return
+    finally:
+        set_writing_path(None)
+        
     clear_context(print_info=False)
-    prompt(read_memory.substitute(memory_file=temp_file), info_print=False)
+    lines = read_file(Path(temp_file))
+    if lines:
+        memory_content = '\n'.join(lines)
+        prompt(f'Remember this:\n```\n{memory_content}\n```\nno tool calling, no any action', info_print=False)
     new_usage = get_default_session().status.context_usage
     print_success(
         f'Compact from {percentage_str(last_usage)} to {percentage_str(new_usage)}')
@@ -65,6 +65,7 @@ def summarize_mistake(result_file: str, session = None) -> None:
     
 def summarize_session(old_session, temp_file: str | None = None, create_session_func: Callable | None = None):
     from pathlib import Path
+    from my_tools.note import set_writing_path, read_file
     from kimix.utils import prompt
     from kimix.base import percentage_str, print_success
     from my_tools.common import _create_temp_file_name
@@ -78,14 +79,20 @@ def summarize_session(old_session, temp_file: str | None = None, create_session_
     except:
         pass
     last_usage = old_session.status.context_usage
-    prompt(generate_memory.substitute(
-        memory_file=temp_file), info_print=False, session=old_session)
+    set_writing_path(Path(temp_file))
+    try:
+        prompt(generate_memory.substitute(), info_print=False, session=old_session)
+    finally:
+        set_writing_path(None)
     close_session(old_session)
     if create_session_func:
         new_session = create_session_func()
     else:
         new_session = create_session()
-    prompt(read_memory.substitute(memory_file=temp_file), info_print=False, session=new_session)
+    lines = read_file(Path(temp_file))
+    if lines:
+        memory_content = '\n'.join(lines)
+        prompt(f'## Memory:\n{memory_content}', info_print=False, session=new_session)
     new_usage = new_session.status.context_usage
     print_success(
         f'Compact from {percentage_str(last_usage)} to {percentage_str(new_usage)}')

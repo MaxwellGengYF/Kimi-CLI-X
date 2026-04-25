@@ -15,7 +15,8 @@ MAGIC_SPLIT_STR = '\n>>>>>>>>>>9fbf5c1387a34\n'
 
 
 def set_writing_path(path: Path | None):
-    setattr(WRITING_PATH, 'trigger', False)
+    if path is not None:
+        setattr(WRITING_PATH, 'trigger', False)
     setattr(WRITING_PATH, 'value', path)
 
 
@@ -57,13 +58,13 @@ class Note(CallableTool2):
                 brief="No writing path configured",
             )
         try:
-            setattr(WRITING_PATH, 'trigger', True)
             previous_exists = path.exists()
             await anyio.to_thread.run_sync(lambda: path.parent.mkdir(parents=True, exist_ok=True))
             async with await anyio.open_file(path, 'a', encoding='utf-8') as f:
                 if previous_exists:
                     await f.write(MAGIC_SPLIT_STR)
                 await f.write(params.content)
+            setattr(WRITING_PATH, 'trigger', True)
             return ToolOk(output=f"Note appended to {path}")
         except Exception as exc:
             return ToolError(

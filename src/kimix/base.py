@@ -361,3 +361,13 @@ def get_skill_dirs(use_kaos_path: bool = True) -> list[Any]:
             ]
         return _default_skill_dirs
     return []
+
+
+generate_memory = '''Please summarize our session with:
+1. **Project Overview**: Brief description of the project and its purpose
+2. **Key Decisions**: Important decisions made during our session
+3. **Current State**: What has been completed so far
+4. **Important Files**: Key code files and their roles
+5. **TODOs/Pending Tasks**: Any unfinished tasks or next steps
+6. **Technical Notes**: Relevant technical details to remember
+run `Note` tool, record it concisely, markdown.'''
