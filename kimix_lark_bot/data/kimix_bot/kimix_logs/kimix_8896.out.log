@@ -1,0 +1,18 @@
+[96mEnable server mode.[0m
+[server] Starting on 127.0.0.1:8896
+[server] WebSocket bridge on ws://127.0.0.1:8897
+[server] Press Ctrl+C to stop
+[TcpGroupServer] Listening on 127.0.0.1:8896
+[JSONRPCServer] WebSocket server started on ws://127.0.0.1:8897
+[TcpGroupServer] Client 0 connected from ('127.0.0.1', 59446)
+('127.0.0.1', 59446)
+[TcpGroupServer] Client 0 disconnected
+[TcpGroupServer] Client 1 connected from ('127.0.0.1', 65299)
+('127.0.0.1', 65299)
+[TcpGroupServer] Client 1 disconnected
+[TCPClient] Connected to 127.0.0.1:8896
+[TcpGroupServer] Client 2 connected from ('127.0.0.1', 65301)
+('127.0.0.1', 65301)
+[TCPClient] Server disconnected
+[TcpGroupServer] Client 2 disconnected
+[TCPClient] Disconnected

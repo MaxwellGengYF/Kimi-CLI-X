@@ -1,0 +1,13 @@
+[project]
+name = "kimix-lark-bot"
+version = "0.1.0"
+description = "Feishu bot for managing Kimix processes"
+requires-python = ">=3.10"
+dependencies = [
+    "lark-oapi>=1.0.0",
+    "pyyaml>=6.0",
+    "websockets>=12.0",
+]
+
+[project.scripts]
+kimix_lark_bot = "kimix_lark_bot.__main__:main"

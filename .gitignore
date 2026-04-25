@@ -1,5 +1,5 @@
 __pycache__
-agent.py
+./agent.py
 requirements.txt
 .*cache
 *cache

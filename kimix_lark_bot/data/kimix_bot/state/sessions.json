@@ -1,0 +1,13 @@
+[
+  {
+    "path": "D:\\ws\\repos\\RoboCute-repo\\RoboCute",
+    "port": 8896,
+    "ws_port": 8897,
+    "pid": null,
+    "status": "stopped",
+    "session_id": null,
+    "started_at": "2026-04-25T22:22:30.576469",
+    "last_error": null,
+    "chat_id": "oc_54efd6ad488a518a874b04455bfafb81"
+  }
+]
