@@ -99,7 +99,8 @@ async def prompt_async(
                     print_warning(f'Skill {skill_name} not found.')
                 else:
                     prompt_str = f'Use skill:{skill_name}.\n' + prompt_str
-        enable_skill(skill_name)
+        if skill_name:
+            enable_skill(skill_name)
         if session.status.context_usage < 1e-4 and read_agents_md and Path('AGENTS.md').exists():
             prompt_str = f'Read AGENTS.md.\n' + prompt_str
 
