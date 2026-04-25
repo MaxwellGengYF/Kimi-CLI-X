@@ -34,7 +34,10 @@ def read_file(path: Path | None) -> list[str]:
         return []
     text = path.read_text(encoding='utf-8', errors='replace')
     if text:
-        return text.split(MAGIC_SPLIT_STR)
+        lst: list[str] = text.split(MAGIC_SPLIT_STR)
+        for i, v in enumerate(lst):
+            lst[i] = v.strip()
+        return lst
     return []
 
 

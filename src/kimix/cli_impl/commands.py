@@ -125,8 +125,9 @@ def _cmd_think(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
 
 
 def _cmd_plan(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
-    if len(task_split) < 2:
-        print(f'\n>>>> Make a plan: input multiple-lines, end with {colorful_text('/end', Color.YELLOW)}, cancel with {colorful_text('/cancel', Color.YELLOW)}')
+    if len(task_split) < 2 or (not task_split[1]):
+        print(
+            f'\n>>>> Make a plan: input multiple-lines, end with {colorful_text('/end', Color.YELLOW)}, cancel with {colorful_text('/cancel', Color.YELLOW)}')
         text: list[str] = []
         while True:
             s = _input('', text_arr)
@@ -137,14 +138,23 @@ def _cmd_plan(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
                 break
             text.append(s)
         prompt_str = '\n'.join(text)
-        def ask_if_use_cache(path: str):
+
+        def ask_if_use_cache(path: str) -> bool:
             v = input(f'found cache `{path}`, load it and continue? (y/n) ')
             if v.strip().lower() == 'y':
                 return True
             return False
-            
+
+        def ask_if_execute(steps: list[str]) -> bool:
+            print('Plan steps:\n' + ('\n' + '=' * 40 + '\n').join(steps))
+            print_warning('execute the plan? (y/n)')
+            return input().strip().lower() == 'y'
+        ask_plan = input(
+            'Ask after make plan? no for auto accept-all. (y/n)').strip().lower() == 'y'
+
         if prompt_str.strip():
-            execute_plan(prompt_str, ask_if_use_cache)
+            execute_plan(prompt_str, ask_if_use_cache,
+                         ask_if_execute if ask_plan else None)
         return None, False
     value = task_split[1].strip().lower()
     if value == 'on':
@@ -160,8 +170,10 @@ def _cmd_plan(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
         clear_context(True, True)
     return None, False
 
+
 def _cmd_txt(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
-    print(f'\n>>>> Start input multiple-lines, end with {colorful_text('/end', Color.YELLOW)}, cancel with {colorful_text('/cancel', Color.YELLOW)}')
+    print(
+        f'\n>>>> Start input multiple-lines, end with {colorful_text('/end', Color.YELLOW)}, cancel with {colorful_text('/cancel', Color.YELLOW)}')
     text: list[str] = []
     while True:
         s = _input('', text_arr)

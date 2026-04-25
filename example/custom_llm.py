@@ -1,4 +1,4 @@
-"""Simple custom ChatProvider tests (no network)."""
+"""Simple custom ChatProvider demo (no network)."""
 from __future__ import annotations
 
 import asyncio
@@ -7,7 +7,6 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-import pytest
 from kaos.path import KaosPath
 from kosong.chat_provider import ChatProvider, StreamedMessage, TokenUsage
 from kosong.message import TextPart, ToolCall
@@ -68,8 +67,7 @@ class FixedChatProvider:
         return self
 
 
-@pytest.mark.asyncio
-async def test_custom_llm_fixed_text_response() -> None:
+async def demo_custom_llm_fixed_text_response() -> None:
     provider = FixedChatProvider([[TextPart(text="Hello from fixed LLM")]])
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -95,13 +93,14 @@ max_retries_per_step = 1
                 if isinstance(msg, TextPart):
                     text_parts.append(msg.text)
             print(text_parts)
-            assert "Hello from fixed LLM" in " ".join(text_parts)
+            result = " ".join(text_parts)
+            if "Hello from fixed LLM" not in result:
+                raise RuntimeError(f"Expected greeting in result, got: {result}")
         finally:
             await session.close()
 
 
-@pytest.mark.asyncio
-async def test_custom_llm_fixed_tool_call() -> None:
+async def demo_custom_llm_fixed_tool_call() -> None:
     provider = FixedChatProvider(
         [
             [
@@ -143,15 +142,17 @@ max_retries_per_step = 1
                 elif isinstance(msg, TextPart):
                     text_parts.append(msg.text)
             print(tool_calls)
-            assert len(tool_calls) >= 1
-            assert tool_calls[0].function.name == "fake_tool"
-            assert any("Tool call completed" in t for t in text_parts)
+            if len(tool_calls) < 1:
+                raise RuntimeError("Expected at least one tool call")
+            if tool_calls[0].function.name != "fake_tool":
+                raise RuntimeError(f"Expected fake_tool, got: {tool_calls[0].function.name}")
+            if not any("Tool call completed" in t for t in text_parts):
+                raise RuntimeError("Expected completion text in result")
         finally:
             await session.close()
 
 
-@pytest.mark.asyncio
-async def test_custom_llm_read_file() -> None:
+async def demo_custom_llm_read_file() -> None:
     test_file_path = str(Path(__file__).parent / "test_text.txt")
     provider = FixedChatProvider(
         [
@@ -197,17 +198,21 @@ max_retries_per_step = 1
                 elif isinstance(msg, TextPart):
                     text_parts.append(msg.text)
 
-            assert len(tool_calls) >= 1
-            assert tool_calls[0].function.name == "ReadFile"
-            assert len(tool_results) >= 1
+            if len(tool_calls) < 1:
+                raise RuntimeError("Expected at least one tool call")
+            if tool_calls[0].function.name != "ReadFile":
+                raise RuntimeError(f"Expected ReadFile, got: {tool_calls[0].function.name}")
+            if len(tool_results) < 1:
+                raise RuntimeError("Expected at least one tool result")
             result_output = str(tool_results[0].return_value.output)
             print(result_output)
-            assert any("114514" in t and "1919810" in t for t in text_parts)
+            if not any("114514" in t and "1919810" in t for t in text_parts):
+                raise RuntimeError("Expected specific text in result")
         finally:
             await session.close()
 
 
 if __name__ == "__main__":
-    asyncio.run(test_custom_llm_fixed_text_response())
-    asyncio.run(test_custom_llm_fixed_tool_call())
-    asyncio.run(test_custom_llm_read_file())
+    asyncio.run(demo_custom_llm_fixed_text_response())
+    asyncio.run(demo_custom_llm_fixed_tool_call())
+    asyncio.run(demo_custom_llm_read_file())

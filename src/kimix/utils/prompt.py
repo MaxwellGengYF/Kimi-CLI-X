@@ -190,7 +190,7 @@ def _make_new_plan_file() -> Path:
     return Path.home() / '.kimi' / 'plan' / Path('plan_' + str(uuid.uuid1()).replace('-', '') + '.md')
 
 
-def execute_plan(prompt_str: str, ask_if_use_cache: Callable[[str], bool] | None = None) -> None:
+def execute_plan(prompt_str: str, ask_if_use_cache: Callable[[str], bool] | None = None, ask_if_execute_plan: Callable[[list[str], int], bool] | None = None) -> None:
     from kimix.base import _default_plan_mode
     import os
     assert (
@@ -283,6 +283,9 @@ Call `Note` tool per step to record the plan.
 
         # Step 2: execute plan
         start_idx = plan_loader.finished_step_count if plan_loader is not None else 0
+        if (ask_if_execute_plan is not None) and (not ask_if_execute_plan(steps, start_idx)):
+            print_warning('plan quit')
+            return
         for idx in range(start_idx, len(steps)):
             print_info(f'Executing step {idx}.')
             step = steps[idx]
@@ -299,7 +302,7 @@ Call `Note` tool per step to record the plan.
                 if plan_loader is not None:
                     plan_loader.finished_step_count = idx + 1
                     plan_loader.store()
-                    
+
                 memory_file = _make_new_plan_file()
                 set_writing_path(memory_file)
                 from kimix.base import generate_memory
