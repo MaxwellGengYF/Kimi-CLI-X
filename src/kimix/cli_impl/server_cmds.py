@@ -53,10 +53,10 @@ async def _cmd_summarize(session_id: str, session: Session, cmd: str, arg: str, 
         temp_file = _create_temp_file_name()
         Path(temp_file).unlink(missing_ok=True)
         last_usage = session.status.context_usage
-        await prompt_async(generate_memory.substitute(memory_file=temp_file), session=session, output_function=output_queue.put, info_print=False)
+        await prompt_async(generate_memory.substitute(memory_file=temp_file), session=session, output_function=lambda text, _: output_queue.put(text), info_print=False)
         await close_session_async(session)
         new_session = await _create_session_async(session_id=str(session_id))
-        await prompt_async(read_memory.substitute(memory_file=temp_file), session=new_session, output_function=output_queue.put, info_print=False)
+        await prompt_async(read_memory.substitute(memory_file=temp_file), session=new_session, output_function=lambda text, _: output_queue.put(text), info_print=False)
         new_usage = new_session.status.context_usage
         output_queue.put(f'Compact from {percentage_str(last_usage)} to {percentage_str(new_usage)}')
         session_dict[session_id].session = new_session

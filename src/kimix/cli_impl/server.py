@@ -66,7 +66,7 @@ def input_from_client(client_id: int, session_id: str, text: str) -> str:
             asyncio.run(prompt_async(
                 _text,
                 session=_session,
-                output_function=output_queue.put,
+                output_function=lambda text, _: output_queue.put(text),
                 info_print=False,
             ))
         except Exception as e:

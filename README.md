@@ -7,6 +7,7 @@ pip install kimix
 # 运行
 python -m kimix.cli
 # 或
+kimix
 python -m kimix
 ```
 

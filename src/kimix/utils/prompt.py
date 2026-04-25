@@ -61,6 +61,8 @@ class PlanLoader:
             return ""
         with open(path, 'rb') as f:
             return hashlib.sha256(f.read()).hexdigest()
+    def compute_hash(content: str) -> str:
+        return hashlib.sha256(content.encode('utf-8', 'replace')).hexdigest()
 
 
 async def prompt_async(
@@ -69,7 +71,7 @@ async def prompt_async(
     # settings
     read_agents_md: bool = False,
     skill_name: str | None = None,
-    output_function: Callable[[Any], Any] | None = None,
+    output_function: Callable[[str, bool], Any] | None = None,
     info_print: bool = True,
     cancel_callable: Callable[[], bool] | None = None,
     close_session_after_prompt: bool = False,
@@ -152,7 +154,7 @@ def prompt(
     # settings
     read_agents_md: bool = False,
     skill_name: str | None = None,
-    output_function: Callable[[Any], Any] | None = None,
+    output_function: Callable[[str, bool], Any] | None = None,
     info_print: bool = True,
     cancel_callable: Callable[[], bool] | None = None,
     close_session_after_prompt: bool = False,
@@ -210,18 +212,18 @@ def execute_plan(prompt_str: str, ask_if_use_cache: Callable[[str], bool] | None
             if current_hash == plan_loader.plan_file_hash and plan_loader.finished_step_count > 0 and plan_loader.finished_step_count < plan_loader.steps_count:
                 use_cache = ask_if_use_cache(str(cached_plan_path))
                 if use_cache:
-                    if not plan_loader.memory_file_path:
-                        print_error('Memory file path missing in cache.')
-                        return
-                    mem_path = Path(plan_loader.memory_file_path)
-                    if not mem_path.exists():
-                        print_error('Memory file does not match cache.')
-                        return
-                    mem_hash = PlanLoader.compute_file_hash(mem_path)
-                    if mem_hash != plan_loader.memory_file_hash:
-                        print_error(
-                            'Memory file hash does not match cache.')
-                        return
+                    # if not plan_loader.memory_file_path:
+                    #     print_error('Memory file path missing in cache.')
+                    #     return
+                    # mem_path = Path(plan_loader.memory_file_path)
+                    # if not mem_path.exists():
+                    #     print_error('Memory file does not match cache.')
+                    #     return
+                    # mem_hash = PlanLoader.compute_file_hash(mem_path)
+                    # if mem_hash != plan_loader.memory_file_hash:
+                    #     print_error(
+                    #         'Memory file hash does not match cache.')
+                    #     return
                     print_debug(
                         f'Using cache, jumping to step {plan_loader.finished_step_count}.')
 
@@ -304,13 +306,24 @@ Call `Note` tool per step to record the plan.
                     plan_loader.store()
 
                 memory_file = _make_new_plan_file()
-                set_writing_path(memory_file)
                 from kimix.base import generate_memory
-                prompt(generate_memory)
+                lines = []
+                def export_func(text: str, is_thinking: bool):
+                    if not is_thinking:
+                        lines.append(text) 
+                prompt(generate_memory, export_func)
+                if lines:
+                    memory_content = '\n'.join(lines)
+                    memory_file.write_text(memory_content, encoding='utf-8', errors='replace')
+                else:
+                    memory_file = None
                 if plan_loader is not None:
-                    plan_loader.memory_file_path = str(memory_file)
-                    plan_loader.memory_file_hash = PlanLoader.compute_file_hash(
-                        memory_file)
+                    if memory_file:
+                        plan_loader.memory_file_path = str(memory_file)
+                        plan_loader.memory_file_hash = PlanLoader.compute_hash(memory_content)
+                    else:
+                        plan_loader.memory_file_path = ''
+                        plan_loader.memory_file_hash = ''
                     plan_loader.store()
             set_writing_path(None)
         if plan_loader is not None:
