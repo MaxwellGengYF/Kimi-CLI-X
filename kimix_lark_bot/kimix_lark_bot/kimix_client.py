@@ -243,7 +243,7 @@ class KimixSessionClient:
         client = self._ws or self._rpc
         if not client:
             raise RuntimeError("Not connected")
-        result = client.call("open_session", self._client_id)
+        result = client.call("open_session")
         if isinstance(result, str):
             self._session_id = result
             return result
@@ -253,7 +253,7 @@ class KimixSessionClient:
         client = self._ws or self._rpc
         if not client or not self._session_id:
             return "not connected"
-        result = client.call("close_session", self._client_id, self._session_id)
+        result = client.call("close_session", self._session_id)
         self._session_id = None
         return result
 
@@ -261,13 +261,13 @@ class KimixSessionClient:
         client = self._ws or self._rpc
         if not client or not self._session_id:
             raise RuntimeError("No active session")
-        return client.call("input_from_client", self._client_id, self._session_id, text)
+        return client.call("input_from_client", self._session_id, text)
 
     def get_output(self) -> List[str]:
         client = self._ws or self._rpc
         if not client or not self._session_id:
             return []
-        result = client.call("get_output_from_client", self._client_id, self._session_id)
+        result = client.call("get_output_from_client", self._session_id)
         if isinstance(result, list):
             return result
         return []
@@ -276,7 +276,7 @@ class KimixSessionClient:
         client = self._ws or self._rpc
         if not client or not self._session_id:
             return True
-        result = client.call("is_session_finished", self._client_id, self._session_id)
+        result = client.call("is_session_finished", self._session_id)
         return bool(result)
 
     def run_task(self, text: str, on_output: Optional[Callable[[str], None]] = None, poll_interval: float = 1.0) -> List[str]:

@@ -4,15 +4,46 @@
 [server] Press Ctrl+C to stop
 [TcpGroupServer] Listening on 127.0.0.1:8896
 [JSONRPCServer] WebSocket server started on ws://127.0.0.1:8897
-[TcpGroupServer] Client 0 connected from ('127.0.0.1', 59446)
-('127.0.0.1', 59446)
+[TcpGroupServer] Client 0 connected from ('127.0.0.1', 60850)
+('127.0.0.1', 60850)
 [TcpGroupServer] Client 0 disconnected
-[TcpGroupServer] Client 1 connected from ('127.0.0.1', 65299)
-('127.0.0.1', 65299)
+[TcpGroupServer] Client 1 connected from ('127.0.0.1', 59264)
+('127.0.0.1', 59264)
 [TcpGroupServer] Client 1 disconnected
+[TcpGroupServer] Client 2 connected from ('127.0.0.1', 59266)
+('127.0.0.1', 59266)
 [TCPClient] Connected to 127.0.0.1:8896
-[TcpGroupServer] Client 2 connected from ('127.0.0.1', 65301)
-('127.0.0.1', 65301)
+[96mskill dir: .agents\skills[0m
+[96mskill dir: .opencode\skills[0m
+[open_session] client 2 opened session 6b955c95-661e-4181-9809-6cf1eb58d258
+[from client 2] session 6b955c95-661e-4181-9809-6cf1eb58d258: °ïÎÒÀ­È¡×îĞÂµÄcommit£¬²¢ÇÒ¸øÎÒÒ»¸ö¼òµ¥
+[96m[Think] ÓÃ»§ÏëÒªÀ­È¡×îĞÂµÄcommit£¬µ«ÇëÇóËÆºõ±»½Ø¶ÏÁË¡£ÓÃ»§Ëµ"¸øÎÒÒ»¸ö¼òµ¥"£¬ºóÃæÓ¦¸Ã»¹ÓĞÄÚÈİ£¬±ÈÈç"¸øÎÒÒ»¸ö¼òµ¥µÄ×Ü½á"»ò"¸øÎÒÒ»¸ö¼òµ¥µÄ±¨¸æ"µÈ¡£
+
+ÎÒĞèÒªÏÈÀ­È¡×îĞÂµÄcommit£¬È»ºó²Â²âÓÃ»§¿ÉÄÜÏëÒªÊ²Ã´¡£×î¿ÉÄÜµÄÊÇÏëÒªÒ»¸ö¼ò¶ÌµÄcommitÀúÊ·×Ü½á¡£
+
+ÈÃÎÒÏÈÖ´ĞĞgit pullÀ­È¡×îĞÂcommit£¬È»ºó²é¿´×î½üµÄÌá½»¼ÇÂ¼¡£[0m
+[0;95mRun: [path: git | args: ['pull']][0m
+[0;94mLOG: [Run spent 3.92 seconds][0m
+[96m[Think] Git pullÏÔÊ¾ÒÑ¾­ÊÇ×îĞÂµÄÁË¡£ÏÖÔÚÓÃ»§Ëµ"¸øÎÒÒ»¸ö¼òµ¥"£¬ºóÃæÄÚÈİ±»½Ø¶ÏÁË¡£¿ÉÄÜÓÃ»§ÏëÒªÒ»¸ö¼òµ¥µÄcommitÀúÊ·ÕªÒª¡£ÈÃÎÒ²é¿´×î½üµÄcommit¼ÇÂ¼£¬È»ºóÌá¹©Ò»¸ö¼òµ¥µÄ×Ü½á¡£[0m
+[0;95mRun: [path: git | args: ['log', '--oneline', '-10']][0m
+[0;94mLOG: [Run spent 0.11 seconds][0m
+[96m[Think] ºÃµÄ£¬ÎÒÒÑ¾­»ñÈ¡ÁË×îĞÂµÄ10¸öcommit¡£ÓÃ»§ÏëÒªÒ»¸ö¼òµ¥µÄÊ²Ã´£¿¿ÉÄÜÊÇ"¸øÎÒÒ»¸ö¼òµ¥µÄ×Ü½á"»òÕß"¸øÎÒÒ»¸ö¼òµ¥µÄ±¨¸æ"¡£ÈÃÎÒÌá¹©Ò»¸ö¼ò½àµÄ×î½üÌá½»ÕªÒª¡£[0m
+
+ÒÑÊÇ×îĞÂ¡£×î½ü10¸öÌá½»£º
+
+```
+a5058094 vibed editor
+33a39bff remove depreacated ipc
+9264f5e6 refactor core api
+77f53773 Fallback generated change, add `kimix-script` for agentic pipeline
+2e8016dd typo & coding style refactor by agent
+fccf2dad Update doc and sample algorithm
+80b041a7 add comfyui deps
+050c2755 simple entity serialize to json, preparing for agent-pcg scene
+63fe6612 Support LC safe mode
+ef594bd0 Fix VT
+```
+[close_session] client 2 closed session 6b955c95-661e-4181-9809-6cf1eb58d258
 [TCPClient] Server disconnected
 [TcpGroupServer] Client 2 disconnected
 [TCPClient] Disconnected
