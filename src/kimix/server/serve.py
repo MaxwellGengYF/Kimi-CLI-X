@@ -52,4 +52,5 @@ def serve_cli(args: argparse.Namespace) -> None:
         host=host,
         port=port,
         log_level="info",
+        timeout_graceful_shutdown=5,
     )

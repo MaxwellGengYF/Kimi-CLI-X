@@ -131,6 +131,15 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    @app.on_event("shutdown")
+    async def on_shutdown() -> None:
+        logger.info("Server shutting down, waking up SSE streams")
+        for q in bus.get_all_queues():
+            try:
+                q.put_nowait(None)
+            except Exception:
+                pass
+
     # ── Health ────────────────────────────────────────────────
 
     @app.get(
@@ -168,8 +177,10 @@ def create_app() -> FastAPI:
                     if await request.is_disconnected():
                         break
                     try:
-                        event = await asyncio.wait_for(q.get(), timeout=10.0)
+                        event = await asyncio.wait_for(q.get(), timeout=1.0)
                     except asyncio.TimeoutError:
+                        if await request.is_disconnected():
+                            break
                         # Heartbeat
                         yield {
                             "data": json.dumps({
@@ -178,6 +189,8 @@ def create_app() -> FastAPI:
                             }),
                         }
                         continue
+                    except asyncio.CancelledError:
+                        break
                     if event is None:
                         break
                     yield {"data": event.to_json()}

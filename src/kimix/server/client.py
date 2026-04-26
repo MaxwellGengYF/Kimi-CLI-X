@@ -485,12 +485,16 @@ class KimixAsyncClient:
     ) -> AsyncIterator[SSEEvent]:
         """Stream SSE events from /event endpoint."""
         url = f"{self._base_url}/event"
-        async with self._client.stream(
+        request = self._client.build_request(
             "GET", url, timeout=httpx.Timeout(timeout, connect=10.0, read=timeout)
-        ) as response:
+        )
+        response = await self._client.send(request, stream=True)
+        try:
             response.raise_for_status()
             async for event in _parse_sse_stream(response):
                 yield event
+        finally:
+            await response.aclose()
 
     async def stream_events_robust(
         self,

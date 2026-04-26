@@ -62,6 +62,10 @@ class EventBus:
             except ValueError:
                 pass
 
+    def get_all_queues(self) -> list[asyncio.Queue[Optional[BusEvent]]]:
+        with self._lock:
+            return list(self._async_queues)
+
     def emit(self, event: BusEvent) -> None:
         """Emit an event to all subscribers."""
         with self._lock:
