@@ -7,7 +7,7 @@ from . import constants
 from .utils import _input, _split_text
 from kimix.base import print_success, print_error, print_warning, print_info, colorful_text, Color
 from kimix.utils import (
-    prompt, clear_context, get_default_session, fix_error, validate,
+    prompt, clear_context, get_default_session, fix_error,
     print_usage, execute_plan
 )
 
@@ -93,15 +93,6 @@ def _cmd_fix(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
         print_error('Command must be /fix:<command>')
         return None, False
     fix_error(command_to_fix, session=get_default_session())
-    return None, False
-
-
-def _cmd_validate(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
-    if len(task_split) < 2:
-        print_error('Command must be /validate:prompt')
-        return None, False
-    result = validate(task_split[1], get_default_session())
-    print_info(f'Validate result: {result}')
     return None, False
 
 
@@ -223,7 +214,6 @@ _command_map = {
     'cmd': _cmd_cmd,
     'cd': _cmd_cd,
     'fix': _cmd_fix,
-    'validate': _cmd_validate,
     'think': _cmd_think,
     'plan': _cmd_plan,
     'txt': _cmd_txt,

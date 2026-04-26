@@ -58,7 +58,7 @@ class SyntaxLint(CallableTool2):  # type: ignore[type-arg]
     name: str = "SyntaxLint"
     description: str = (
         "Validate file syntax using language-specific tools. "
-        "Supports Python (.py), JavaScript/TypeScript (.js, .jsx, .ts, .tsx, .mjs, .cjs), "
+        "Supports Python (.py), "
         "and C++ (.cpp, .cc, .cxx, .h, .hpp, .hxx, .hh, .c++)."
     )
     params: type[Params] = Params

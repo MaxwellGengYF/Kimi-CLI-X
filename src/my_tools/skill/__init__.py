@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
@@ -25,21 +26,16 @@ class SkillRag(CallableTool2[IndexerParams]):
     name: str = "SkillRag"
     description: str = "Search keywords in skills."
     params: type[IndexerParams] = IndexerParams
-
-    def __init__(self) -> None:
-        super().__init__(self.name, self.description, self.params)
-        import kimix.base as base
-        skill_dirs = base.get_skill_dirs(False)
-        if skill_dirs is not None:
-            self.file_builder = FileBuilder(
-                [Path(d) for d in skill_dirs],
-                Path(".kimix_cache/skill_config.json"),
-            )
-        else:
-            self.file_builder = None
+    file_builder_inited: bool = False
+    file_builder: FileBuilder | None = None
 
     @override
     async def __call__(self, params: IndexerParams) -> ToolReturnValue:
+        import kimix.base as base
+        if not self.file_builder_inited:
+            skill_dirs = base.get_skill_dirs(False)
+            self.file_builder = FileBuilder(skill_dirs, '.kimix_cache/skill_config.json')
+            self.file_builder_inited = True
         if self.file_builder is None:
             return ToolOk(output='')
         try:

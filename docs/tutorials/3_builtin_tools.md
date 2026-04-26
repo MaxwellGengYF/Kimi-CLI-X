@@ -48,7 +48,7 @@
 | **搜索与定位** | `Glob`, `Grep` | 按模式查找文件、在文件内容中搜索 |
 | **代码执行** | `Python`, `Run` | 执行 Python 脚本或任意可执行程序 |
 | **进程管理** | `Input`, `TaskList`, `TaskOutput`, `TaskStop` | 与后台进程交互、管理异步任务 |
-| **状态与标志** | `Setflag`, `SetTodoList` | 设置状态标志、追踪多步骤任务进度 |
+| **状态与标志** | `SetTodoList` | 设置状态标志、追踪多步骤任务进度 |
 | **文档转换** | `FetchURL`, `Pdf2md`, `Docx2md` | 获取网页内容、转换 PDF/Word 为 Markdown |
 | **计划与编排** | `EnterPlanMode`, `ExitPlanMode` | 在重大修改前制定计划并让用户确认 |
 | **子代理与质量** | `Agent`, `Cpplint` | 委派子任务、检查 C++ 代码语法 |
@@ -122,9 +122,6 @@
 4. 任务完成或出错时，用 `TaskStop` 结束进程。
 
 ### 五、状态与标志管理
-
-#### `Setflag`
-- **功能**：设置一个标志变量的值，用于在 agent 内部或外部系统中记录某种状态（如是否已初始化、是否启用某个功能开关）。
 
 #### `SetTodoList`
 - **功能**：追踪复杂/多步骤任务的进度。支持 `pending`（待办）、`in_progress`（进行中）、`done`（完成）三种状态。

@@ -30,7 +30,6 @@ Available commands:
   {colorful_text('/skill', fg=Color.YELLOW)}          - Load skills
   {colorful_text('/help', fg=Color.YELLOW)}           - Show this help message
   {colorful_text('/context', fg=Color.YELLOW)}        - Print context usage
-  {colorful_text('/validate', fg=Color.YELLOW)}       - Test if a condition is true
   {colorful_text('/fix:<command>', fg=Color.YELLOW)}  - Run a command and fix errors if any
   {colorful_text('/txt', fg=Color.YELLOW)}            - input multiple line text
   {colorful_text('/think:on', fg=Color.YELLOW)}       - Enable thinking mode

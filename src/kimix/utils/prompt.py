@@ -170,20 +170,6 @@ def prompt(
         ))
 
 
-def validate(
-    prompt_str: Optional[str], session: Session | None = None
-) -> bool:
-    if type(prompt_str) == str and len(prompt_str) > 0:
-        import my_tools.flag as flag
-        flag.reset_flag()
-        prompt_str = prompt_str + \
-            '\n\nIf the condition is true, run `Setflag` tool.'
-        prompt(prompt_str, session)
-        return flag.check_flag() is not None
-    else:
-        return False
-
-
 def _make_new_plan_file() -> Path:
     import uuid
     return Path.home() / '.kimi' / 'plan' / Path('plan_' + str(uuid.uuid1()).replace('-', '') + '.md')

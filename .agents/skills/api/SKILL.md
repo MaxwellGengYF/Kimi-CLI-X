@@ -76,17 +76,6 @@ prompt(
 await prompt_async("Analyze this code", session=session)
 ```
 
-### validate
-
-Validate a condition using the agent. Appends "If the condition is true, run `Setflag` tool." internally.
-
-```python
-from kimix.kimi_utils import validate
-
-# Returns True if agent calls Setflag, False otherwise
-result = validate("Check if the file exists and contains 'TODO'", session=None)
-```
-
 ### Cancel Prompt
 
 ```python
@@ -380,12 +369,11 @@ finally:
 2. **Use colorful prints** - Makes output more readable and organized
 3. **Handle errors** - Wrap prompts in try/except blocks
 4. **Background tasks** - Use `run_thread()` for long-running operations
-6. **Session reuse** - Reuse sessions for related prompts to save context
-7. **Clear context** - Call `clear_context()` when switching topics
-8. **Validate conditions** - Use `validate()` for yes/no checks via the agent
-9. **Fix errors automatically** - Use `fix_error()` for iterative debugging
-10. **Skill directories** - Place skills in `.agents/skills/` for auto-discovery
-11. **Cancel long prompts** - Use `cancel_prompt()` to stop running prompts
+5. **Session reuse** - Reuse sessions for related prompts to save context
+6. **Clear context** - Call `clear_context()` when switching topics
+7. **Fix errors automatically** - Use `fix_error()` for iterative debugging
+8. **Skill directories** - Place skills in `.agents/skills/` for auto-discovery
+9. **Cancel long prompts** - Use `cancel_prompt()` to stop running prompts
 
 ## Common Imports
 
@@ -393,7 +381,7 @@ finally:
 # Core utilities
 from kimix.kimi_utils import (
     create_session, close_session, close_session_async,
-    prompt, prompt_async, validate, clear_context, print_usage,
+    prompt, prompt_async, clear_context, print_usage,
     get_default_session, get_tool_call_errors,
     set_plan_mode, cancel_prompt, get_cancel_event,
     prompt_path, fix_error, async_prompt, async_fix_error,
