@@ -163,6 +163,11 @@ class ParsedEvent:
     tool_name: str = ""
     tool_status: str = ""
     tool_title: str = ""
+    tool_input: str = ""
+    tool_output: str = ""
+    tool_error: str = ""
+    tool_call_id: str = ""
+    created_at: float = 0.0
     permission_id: str = ""
     finished: bool = False
     cost: float = 0.0
@@ -234,7 +239,7 @@ def _parse_part_updated(data: Dict[str, Any]) -> ParsedEvent:
         )
     if part_type == "tool":
         state = part.get("state", {})
-        tool_name = part.get("tool", "unknown")
+        tool_name = part.get("tool", "") or state.get("title", "unknown")
         status = state.get("status", "")
         title = state.get("title", tool_name)
         return ParsedEvent(
@@ -242,6 +247,11 @@ def _parse_part_updated(data: Dict[str, Any]) -> ParsedEvent:
             tool_name=tool_name,
             tool_status=status,
             tool_title=title,
+            tool_input=state.get("input", ""),
+            tool_output=state.get("output", ""),
+            tool_error=state.get("error", ""),
+            tool_call_id=state.get("toolCallId", ""),
+            created_at=part.get("createdAt", 0.0),
             raw=data,
         )
     if part_type == "reasoning":
@@ -313,7 +323,7 @@ def check_health_sync(
 ) -> bool:
     """Synchronous health check for process management contexts."""
     try:
-        with httpx.Client(timeout=httpx.Timeout(timeout)) as c:
+        with httpx.Client(timeout=httpx.Timeout(timeout), trust_env=False) as c:
             resp = c.get(f"http://{host}:{port}/global/health")
             return bool(resp.json().get("healthy", False))
     except Exception:
@@ -328,7 +338,7 @@ def abort_session_sync(
 ) -> bool:
     """Synchronous session abort."""
     try:
-        with httpx.Client(timeout=httpx.Timeout(timeout)) as c:
+        with httpx.Client(timeout=httpx.Timeout(timeout), trust_env=False) as c:
             resp = c.post(f"http://{host}:{port}/session/{session_id}/abort")
             return resp.status_code == 200
     except Exception:
@@ -363,7 +373,7 @@ class KimixAsyncClient:
         self.host = host
         self.port = port
         self._base_url = f"http://{host}:{port}"
-        self._client = httpx.AsyncClient(timeout=httpx.Timeout(timeout))
+        self._client = httpx.AsyncClient(timeout=httpx.Timeout(timeout), trust_env=False)
 
     async def close(self) -> None:
         await self._client.aclose()
@@ -382,6 +392,7 @@ class KimixAsyncClient:
             url = f"{self._base_url}/global/health"
             print(url)
             resp = await self._client.get(url)
+            print(resp)
             data = resp.json()
             return bool(data.get("healthy", False))
         except Exception as exc:
@@ -474,13 +485,12 @@ class KimixAsyncClient:
     ) -> AsyncIterator[SSEEvent]:
         """Stream SSE events from /event endpoint."""
         url = f"{self._base_url}/event"
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(timeout, connect=10.0, read=timeout)
-        ) as stream_client:
-            async with stream_client.stream("GET", url) as response:
-                response.raise_for_status()
-                async for event in _parse_sse_stream(response):
-                    yield event
+        async with self._client.stream(
+            "GET", url, timeout=httpx.Timeout(timeout, connect=10.0, read=timeout)
+        ) as response:
+            response.raise_for_status()
+            async for event in _parse_sse_stream(response):
+                yield event
 
     async def stream_events_robust(
         self,

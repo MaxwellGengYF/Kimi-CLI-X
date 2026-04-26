@@ -43,6 +43,8 @@ def serve_cli(args: argparse.Namespace) -> None:
     app = create_app()
 
     print(f"kimix server listening on http://{host}:{port}")
+    print(f"API docs (Swagger UI): http://{host}:{port}/docs")
+    print(f"OpenAPI schema: http://{host}:{port}/openapi.json")
     print("Press Ctrl+C to stop")
 
     uvicorn.run(

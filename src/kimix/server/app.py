@@ -28,7 +28,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from kimix.server.bus import bus, BusEvent
@@ -43,22 +43,71 @@ VERSION = "0.1.0"
 
 
 class CreateSessionRequest(BaseModel):
-    title: Optional[str] = None
+    title: Optional[str] = Field(None, description="Session title")
 
 
 class PromptPart(BaseModel):
-    type: str = "text"
-    text: str = ""
+    type: str = Field("text", description="Part type: text, tool, reasoning, etc.")
+    text: str = Field("", description="Text content")
 
 
 class PromptInput(BaseModel):
-    parts: List[PromptPart] = []
-    agent: Optional[str] = None
-    model: Optional[str] = None
+    parts: List[PromptPart] = Field(default_factory=list, description="Message parts")
+    agent: Optional[str] = Field(None, description="Agent name to use")
+    model: Optional[str] = Field(None, description="Model name to use")
 
 
 class UpdateSessionRequest(BaseModel):
-    title: Optional[str] = None
+    title: Optional[str] = Field(None, description="New session title")
+
+
+# ── OpenAPI Response Models ──────────────────────────────────────
+
+
+class HealthResponse(BaseModel):
+    healthy: bool = Field(..., description="Server health status")
+    version: str = Field(..., description="API version")
+
+
+class SessionResponse(BaseModel):
+    id: str = Field(..., description="Session UUID")
+    title: Optional[str] = Field(None, description="Session title")
+    createdAt: float = Field(..., description="Creation timestamp (unix)")
+    updatedAt: float = Field(..., description="Last update timestamp (unix)")
+    parentID: Optional[str] = Field(None, description="Parent session ID")
+
+
+class MessagePartResponse(BaseModel):
+    id: str = Field(..., description="Part UUID")
+    type: str = Field(..., description="Part type: text | tool | reasoning | step-start | step-finish")
+    text: Optional[str] = Field(None, description="Text content")
+    tool: Optional[str] = Field(None, description="Tool name (for tool parts)")
+    state: Optional[Dict[str, Any]] = Field(None, description="Tool state or step metadata")
+    sessionID: str = Field(..., description="Session ID")
+    messageID: str = Field(..., description="Message ID")
+    createdAt: float = Field(..., description="Creation timestamp")
+
+
+class MessageInfoResponse(BaseModel):
+    id: str = Field(..., description="Message UUID")
+    role: str = Field(..., description="Message role: user | assistant | system")
+    sessionID: str = Field(..., description="Session ID")
+    agent: str = Field(..., description="Agent name")
+    createdAt: float = Field(..., description="Creation timestamp")
+
+
+class MessageResponse(BaseModel):
+    info: MessageInfoResponse = Field(..., description="Message metadata")
+    parts: List[MessagePartResponse] = Field(default_factory=list, description="Message parts")
+
+
+class SessionStatusResponse(BaseModel):
+    type: str = Field(..., description="Status: idle | busy | error")
+    time: float = Field(..., description="Status timestamp (unix)")
+
+
+class ErrorResponse(BaseModel):
+    detail: str = Field(..., description="Error detail message")
 
 
 # ── Application Factory ─────────────────────────────────────────
@@ -66,9 +115,12 @@ class UpdateSessionRequest(BaseModel):
 
 def create_app() -> FastAPI:
     app = FastAPI(
-        title="kimix",
+        title="Kimix API",
         version=VERSION,
-        description="Kimix opencode-style API server",
+        description="Kimix opencode-style REST API server. Use /docs for interactive Swagger UI.",
+        docs_url="/docs",
+        openapi_url="/openapi.json",
+        redoc_url="/redoc",
     )
 
     app.add_middleware(
@@ -81,13 +133,25 @@ def create_app() -> FastAPI:
 
     # ── Health ────────────────────────────────────────────────
 
-    @app.get("/global/health")
+    @app.get(
+        "/global/health",
+        response_model=HealthResponse,
+        tags=["Health"],
+        summary="Health check",
+        description="Returns server health status and API version.",
+    )
     async def health() -> Dict[str, Any]:
         return {"healthy": True, "version": VERSION}
 
     # ── SSE Event Stream ─────────────────────────────────────
 
-    @app.get("/event")
+    @app.get(
+        "/event",
+        tags=["Events"],
+        summary="SSE event stream",
+        description="Server-Sent Events stream for real-time session updates, tool calls, and messages.",
+        response_class=EventSourceResponse,
+    )
     async def event_stream(request: Request) -> EventSourceResponse:
         async def _generate():  # type: ignore[return]
             # Send initial connected event
@@ -125,34 +189,74 @@ def create_app() -> FastAPI:
 
     # ── Session CRUD ─────────────────────────────────────────
 
-    @app.post("/session")
+    @app.post(
+        "/session",
+        response_model=SessionResponse,
+        tags=["Session"],
+        summary="Create session",
+        description="Create a new chat session. Returns the session metadata.",
+        status_code=200,
+    )
     async def create_session(body: CreateSessionRequest) -> Dict[str, Any]:
         info = await session_manager.create_session(title=body.title)
         return info.to_dict()
 
-    @app.get("/session")
+    @app.get(
+        "/session",
+        response_model=List[SessionResponse],
+        tags=["Session"],
+        summary="List sessions",
+        description="List all active sessions, sorted by most recently updated.",
+    )
     async def list_sessions() -> List[Dict[str, Any]]:
         return [s.to_dict() for s in session_manager.list_sessions()]
 
-    @app.get("/session/status")
+    @app.get(
+        "/session/status",
+        response_model=Dict[str, SessionStatusResponse],
+        tags=["Session"],
+        summary="Get all session statuses",
+        description="Returns a map of session ID to current status (idle/busy/error).",
+    )
     async def session_status() -> Dict[str, Dict[str, Any]]:
         return session_manager.get_session_status()
 
-    @app.get("/session/{sessionID}")
+    @app.get(
+        "/session/{sessionID}",
+        response_model=SessionResponse,
+        tags=["Session"],
+        summary="Get session",
+        description="Get metadata for a specific session by ID.",
+        responses={404: {"model": ErrorResponse, "description": "Session not found"}},
+    )
     async def get_session(sessionID: str) -> Dict[str, Any]:
         try:
             return session_manager.get_session(sessionID).to_dict()
         except KeyError:
             raise HTTPException(status_code=404, detail=f"Session not found: {sessionID}")
 
-    @app.delete("/session/{sessionID}")
+    @app.delete(
+        "/session/{sessionID}",
+        response_model=bool,
+        tags=["Session"],
+        summary="Delete session",
+        description="Delete a session and close its underlying SDK session.",
+        responses={404: {"model": ErrorResponse, "description": "Session not found"}},
+    )
     async def delete_session(sessionID: str) -> bool:
         ok = await session_manager.delete_session(sessionID)
         if not ok:
             raise HTTPException(status_code=404, detail=f"Session not found: {sessionID}")
         return True
 
-    @app.patch("/session/{sessionID}")
+    @app.patch(
+        "/session/{sessionID}",
+        response_model=SessionResponse,
+        tags=["Session"],
+        summary="Update session",
+        description="Update session metadata (e.g. title).",
+        responses={404: {"model": ErrorResponse, "description": "Session not found"}},
+    )
     async def update_session(sessionID: str, body: UpdateSessionRequest) -> Dict[str, Any]:
         try:
             info = session_manager.get_session(sessionID)
@@ -166,17 +270,35 @@ def create_app() -> FastAPI:
 
     # ── Messages ─────────────────────────────────────────────
 
-    @app.get("/session/{sessionID}/message")
+    @app.get(
+        "/session/{sessionID}/message",
+        response_model=List[MessageResponse],
+        tags=["Message"],
+        summary="Get messages",
+        description="Get messages for a session. Optionally limit the number of most recent messages.",
+        responses={404: {"model": ErrorResponse, "description": "Session not found"}},
+    )
     async def get_messages(
         sessionID: str,
-        limit: Optional[int] = Query(default=None),
+        limit: Optional[int] = Query(default=None, description="Maximum number of messages to return"),
     ) -> List[Dict[str, Any]]:
         try:
             return session_manager.get_messages(sessionID, limit=limit)
         except KeyError:
             raise HTTPException(status_code=404, detail=f"Session not found: {sessionID}")
 
-    @app.post("/session/{sessionID}/message")
+    @app.post(
+        "/session/{sessionID}/message",
+        response_model=MessageResponse,
+        tags=["Message"],
+        summary="Send message (sync)",
+        description="Send a prompt to the session and wait for the full assistant response. Blocks until completion.",
+        responses={
+            404: {"model": ErrorResponse, "description": "Session not found"},
+            400: {"model": ErrorResponse, "description": "Invalid input"},
+            500: {"model": ErrorResponse, "description": "Internal server error"},
+        },
+    )
     async def send_message(sessionID: str, body: PromptInput) -> Dict[str, Any]:
         text_parts = [p.text for p in body.parts if p.type == "text" and p.text]
         text = "\n".join(text_parts)
@@ -192,7 +314,17 @@ def create_app() -> FastAPI:
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc))
 
-    @app.post("/session/{sessionID}/prompt_async", status_code=204)
+    @app.post(
+        "/session/{sessionID}/prompt_async",
+        status_code=204,
+        tags=["Message"],
+        summary="Send message (async)",
+        description="Send a prompt fire-and-forget style. Response events are streamed via SSE.",
+        responses={
+            404: {"model": ErrorResponse, "description": "Session not found"},
+            400: {"model": ErrorResponse, "description": "Invalid input"},
+        },
+    )
     async def send_prompt_async(sessionID: str, body: PromptInput) -> None:
         text_parts = [p.text for p in body.parts if p.type == "text" and p.text]
         text = "\n".join(text_parts)
@@ -205,7 +337,14 @@ def create_app() -> FastAPI:
         except KeyError:
             raise HTTPException(status_code=404, detail=f"Session not found: {sessionID}")
 
-    @app.post("/session/{sessionID}/abort")
+    @app.post(
+        "/session/{sessionID}/abort",
+        response_model=bool,
+        tags=["Session"],
+        summary="Abort session",
+        description="Abort the current running prompt in a session.",
+        responses={404: {"model": ErrorResponse, "description": "Session not found"}},
+    )
     async def abort_session(sessionID: str) -> bool:
         try:
             return session_manager.abort_session(sessionID)
