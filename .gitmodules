@@ -1,6 +1,6 @@
 [submodule "kimi-cli"]
 	path = kimi-cli
-	url = https://github.com/MaxwellGengYF/kimi-cli.git
+	url = https://github.com/Sikao-Engine/kimi-cli.git
 [submodule "kimi-agent-sdk"]
 	path = kimi-agent-sdk
-	url = https://github.com/MaxwellGengYF/kimi-agent-sdk.git
+	url = https://github.com/Sikao-Engine/kimi-agent-sdk.git
