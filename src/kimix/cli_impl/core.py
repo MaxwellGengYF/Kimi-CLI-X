@@ -2,7 +2,7 @@ from typing import Any
 from pathlib import Path
 
 from . import constants
-from .utils import _input, _split_text, server_mode
+from .utils import _input, _split_text
 from .args import set_arg
 from .commands import _command_map, _cmd_unknown
 from kimix.base import print_debug, print_success, print_error, print_warning, print_info, sync_all
@@ -109,12 +109,6 @@ def _run_cli() -> None:
         print_debug('Launching SSE CLI debugger.')
         from .sse_cli import run_sse_cli
         run_sse_cli(host=args.host, port=args.port)
-        return
-
-    if server_mode():
-        print_debug('Enable legacy server mode.')
-        from .server import server_cli
-        server_cli(args)
         return
 
     _client_cli()

@@ -5,9 +5,6 @@ from . import constants
 from kimix.base import print_debug, print_warning
 from . import utils
 
-DEFAULT_HOST = "127.0.0.1"
-DEFAULT_PORT = 8888
-
 import argparse
 import sys
 
@@ -18,6 +15,7 @@ def set_arg() -> tuple[bool, argparse.Namespace]:
     serve_parser = subparsers.add_parser('serve', description='Kimix HTTP server (opencode-style)')
     serve_parser.add_argument("--host", "--hostname", default="127.0.0.1", help="Host to bind to")
     serve_parser.add_argument("--port", type=int, default=4096, help="Port to bind to")
+
     parser.add_argument('-c', '--clean', action='store_true',
                         help='Delete cache file after quit')
     parser.add_argument('-no_color', '--no_color', action='store_true',
@@ -32,14 +30,10 @@ def set_arg() -> tuple[bool, argparse.Namespace]:
                         help='Specify custom skill directory(s)')
     parser.add_argument('--config', type=str, default=None,
                         help='Path to a JSON config file to load as default provider')
-    # server
-    parser.add_argument('--server', action='store_true',
-                        help='Enable Legacy server mode')
-    parser.add_argument("--host", default=DEFAULT_HOST, help="Host to bind to")
-    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Port to bind to")
-    parser.add_argument("--ws-port", type=int, default=None, help="WebSocket bridge port (optional)")
-    parser.add_argument("--sse_cli", action="store_true",
-                        help="Launch SSE debug client (connects to kimix serve)")
+    parser.add_argument('--host', default='127.0.0.1', help='Host to connect to (for --sse_cli)')
+    parser.add_argument('--port', type=int, default=4096, help='Port to connect to (for --sse_cli)')
+    parser.add_argument('--sse_cli', action='store_true',
+                        help='Launch SSE debug client (connects to kimix serve)')
     args = parser.parse_args()
 
     if args.command == 'serve':
@@ -70,8 +64,6 @@ def set_arg() -> tuple[bool, argparse.Namespace]:
         print_debug('YOLO OFF.')
     else:
         base.set_default_yolo(True)
-
-    utils._server_mode = bool(args.server)
 
     # Handle --config argument
     if args.config:

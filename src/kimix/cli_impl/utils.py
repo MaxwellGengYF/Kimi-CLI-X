@@ -1,10 +1,3 @@
-_server_mode = False
-
-
-def server_mode() -> bool:
-    return _server_mode
-
-
 def _input(text: str, text_arr: list[str]) -> str:
     if text_arr is None or len(text_arr) == 0:
         return input(text)
