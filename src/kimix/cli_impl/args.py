@@ -27,10 +27,12 @@ def set_arg() -> argparse.ArgumentParser:
                         help='Path to a JSON config file to load as default provider')
     # server
     parser.add_argument('--server', action='store_true',
-                        help='Enable server mode')
+                        help='Enable Legacy server mode')
     parser.add_argument("--host", default=DEFAULT_HOST, help="Host to bind to")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Port to bind to")
     parser.add_argument("--ws-port", type=int, default=None, help="WebSocket bridge port (optional)")
+    parser.add_argument("--sse_cli", action="store_true",
+                        help="Launch SSE debug client (connects to kimix serve)")
     args = parser.parse_args()
     if args.no_color:
         base._colorful_print = False

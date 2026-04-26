@@ -100,9 +100,30 @@ def _run_cli() -> None:
     exec_ctx = {
         '__name__': '__main__'
     }
+
+    # Check for 'serve' subcommand (opencode-style HTTP server)
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == 'serve':
+        print_debug('Starting kimix serve (opencode-style HTTP server).')
+        from kimix.server.serve import serve_cli
+        # Parse serve-specific args
+        import argparse
+        serve_parser = argparse.ArgumentParser(description='Kimix HTTP server (opencode-style)')
+        serve_parser.add_argument("--host", "--hostname", default="127.0.0.1", help="Host to bind to")
+        serve_parser.add_argument("--port", type=int, default=4096, help="Port to bind to")
+        serve_args = serve_parser.parse_args(sys.argv[2:])
+        serve_cli(serve_args)
+        return
+
     parser = set_arg()
+    args = parser.parse_args()
+    if args.sse_cli:
+        print_debug('Launching SSE CLI debugger.')
+        from .sse_cli import run_sse_cli
+        run_sse_cli(host=args.host, port=args.port)
+        return
     if server_mode():
-        print_debug('Enable server mode.')
+        print_debug('Enable legacy server mode.')
         from .server import server_cli
         server_cli(parser)
         return
