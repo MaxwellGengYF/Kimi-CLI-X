@@ -57,6 +57,9 @@ class MessagePart:
         elif self.type == "tool":
             d["tool"] = self.tool
             d["state"] = self.state
+        elif self.type in ("step-start", "step-finish"):
+            if self.state:
+                d["state"] = self.state
         elif self.type == "reasoning":
             d["text"] = self.text
         return d
