@@ -130,6 +130,111 @@ def help_card(projects: List[Dict[str, str]], processes: List[Any]) -> dict:
     return card
 
 
+# ── Feishu card content size limit (bytes, conservative) ─────────
+_CARD_CONTENT_MAX_CHARS = 2800
+
+
+def streaming_progress(
+    title: str,
+    task_text: str,
+    elapsed: int,
+    tools: Optional[List[Dict[str, str]]] = None,
+    reasoning_snippet: str = "",
+    text_snippet: str = "",
+    finished: bool = False,
+) -> dict:
+    """Build a real-time streaming progress card showing tool/reasoning/text status.
+
+    Args:
+        title: Card header title.
+        task_text: Original task text (truncated for display).
+        elapsed: Elapsed seconds.
+        tools: List of dicts with keys 'name', 'status', 'title'.
+        reasoning_snippet: Latest reasoning text snippet.
+        text_snippet: Latest text output snippet (tail).
+        finished: Whether the task is done.
+    """
+    color = "green" if finished else "blue"
+    card = _header(title, color)
+
+    # Task summary
+    task_display = task_text[:100] + ("..." if len(task_text) > 100 else "")
+    _add_text(card, f"**任务:** {task_display}")
+
+    # Tool activity section
+    if tools:
+        tool_lines = []
+        for t in tools[-8:]:  # Show last 8 tools
+            status = t.get("status", "")
+            name = t.get("title") or t.get("name", "unknown")
+            if status == "running":
+                tool_lines.append(f"🔄 `{name}`")
+            elif status in ("completed", "done"):
+                tool_lines.append(f"✅ `{name}`")
+            elif status == "error":
+                tool_lines.append(f"❌ `{name}`")
+            else:
+                tool_lines.append(f"⏳ `{name}`")
+        _add_text(card, "**工具调用:**\n" + "\n".join(tool_lines))
+
+    # Reasoning snippet
+    if reasoning_snippet:
+        snippet = reasoning_snippet[-200:]
+        if len(reasoning_snippet) > 200:
+            snippet = "..." + snippet
+        _add_text(card, f"**思考中:**\n{snippet}")
+
+    # Text output snippet (tail)
+    if text_snippet:
+        snippet = text_snippet[-500:]
+        if len(text_snippet) > 500:
+            snippet = "..." + snippet
+        _add_text(card, f"**输出预览:**\n{snippet}")
+
+    # Status line
+    status_text = f"✅ 已完成 ({elapsed}s)" if finished else f"⏳ 运行中 ({elapsed}s)"
+    _add_text(card, status_text)
+
+    return card
+
+
+def paginated_result(
+    title: str,
+    content: str,
+    success: bool = True,
+    page_size: int = _CARD_CONTENT_MAX_CHARS,
+) -> List[dict]:
+    """Split a long result into multiple cards for pagination.
+
+    Returns a list of card dicts. If content fits in one card, returns a single-item list.
+    """
+    if len(content) <= page_size:
+        return [result(title, content, success)]
+
+    pages: List[str] = []
+    remaining = content
+    while remaining:
+        # Try to split at a newline near page_size boundary
+        if len(remaining) <= page_size:
+            pages.append(remaining)
+            break
+        cut = remaining[:page_size]
+        last_nl = cut.rfind("\n")
+        if last_nl > page_size // 2:
+            pages.append(remaining[:last_nl])
+            remaining = remaining[last_nl + 1:]
+        else:
+            pages.append(cut)
+            remaining = remaining[page_size:]
+
+    cards = []
+    total = len(pages)
+    for i, page in enumerate(pages):
+        page_title = f"{title} ({i + 1}/{total})"
+        cards.append(result(page_title, page, success))
+    return cards
+
+
 def status_card(processes: List[Any], active_workspace: Optional[str] = None) -> dict:
     from pathlib import Path
     card = _header("📊 Kimix 进程状态", "blue")

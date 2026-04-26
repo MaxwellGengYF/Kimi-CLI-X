@@ -15,7 +15,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, AsyncIterator, Callable, Dict, List, Optional
+from typing import Any, AsyncIterator, Callable, Dict, Iterator, List, Optional
 
 import httpx
 
@@ -511,79 +511,6 @@ class KimixAsyncClient:
                     on_reconnect(reconnects)
                 await asyncio.sleep(reconnect_delay * reconnects)
                 yield SSEEvent(event="__reconnected__", data=str(reconnects))
-
-
-# ── Synchronous Wrapper Client ─────────────────────────────────
-
-
-class KimixSyncClient:
-    """Synchronous wrapper around KimixAsyncClient.
-    For use in contexts where async is not available (e.g., lark bot handlers).
-    """
-
-    def __init__(
-        self,
-        host: str = "127.0.0.1",
-        port: int = 4096,
-        timeout: float = 30.0,
-    ) -> None:
-        self.host = host
-        self.port = port
-        self._base_url = f"http://{host}:{port}"
-        self._timeout = timeout
-
-    def health_check(self) -> bool:
-        return check_health_sync(self.port, self.host, self._timeout)
-
-    def create_session(self, title: Optional[str] = None) -> Session:
-        body = {"title": title} if title else {}
-        with httpx.Client(timeout=httpx.Timeout(self._timeout)) as c:
-            resp = c.post(f"{self._base_url}/session", json=body)
-            resp.raise_for_status()
-            return Session.from_dict(resp.json())
-
-    def get_session(self, session_id: str) -> Session:
-        with httpx.Client(timeout=httpx.Timeout(self._timeout)) as c:
-            resp = c.get(f"{self._base_url}/session/{session_id}")
-            resp.raise_for_status()
-            return Session.from_dict(resp.json())
-
-    def list_sessions(self) -> List[Session]:
-        with httpx.Client(timeout=httpx.Timeout(self._timeout)) as c:
-            resp = c.get(f"{self._base_url}/session")
-            resp.raise_for_status()
-            return [Session.from_dict(s) for s in resp.json()]
-
-    def send_prompt_async(
-        self, session_id: str, text: str, agent: Optional[str] = None,
-    ) -> bool:
-        body: Dict[str, Any] = {"parts": [{"type": "text", "text": text}]}
-        if agent:
-            body["agent"] = agent
-        with httpx.Client(timeout=httpx.Timeout(self._timeout)) as c:
-            resp = c.post(f"{self._base_url}/session/{session_id}/prompt_async", json=body)
-            return resp.status_code == 204
-
-    def send_message(
-        self, session_id: str, text: str, agent: Optional[str] = None,
-        timeout: float = 600.0,
-    ) -> Message:
-        body: Dict[str, Any] = {"parts": [{"type": "text", "text": text}]}
-        if agent:
-            body["agent"] = agent
-        with httpx.Client(timeout=httpx.Timeout(timeout, read=timeout)) as c:
-            resp = c.post(f"{self._base_url}/session/{session_id}/message", json=body)
-            resp.raise_for_status()
-            return Message.from_dict(resp.json())
-
-    def abort_session(self, session_id: str) -> bool:
-        return abort_session_sync(session_id, self.port, self.host, self._timeout)
-
-    def get_session_status(self) -> Dict[str, Any]:
-        with httpx.Client(timeout=httpx.Timeout(self._timeout)) as c:
-            resp = c.get(f"{self._base_url}/session/status")
-            resp.raise_for_status()
-            return resp.json()
 
 
 # ── SSE Stream Parser (internal) ──────────────────────────────────
