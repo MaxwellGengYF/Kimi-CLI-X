@@ -23,7 +23,7 @@ from kimix_lark_bot.messaging import FeishuMessagingClient
 from kimix_lark_bot.process_manager import KimixProcessManager, extract_path_from_text
 from kimix_lark_bot.config import AgentConfig
 from kimix_lark_bot.brain import BotBrain
-from kimix_lark_bot.kimix_client import KimixSessionClient
+from kimix.server.client import KimixSyncClient, check_health_sync
 
 logger = logging.getLogger(__name__)
 
@@ -545,14 +545,13 @@ class TaskHandler(BaseHandler):
                     self.ctx.messaging.update_card(prog_mid, card)
                 return
 
-            # Connect to kimix server and run task
-            client = KimixSessionClient(
+            # Connect to kimix server (opencode-style HTTP API)
+            client = KimixSyncClient(
                 host="127.0.0.1",
                 port=proc.port,
-                ws_port=proc.ws_port,
             )
-            logger.debug("[%s] Connecting to kimix server port=%s ws_port=%s", chat_id, proc.port, proc.ws_port)
-            if not client.connect():
+            logger.debug("[%s] Connecting to kimix serve port=%s", chat_id, proc.port)
+            if not client.health_check():
                 self.ctx.op_tracker.finish(op_id)
                 err_card = error("连接失败", f"无法连接到 Kimix server (port={proc.port})", context_path=path)
                 if prog_mid:
@@ -560,55 +559,48 @@ class TaskHandler(BaseHandler):
                 return
 
             try:
-                # Open session if not exists
+                # Create session via HTTP API if not exists
                 session_id = ctx.active_session_id
                 if not session_id:
-                    logger.debug("[%s] Opening new session", chat_id)
-                    session_id = client.open_session()
+                    logger.debug("[%s] Creating new HTTP session", chat_id)
+                    sess = client.create_session(title=f"Lark Bot - {Path(path).name}")
+                    session_id = sess.id
                     ctx.active_session_id = session_id
                     self.ctx.save_contexts()
-                    logger.info("[%s] Session opened: %s", chat_id, session_id)
+                    logger.info("[%s] Session created: %s", chat_id, session_id)
                 else:
                     logger.debug("[%s] Reusing session: %s", chat_id, session_id)
 
-                # Send task
-                logger.debug("[%s] Sending input: %s", chat_id, task_text[:80])
-                client.send_input(task_text)
-
-                # Collect output with periodic card updates
+                # Send task and wait for response (blocking HTTP call)
+                logger.debug("[%s] Sending message: %s", chat_id, task_text[:80])
                 start_time = time.time()
-                all_outputs: list[str] = []
-                last_card_update = start_time
-                last_output_len = 0
 
-                while True:
-                    outputs = client.get_output()
-                    for line in outputs:
-                        all_outputs.append(line)
-
-                    now = time.time()
-                    # Update card every 5 seconds or when new output arrives
-                    if (now - last_card_update >= 5.0) or (len(all_outputs) > last_output_len and now - last_card_update >= 2.0):
-                        last_card_update = now
-                        last_output_len = len(all_outputs)
-                        elapsed = int(now - start_time)
-                        preview = "".join(all_outputs[-10:])  # last 10 lines
-                        if len(preview) > 500:
-                            preview = "..." + preview[-500:]
-                        preview = preview.replace("\n", "\n> ")
-                        desc = f"**任务:** {task_text[:60]}...\n\n**运行中 ({elapsed}s)** — 已收到 {len(all_outputs)} 条输出\n\n> {preview}"
-                        progress_card = progress(title=f"⏳ 执行中 ({elapsed}s)", description=desc)
+                # Use progress polling in separate thread
+                stop_poll = threading.Event()
+                def _poll_task_progress():
+                    elapsed = 0
+                    while not stop_poll.wait(5.0):
+                        elapsed += 5
+                        desc = (
+                            f"**任务:** {task_text[:100]}{'...' if len(task_text) > 100 else ''}\n\n"
+                            f"**运行中 ({elapsed}s)** — 请稍候..."
+                        )
+                        card = progress(title=f"⏳ 执行中 ({elapsed}s)", description=desc)
                         if prog_mid:
-                            self.ctx.messaging.update_card(prog_mid, progress_card)
+                            self.ctx.messaging.update_card(prog_mid, card)
 
-                    if client.is_finished():
-                        break
-                    time.sleep(1.0)
+                poll_thread = threading.Thread(target=_poll_task_progress, daemon=True)
+                poll_thread.start()
+
+                try:
+                    msg = client.send_message(session_id, task_text, timeout=14400.0)
+                    output_text = msg.text_content or "（任务已完成，无输出）"
+                finally:
+                    stop_poll.set()
 
                 self.ctx.op_tracker.finish(op_id)
                 elapsed = int(time.time() - start_time)
 
-                output_text = "".join(all_outputs) or "（任务已完成，无输出）"
                 if len(output_text) > 3000:
                     output_text = output_text[:3000] + "\n\n...（输出已截断）"
 
@@ -622,7 +614,7 @@ class TaskHandler(BaseHandler):
                 else:
                     self.ctx.messaging.send_card(chat_id, card)
                 ctx.push("bot", f"任务完成（{elapsed}s）")
-                logger.info("[%s] Task completed in %ss, output_lines=%d", chat_id, elapsed, len(all_outputs))
+                logger.info("[%s] Task completed in %ss", chat_id, elapsed)
             except Exception as exc:
                 self.ctx.op_tracker.finish(op_id)
                 logger.error("[%s] Task execution error: %s", chat_id, exc, exc_info=True)
@@ -632,7 +624,5 @@ class TaskHandler(BaseHandler):
                 else:
                     self.ctx.messaging.send_card(chat_id, err_card)
                 ctx.push("bot", f"任务出错: {str(exc)[:50]}")
-            finally:
-                client.disconnect()
 
         threading.Thread(target=do_task, daemon=True).start()

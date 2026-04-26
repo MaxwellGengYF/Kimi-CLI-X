@@ -206,9 +206,8 @@ class KimixProcessManager:
 
         cmd = [
             "kimix",
-            "--server",
+            "serve",
             "--port", str(proc.port),
-            "--ws-port", str(proc.ws_port),
         ]
         kwargs: Dict[str, Any] = {}
         if sys.platform == "win32":

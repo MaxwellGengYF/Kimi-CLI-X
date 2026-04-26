@@ -99,8 +99,23 @@ def _run_cli() -> None:
         '__name__': '__main__'
     }
     parser = set_arg()
+
+    # Check for 'serve' subcommand (opencode-style HTTP server)
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == 'serve':
+        print_debug('Starting kimix serve (opencode-style HTTP server).')
+        from kimix.server.serve import serve_cli
+        # Parse serve-specific args
+        import argparse
+        serve_parser = argparse.ArgumentParser(description='Kimix HTTP server (opencode-style)')
+        serve_parser.add_argument("--host", "--hostname", default="127.0.0.1", help="Host to bind to")
+        serve_parser.add_argument("--port", type=int, default=4096, help="Port to bind to")
+        serve_args = serve_parser.parse_args(sys.argv[2:])
+        serve_cli(serve_args)
+        return
+
     if server_mode():
-        print_debug('Enable server mode.')
+        print_debug('Enable legacy server mode.')
         from .server import server_cli
         server_cli(parser)
         return
