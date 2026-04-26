@@ -10,7 +10,7 @@ from kimix.base import print_debug, print_warning, print_error, print_agent_json
 from . import _globals
 from .session import close_session_async, _create_default_session, _print_usage, clear_context
 from my_tools.common import _export_to_temp_file
-
+from kimix.utils.safety import sanitize_for_tokenizer
 
 class PlanLoader:
     def __init__(self, file_path: str | Path) -> None:
@@ -81,6 +81,7 @@ async def prompt_async(
         session = _create_default_session()
         close_session_after_prompt = False
     prompt_str = prompt_str.strip()
+    prompt_str = sanitize_for_tokenizer(prompt_str)
     if len(prompt_str) > 65536:  # too long, save to file
         name, new_id = _export_to_temp_file(content=prompt_str)
         prompt_str = f'read and execute: `{name}`'

@@ -9,8 +9,15 @@ DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8888
 
 import argparse
-def set_arg() -> argparse.ArgumentParser:
+import sys
+
+def set_arg() -> tuple[bool, argparse.Namespace]:
     parser = argparse.ArgumentParser(description='Kimi Agent CLI')
+    subparsers = parser.add_subparsers(dest='command', required=False)
+
+    serve_parser = subparsers.add_parser('serve', description='Kimix HTTP server (opencode-style)')
+    serve_parser.add_argument("--host", "--hostname", default="127.0.0.1", help="Host to bind to")
+    serve_parser.add_argument("--port", type=int, default=4096, help="Port to bind to")
     parser.add_argument('-c', '--clean', action='store_true',
                         help='Delete cache file after quit')
     parser.add_argument('-no_color', '--no_color', action='store_true',
@@ -34,6 +41,11 @@ def set_arg() -> argparse.ArgumentParser:
     parser.add_argument("--sse_cli", action="store_true",
                         help="Launch SSE debug client (connects to kimix serve)")
     args = parser.parse_args()
+
+    if args.command == 'serve':
+        print_debug('Starting kimix serve (opencode-style HTTP server).')
+        return True, args
+
     if args.no_color:
         base._colorful_print = False
 
@@ -101,4 +113,4 @@ def set_arg() -> argparse.ArgumentParser:
             else:
                 print_warning(f'Skill dir not found: {str(skill_dir_path)}')
         base.set_default_skill_dirs(skill_dirs)
-    return parser
+    return False, args

@@ -199,13 +199,13 @@ def on_client_disconnect(client_id: int) -> None:
             if entry.session is not None:
                 _close_kimi_session(entry.session)
 
-def server_cli(parser: argparse.ArgumentParser | None = None) -> None:
-    if parser is None:
+def server_cli(args: argparse.Namespace | None = None) -> None:
+    if args is None:
         parser = argparse.ArgumentParser(description="Simple JSON-RPC server")
         parser.add_argument("--host", default=DEFAULT_HOST, help="Host to bind to")
         parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Port to bind to")
         parser.add_argument("--ws-port", type=int, default=None, help="WebSocket bridge port (optional)")
-    args = parser.parse_args()
+        args = parser.parse_args()
 
     server = JSONRPCServer(host=args.host, port=args.port, on_client_connect=on_client_connect, on_client_disconnect=on_client_disconnect)
     server.register_function(input_from_client)
