@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import asyncio
 import time
+from typing import Any
 
+from kimix.base import print_error
 from kimix.server.client import KimixAsyncClient, parse_event, EventType
 
 
@@ -24,6 +26,7 @@ def _fmt_ts(unix_t: float) -> str:
         return ""
     return time.strftime("%H:%M:%S", time.localtime(unix_t))
 
+
 async def _sse_cli_main(host: str, port: int) -> None:
     client = KimixAsyncClient(host=host, port=port)
     print(f"[SSE CLI] Connecting to http://{host}:{port}")
@@ -36,40 +39,76 @@ async def _sse_cli_main(host: str, port: int) -> None:
 
     session = await client.create_session("SSE CLI debug session")
     print(f"[SSE CLI] Created session: {session.id}")
-    print("[SSE CLI] Commands: /exit /new /abort /status /sessions /messages")
+    print("[SSE CLI] Commands: /exit /new /abort /status /sessions /messages /clear /summarize /fix")
 
     tool_start_times: dict[str, float] = {}
 
-    async def _cmd_new() -> None:
+    async def _cmd_help(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
+        print("[SSE CLI] Commands: /exit /new /abort /status /sessions /messages /clear /summarize /fix")
+        return False
+
+    async def _cmd_new(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
         nonlocal session
         session = await client.create_session("SSE CLI debug session")
         print(f"[SSE CLI] New session: {session.id}")
+        return False
 
-    async def _cmd_abort() -> None:
+    async def _cmd_abort(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
         ok = await client.abort_session(session.id)
         print(f"[SSE CLI] Abort: {'ok' if ok else 'failed'}")
+        return False
 
-    async def _cmd_status() -> None:
+    async def _cmd_status(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
         status = await client.get_session_status()
         print(f"[SSE CLI] Status: {status}")
+        return False
 
-    async def _cmd_sessions() -> None:
+    async def _cmd_sessions(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
         sessions = await client.list_sessions()
         for s in sessions:
             print(f"  {s.id}: {s.title}")
+        return False
 
-    async def _cmd_messages() -> None:
+    async def _cmd_messages(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
         messages = await client.get_messages(session.id, limit=20)
         for m in messages:
             content = m.text_content[:100] if m.text_content else ""
             print(f"  [{m.role}] {content}...")
+        return False
 
-    commands: dict[str, callable] = {
-        "/new": _cmd_new,
-        "/abort": _cmd_abort,
-        "/status": _cmd_status,
-        "/sessions": _cmd_sessions,
-        "/messages": _cmd_messages,
+    async def _cmd_clear(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
+        ok = await client.clear_session(session.id)
+        print(f"[SSE CLI] Clear: {'ok' if ok else 'failed'}")
+        return False
+
+    async def _cmd_summarize(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
+        ok = await client.summarize_session(session.id)
+        print(f"[SSE CLI] Summarize: {'ok' if ok else 'failed'}")
+        return False
+
+    async def _cmd_fix(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
+        if len(task_split) < 2:
+            print_error("Command must be /fix:<command>")
+            return False
+        command_to_fix = (":".join(task_split[1:])).strip()
+        ok = await client.fix_session(session.id, command=command_to_fix)
+        print(f"[SSE CLI] Fix: {'ok' if ok else 'failed'}")
+        return False
+    
+    async def _cmd_unknown(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
+        print(f"[SSE CLI] Unrecognized command: {task_split[0]}")
+        return False
+
+    _command_map = {
+        "help": _cmd_help,
+        "new": _cmd_new,
+        "abort": _cmd_abort,
+        "status": _cmd_status,
+        "sessions": _cmd_sessions,
+        "messages": _cmd_messages,
+        "clear": _cmd_clear,
+        "summarize": _cmd_summarize,
+        "fix": _cmd_fix,
     }
 
     while True:
@@ -79,13 +118,20 @@ async def _sse_cli_main(host: str, port: int) -> None:
             break
 
         cmd = text.strip()
-        if cmd == "/exit":
-            break
-        handler = commands.get(cmd)
-        if handler is not None:
-            await handler()
-            continue
         if not cmd:
+            continue
+
+        if cmd.startswith("/"):
+            task = cmd[1:]
+            split_idx = task.find(":")
+            if split_idx >= 0:
+                task_split = [task[:split_idx], task[split_idx + 1:]]
+            else:
+                task_split = [task]
+            handler = _command_map.get(task_split[0], _cmd_unknown)
+            should_break = await handler(task_split, [])
+            if should_break:
+                break
             continue
 
         ok = await client.send_prompt_async(session.id, text)

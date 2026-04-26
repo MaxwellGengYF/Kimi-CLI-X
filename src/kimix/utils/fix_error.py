@@ -1,11 +1,12 @@
 from typing import Optional, Any, Callable
 from kimi_agent_sdk import Session
-from kimix.base import print_success, run_process_with_error, run_thread
-from .prompt import prompt
+from kimix.base import print_success, run_process_with_error_async, run_thread
+from .prompt import prompt, prompt_async
 from .session import _create_default_session
+import asyncio
 
 
-def fix_error(
+async def fix_error_async(
         command: str,
         extra_prompt: Optional[str] = None,
         skip_success: bool = True,
@@ -13,7 +14,7 @@ def fix_error(
         session: Session | None = None,
         max_loop: int = 4) -> bool:
     for i in range(max_loop):
-        result = run_process_with_error(
+        result = await run_process_with_error_async(
             command, keycode, skip_success=skip_success)
         if i == 0 and result is None:
             print_success('No error.')
@@ -28,8 +29,20 @@ def fix_error(
         if extra_prompt is not None:
             prompt_str = f'{extra_prompt}, {prompt_str}'
         from my_tools.common import _maybe_export_output
-        prompt(_maybe_export_output(prompt_str), session)
+        await prompt_async(_maybe_export_output(prompt_str), session)
     return False
+
+
+def fix_error(
+        command: str,
+        extra_prompt: Optional[str] = None,
+        skip_success: bool = True,
+        keycode: tuple[str, ...] = ('error', ),
+        session: Session | None = None,
+        max_loop: int = 4) -> bool:
+    asyncio.run(fix_error_async(
+        command, extra_prompt, skip_success, keycode, session, max_loop
+    ))
 
 
 def async_prompt(

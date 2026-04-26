@@ -476,6 +476,42 @@ class KimixAsyncClient:
         )
         return resp.status_code == 200
 
+    async def clear_session(self, session_id: str) -> bool:
+        resp = await self._client.post(
+            f"{self._base_url}/session/{session_id}/clear"
+        )
+        return resp.status_code == 200
+
+    async def summarize_session(self, session_id: str) -> bool:
+        resp = await self._client.post(
+            f"{self._base_url}/session/{session_id}/summarize"
+        )
+        return resp.status_code == 200
+
+    async def fix_session(
+        self,
+        session_id: str,
+        command: str,
+        extra_prompt: Optional[str] = None,
+        skip_success: bool = True,
+        keycode: Optional[List[str]] = None,
+        max_loop: int = 4,
+    ) -> bool:
+        body: Dict[str, Any] = {
+            "command": command,
+            "skip_success": skip_success,
+            "max_loop": max_loop,
+        }
+        if extra_prompt is not None:
+            body["extra_prompt"] = extra_prompt
+        if keycode is not None:
+            body["keycode"] = keycode
+        resp = await self._client.post(
+            f"{self._base_url}/session/{session_id}/fix", json=body
+        )
+        resp.raise_for_status()
+        return resp.json()
+
     # ── SSE Streaming ────────────────────────────────────────
 
     async def stream_events(

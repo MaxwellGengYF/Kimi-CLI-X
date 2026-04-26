@@ -33,6 +33,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from kimix.server.bus import bus, BusEvent
 from kimix.server.session_manager import session_manager
+from kimix.summarize import summarize
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,14 @@ class PromptInput(BaseModel):
 
 class UpdateSessionRequest(BaseModel):
     title: Optional[str] = Field(None, description="New session title")
+
+
+class FixSessionRequest(BaseModel):
+    command: str = Field(..., description="Command to run and fix")
+    extra_prompt: Optional[str] = Field(None, description="Extra prompt context")
+    skip_success: bool = Field(True, description="Skip if no error on first run")
+    keycode: List[str] = Field(default_factory=lambda: ["error"], description="Error keywords to look for")
+    max_loop: int = Field(4, description="Maximum fix attempts")
 
 
 # ── OpenAPI Response Models ──────────────────────────────────────
@@ -361,6 +370,59 @@ def create_app() -> FastAPI:
     async def abort_session(sessionID: str) -> bool:
         try:
             return session_manager.abort_session(sessionID)
+        except KeyError:
+            raise HTTPException(status_code=404, detail=f"Session not found: {sessionID}")
+
+    @app.post(
+        "/session/{sessionID}/clear",
+        response_model=bool,
+        tags=["Session"],
+        summary="Clear session",
+        description="Clear the session history and reset its state.",
+        responses={404: {"model": ErrorResponse, "description": "Session not found"}},
+    )
+    async def clear_session(sessionID: str) -> bool:
+        try:
+            return await session_manager.clear_session(sessionID)
+        except KeyError:
+            raise HTTPException(status_code=404, detail=f"Session not found: {sessionID}")
+
+    @app.post(
+        "/session/{sessionID}/summarize",
+        response_model=bool,
+        tags=["Session"],
+        summary="Summarize session",
+        description="Summarize and compact the session context.",
+        responses={404: {"model": ErrorResponse, "description": "Session not found"}},
+    )
+    async def summarize_session(sessionID: str) -> bool:
+        try:
+            sdk_session = session_manager.get_sdk_session(sessionID)
+        except KeyError:
+            raise HTTPException(status_code=404, detail=f"Session not found: {sessionID}")
+        if sdk_session is None:
+            raise HTTPException(status_code=404, detail=f"Session not found: {sessionID}")
+        await summarize(session=sdk_session)
+        return True
+
+    @app.post(
+        "/session/{sessionID}/fix",
+        response_model=bool,
+        tags=["Session"],
+        summary="Fix error in session",
+        description="Run a command and auto-fix errors using the session.",
+        responses={404: {"model": ErrorResponse, "description": "Session not found"}},
+    )
+    async def fix_session_endpoint(sessionID: str, body: FixSessionRequest) -> bool:
+        try:
+            return await session_manager.fix_session(
+                sessionID,
+                command=body.command,
+                extra_prompt=body.extra_prompt,
+                skip_success=body.skip_success,
+                keycode=tuple(body.keycode),
+                max_loop=body.max_loop,
+            )
         except KeyError:
             raise HTTPException(status_code=404, detail=f"Session not found: {sessionID}")
 

@@ -7,6 +7,7 @@ from enum import Enum
 import json
 import threading
 import sys
+import asyncio
 
 _threads: list[threading.Thread] = list()
 
@@ -260,8 +261,44 @@ def _run_process_with_log(command: str) -> tuple[str, int]:
     return output, result.returncode
 
 
+async def _run_process_with_log_async(command: str) -> tuple[str, int]:
+    print_info(f'Shell: {command}')
+    proc = await asyncio.create_subprocess_shell(
+        command,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    stdout, stderr = await proc.communicate()
+    # Decode stdout with UTF-8, handle decode errors
+    if stdout:
+        output = stdout.decode('utf-8', errors='replace')
+    else:
+        output = ""
+    # Decode stderr with UTF-8, handle decode errors
+    if stderr:
+        output += "\n" + stderr.decode('utf-8', errors='replace')
+    return output, proc.returncode
+
+
 def run_process_with_error(command: str, keycode: tuple[str, ...] | None, skip_success: bool = True) -> str | None:
     result, code = _run_process_with_log(command)
+    if skip_success and code == 0:
+        return None
+    lines = result.splitlines()
+    if keycode is None or len(keycode) == 0:
+        return result
+    for idx in range(len(lines)):
+        line = lines[idx]
+        lower_line = line.lower()
+        for c in keycode:
+            if c in lower_line:
+                return '\n'.join(lines[idx:])
+
+    return result
+
+
+async def run_process_with_error_async(command: str, keycode: tuple[str, ...] | None, skip_success: bool = True) -> str | None:
+    result, code = await _run_process_with_log_async(command)
     if skip_success and code == 0:
         return None
     lines = result.splitlines()

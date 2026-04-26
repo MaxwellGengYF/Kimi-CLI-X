@@ -97,25 +97,6 @@ def _cmd_fix(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     return None, False
 
 
-def _cmd_think(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
-    if len(task_split) < 2:
-        print_error('Command must be /think:on or /think:off')
-        return None, False
-    value = task_split[1].strip().lower()
-    if value == 'on':
-        base._default_thinking = True
-        print_success('Thinking mode enabled.')
-    elif value == 'off':
-        base._default_thinking = False
-        print_success('Thinking mode disabled.')
-    else:
-        print_error('Command must be /think:on or /think:off')
-        return None, False
-    if get_default_session():
-        clear_default_context(True, True)
-    return None, False
-
-
 def _cmd_plan(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     if len(task_split) < 2 or (not task_split[1]):
         print(
@@ -180,14 +161,6 @@ def _cmd_txt(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     return None, False
 
 
-def _cmd_skill(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
-    if len(task_split) < 2:
-        print_error('Command must be /skill:xx')
-        return None, False
-    prompt(f"/skill:{task_split[1]}", get_default_session())
-    return None, False
-
-
 def _cmd_file(task_split: list[str], text_arr: list[str]) -> tuple[str | None, bool]:
     if len(task_split) != 2:
         print_error(f'command format error, must be /file:path')
@@ -215,9 +188,7 @@ _command_map = {
     'cmd': _cmd_cmd,
     'cd': _cmd_cd,
     'fix': _cmd_fix,
-    'think': _cmd_think,
     'plan': _cmd_plan,
     'txt': _cmd_txt,
-    'skill': _cmd_skill,
     'file': _cmd_file
 }

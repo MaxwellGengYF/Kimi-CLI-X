@@ -173,13 +173,48 @@ class SessionManager:
         with self._lock:
             self._sessions[session_id] = entry
 
-        bus.emit_type("session.created", sessionID=session_id, info=info.to_dict())
+        bus.emit_type("session.created", sessionID=session_id,
+                      info=info.to_dict())
         logger.info("[SessionManager] Created session %s", session_id)
         return info
 
     def get_session(self, session_id: str) -> SessionInfo:
         entry = self._get_entry(session_id)
         return entry.info
+
+    def get_sdk_session(self, session_id: str) -> Optional[Session]:
+        entry = self._get_entry(session_id)
+        return entry.sdk_session
+
+    async def clear_session(self, session_id: str) -> bool:
+        entry = self._get_entry(session_id)
+        if entry.sdk_session:
+            await entry.sdk_session.clear()
+        entry.messages.clear()
+        return True
+
+    async def fix_session(
+        self,
+        session_id: str,
+        command: str,
+        extra_prompt: Optional[str] = None,
+        skip_success: bool = True,
+        keycode: tuple[str, ...] = ("error",),
+        max_loop: int = 4,
+    ) -> bool:
+        entry = self._get_entry(session_id)
+        sdk_session = entry.sdk_session
+        if sdk_session is None:
+            raise ValueError(f"Session {session_id} has no active SDK session")
+        from kimix.utils.fix_error import fix_error_async
+        return await fix_error_async(
+            command=command,
+            extra_prompt=extra_prompt,
+            skip_success=skip_success,
+            keycode=keycode,
+            session=sdk_session,
+            max_loop=max_loop,
+        )
 
     def list_sessions(self) -> List[SessionInfo]:
         with self._lock:
@@ -274,7 +309,8 @@ class SessionManager:
             )],
         )
         entry.messages.append(user_msg)
-        bus.emit_type("message.created", sessionID=session_id, info=user_msg.info.to_dict())
+        bus.emit_type("message.created", sessionID=session_id,
+                      info=user_msg.info.to_dict())
 
         # ── Create assistant message placeholder ─────────────────
         asst_msg_id = self._next_msg_id()
@@ -412,7 +448,8 @@ class SessionManager:
                 # ── ToolResult: tool finished ────────────────────
                 if isinstance(wire_msg, ToolResult):
                     tc_id = wire_msg.tool_call_id
-                    tool_part_id = active_tool_parts.pop(tc_id, self._next_part_id())
+                    tool_part_id = active_tool_parts.pop(
+                        tc_id, self._next_part_id())
                     rv = wire_msg.return_value
                     is_error = rv.is_error
                     # rv.output is str | list[ContentPart]
@@ -469,7 +506,8 @@ class SessionManager:
             error_msg = "cancelled"
         except Exception as exc:
             error_msg = str(exc)
-            logger.error("[SessionManager] Prompt error: %s", exc, exc_info=True)
+            logger.error("[SessionManager] Prompt error: %s",
+                         exc, exc_info=True)
 
         # ── Flush remaining text ─────────────────────────────────
         if text_buf:
@@ -516,7 +554,8 @@ class SessionManager:
             try:
                 await self.prompt(session_id, text, agent)
             except Exception as exc:
-                logger.error("[SessionManager] prompt_async error: %s", exc, exc_info=True)
+                logger.error(
+                    "[SessionManager] prompt_async error: %s", exc, exc_info=True)
                 try:
                     entry = self._get_entry(session_id)
                     self._set_status(entry, "idle")

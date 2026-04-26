@@ -221,12 +221,10 @@ uv run kimix --plan --clean
 | `/clear` | 清空当前对话上下文 |
 | `/summarize` | 将对话上下文总结并写入记忆 |
 | `/exit` | 退出程序 |
-| `/skill` | 加载 skills |
 | `/help` | 显示帮助信息 |
 | `/context` | 打印当前上下文的使用情况 |
 | `/fix:<command>` | 运行一条命令，如果出错则自动尝试修复 |
 | `/txt` | 进入多行文本输入模式（以 `/end` 结束，`/cancel` 取消） |
-| `/think:on` / `/think:off` | 开启 / 关闭思考模式（需要 LLM 支持） |
 | `/plan:on` / `/plan:off` | 开启 / 关闭计划模式 |
 | `/script` | 编写并执行 Python 脚本（以 `/end` 结束输入） |
 | `/cmd:<command>` | 执行系统命令 |
