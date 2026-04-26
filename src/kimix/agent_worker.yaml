@@ -10,7 +10,6 @@ agent:
     - "my_tools.background:TaskOutput"
     - "my_tools.background:TaskList"
     - "my_tools.background:TaskStop"
-    - "my_tools.flag:Setflag"
     - "my_tools.skill:SkillRag"
     - "kimi_cli.tools.todo:SetTodoList"
     - "kimi_cli.tools.file:WriteFile"

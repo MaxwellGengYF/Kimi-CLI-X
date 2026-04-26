@@ -289,6 +289,14 @@ _default_agent_file: Path = _default_agent_file_dir / 'agent_worker.yaml'
 _default_skill_dirs: list[Any] = []
 _default_provider: dict[str, Any] | None = None
 
+# Common skill directory paths (relative to current working directory)
+COMMON_SKILL_DIRS: list[str] = [
+    ".agents/skills",
+    ".config/.agents/skills",
+    ".opencode/skills",
+    "skills"
+]
+
 
 def set_default_thinking(value: bool) -> None:
     global _default_thinking
@@ -339,17 +347,11 @@ def get_skill_dirs(use_kaos_path: bool = True) -> list[Any]:
         return _default_skill_dirs
 
     def _gen() -> list[Path]:
-        result: list[Path] = []
-        d = Path(os.curdir) / ".agents/skills"
-        if d.exists():
-            result.append(d)
-        d = Path(os.curdir) / ".config/.agents/skills"
-        if d.exists():
-            result.append(d)
-        d = Path(os.curdir) / ".opencode/skills"
-        if d.exists():
-            result.append(d)
-        return result
+        from concurrent.futures import ThreadPoolExecutor
+        paths = [Path(os.curdir) / rel for rel in COMMON_SKILL_DIRS]
+        with ThreadPoolExecutor() as executor:
+            futures = [(p, executor.submit(p.exists)) for p in paths]
+            return [p for p, fut in futures if fut.result()]
     _default_skill_dirs = _gen()
     if _default_skill_dirs:
         for d in _default_skill_dirs:
@@ -363,10 +365,10 @@ def get_skill_dirs(use_kaos_path: bool = True) -> list[Any]:
     return []
 
 
-generate_memory = '''Please summarize our session concisely with:
-1. **Project Overview**: Brief description of the project and its purpose
-2. **Key Decisions**: Important decisions made during our session
-3. **Current State**: What has been completed so far
-4. **Important Files**: Key code files and their roles
-5. **TODOs/Pending Tasks**: Any unfinished tasks or next steps
-6. **Technical Notes**: Relevant technical details to remember'''
+generate_memory = '''Summarize session concisely; output directly:
+1. **Project Overview**: Project purpose and scope.
+2. **Key Decisions**: Important choices made.
+3. **Current State**: Completed work and verification status.
+4. **Important Files**: Key files and their roles.
+5. **TODOs/Pending Tasks**: Remaining work or next steps.
+6. **Technical Notes**: Relevant details to retain.'''

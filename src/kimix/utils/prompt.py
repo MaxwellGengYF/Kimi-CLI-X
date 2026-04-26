@@ -61,6 +61,7 @@ class PlanLoader:
             return ""
         with open(path, 'rb') as f:
             return hashlib.sha256(f.read()).hexdigest()
+    @staticmethod
     def compute_hash(content: str) -> str:
         return hashlib.sha256(content.encode('utf-8', 'replace')).hexdigest()
 
@@ -99,11 +100,7 @@ async def prompt_async(
                 else:
                     prompt_str = f'Use skill:{skill_name}.\n' + prompt_str
         if skill_name:
-            try:
-                for i in skill_name:
-                    enable_skill(i)
-            except:
-                enable_skill(skill_name)
+            enable_skill(skill_name)
         if session.status.context_usage < 1e-4 and read_agents_md and Path('AGENTS.md').exists():
             prompt_str = f'Read AGENTS.md.\n' + prompt_str
 
@@ -171,20 +168,6 @@ def prompt(
             cancel_callable,
             close_session_after_prompt,
         ))
-
-
-def validate(
-    prompt_str: Optional[str], session: Session | None = None
-) -> bool:
-    if type(prompt_str) == str and len(prompt_str) > 0:
-        import my_tools.flag as flag
-        flag.reset_flag()
-        prompt_str = prompt_str + \
-            '\n\nIf the condition is true, run `Setflag` tool.'
-        prompt(prompt_str, session)
-        return flag.check_flag() is not None
-    else:
-        return False
 
 
 def _make_new_plan_file() -> Path:
@@ -295,9 +278,9 @@ Call `Note` tool per step to record the plan.
             list = read_file(memory_file)
             if list:
                 joined_str = '\n'.join(list)
-                prompt_str += f'## Memory:\n{joined_str}\n\n'
+                prompt_str += f'Remember the last session:\n{joined_str}\n'
             set_writing_path(None)
-            prompt_str += f'## Implement:\n{step}'
+            prompt_str += f'Implement:\n{step}'
             clear_context()
             prompt(prompt_str)
             if idx != len(steps) - 1:  # not last
@@ -311,7 +294,7 @@ Call `Note` tool per step to record the plan.
                 def export_func(text: str, is_thinking: bool):
                     if not is_thinking:
                         lines.append(text) 
-                prompt(generate_memory, export_func)
+                prompt(generate_memory, output_function=export_func)
                 if lines:
                     memory_content = '\n'.join(lines)
                     memory_file.write_text(memory_content, encoding='utf-8', errors='replace')
@@ -333,12 +316,11 @@ Call `Note` tool per step to record the plan.
 
 
 def prompt_path(path: Path, split_word: Optional[str] = None, session: Session | None = None, after_prompt_coro: Any = None) -> None:
-    f = open(path, 'r', encoding='utf-8')
-    if not f:
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            s = f.read()
+    except:
         print_error(f'File {str(path)} not found.')
-        return
-    s = f.read()
-    f.close()
     coro = None
     if after_prompt_coro is not None:
         coro = after_prompt_coro()

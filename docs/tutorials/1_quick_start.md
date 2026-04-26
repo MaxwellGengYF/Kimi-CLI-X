@@ -224,7 +224,6 @@ uv run kimix --plan --clean
 | `/skill` | 加载 skills |
 | `/help` | 显示帮助信息 |
 | `/context` | 打印当前上下文的使用情况 |
-| `/validate:<prompt>` | 测试给定条件是否为真 |
 | `/fix:<command>` | 运行一条命令，如果出错则自动尝试修复 |
 | `/txt` | 进入多行文本输入模式（以 `/end` 结束，`/cancel` 取消） |
 | `/think:on` / `/think:off` | 开启 / 关闭思考模式（需要 LLM 支持） |

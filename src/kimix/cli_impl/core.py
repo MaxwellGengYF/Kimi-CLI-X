@@ -90,6 +90,8 @@ def _client_cli() -> None:
             print_success('\nbye.')
             break
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             print_error(str(e))
 
 
