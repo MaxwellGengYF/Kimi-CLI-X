@@ -60,7 +60,7 @@ async def _create_session_async(
         _globals._session_idx += 1
     tool_call_failed_list: list[Any] = list()
     base._tool_call_failed_lists[session_id] = tool_call_failed_list
-    cfg = _create_config(provider_dict)
+    cfg, provider_dict = _create_config(provider_dict)
     session = None
     if agent_file is None:
         agent_file = base._default_agent_file
@@ -70,6 +70,16 @@ async def _create_session_async(
         if not agent_file.is_absolute():
             agent_file = Path(__file__).parent.parent / agent_file
     skills_dirs = _ensure_skill_dirs(skills_dir) if skills_dir is not None else base.get_skill_dirs()
+    system_prompts : str | None = None
+    if provider_dict:
+        custom_system_prompt = provider_dict.get('system_prompt')
+        if custom_system_prompt:
+            _original_system_prompts = system_prompts
+            def _wrapped_system_prompts(args):
+                return _original_system_prompts(args) + '\n\n' + str(custom_system_prompt)
+            system_prompts = _wrapped_system_prompts
+    if system_prompts is None:
+        system_prompts = get_system_prompt(is_sub_agent, plan_mode, yolo, work_dir, skills_dirs)
     if resume:
         session = await Session.resume(
             session_id=session_id,
@@ -81,8 +91,7 @@ async def _create_session_async(
             config=cfg,
             agent_file=agent_file,
             tool_call_failed_list=tool_call_failed_list,
-            custom_system_prompt=get_system_prompt(
-                is_sub_agent, plan_mode, yolo, work_dir, skills_dirs),
+            custom_system_prompt=system_prompts,
             chat_provider=chat_provider,
         )
         if not session:
@@ -98,8 +107,7 @@ async def _create_session_async(
             config=cfg,
             agent_file=agent_file,
             tool_call_failed_list=tool_call_failed_list,
-            custom_system_prompt=get_system_prompt(
-                is_sub_agent, plan_mode, yolo, work_dir, skills_dirs),
+            custom_system_prompt=system_prompts,
             chat_provider=chat_provider,
         )
     return session
@@ -219,15 +227,15 @@ def print_usage(session: Session | None = None) -> None:
     )
 
 
-def clear_context(force_create: bool = False, resume: bool = False, print_info: bool = True) -> None:
+def clear_default_context(force_create: bool = False, resume: bool = False, print_info: bool = True) -> None:
     if _globals._default_session:
         if not force_create and _globals._default_session.status.context_usage < 1e-8:
             if print_info:
                 _print_usage(_globals._default_session)
             return
-        elif _globals._default_session is not None:
-            asyncio.run(_globals._default_session.close())
-        _globals._default_session = None
-    session = _create_default_session(resume)
+        asyncio.run(_globals._default_session.clear())
+        session = _globals._default_session
+    else:
+        session = _create_default_session(resume)
     if print_info:
         _print_usage(session)

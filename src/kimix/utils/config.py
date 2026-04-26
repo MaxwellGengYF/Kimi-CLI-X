@@ -17,7 +17,7 @@ def _ensure_text_search() -> tuple[Any, Any]:
     return _globals.TextSearchIndex, _globals.SearchResult
 
 
-def _create_config(provider_dict: dict[str, Any] | None = None) -> Config:
+def _create_config(provider_dict: dict[str, Any] | None = None) -> tuple[Config, dict[str, Any] | None]:
     from kimi_cli.config import LLMModel, LLMProvider
     from kimix.base import print_debug, print_warning
 
@@ -129,4 +129,4 @@ def _create_config(provider_dict: dict[str, Any] | None = None) -> Config:
                 if hasattr(bc, key):
                     setattr(bc, key, value)
             cfg.background = bc
-    return cfg
+    return cfg, provider_dict

@@ -7,18 +7,16 @@ from kaos.path import KaosPath
 import kimix.base as base
 from kimi_cli.soul.agent import BuiltinSystemPromptArgs
 
-
+# This system prompt is designed to stop the modern LLM from over thinking and hallucination
 _SYSTEM_PROMP = Template('''You are a ${AGENT_ROLE}.
-Rules:
-1. NO reasoning effort. NO thinking effort. NO explanations, apologies, or questions. concisely.
-2. Minimal diff; preserve surrounding formatting.
-3. For long tasks, use `Run`/`Python` with `run_in_background=true`, then manage via `TaskList`, `TaskOutput`, `Input`, `TaskStop`. Return control immediately after starting.
-4. Python path `${PYTHON_PATH}`, ALWAYS use this python.
-5. For complex or multi-step tasks, use `SetTodoList` to track progress.
+Rules: Direct output only. No chain-of-thought. No analysis. No step-by-step. No reasoning blocks. No thinking-effort. zero preamble. No postamble. Minimal explanation. Concisely. Shortly.
+Note:
+1. For long tasks, use `Run`/`Python` with `run_in_background=true`, then manage via `TaskList`, `TaskOutput`, `Input`, `TaskStop`. Return control immediately after starting.
+2. For complex or multi-step tasks, use `SetTodoList` to track progress.
 ${SPAWN}${SHELL}${PLAN_MODE}${YOLO_MODE}${RAG}
 ${AGENTS_MD}${SKILLS}
 ''')
-_START_INDEX = 6
+_START_INDEX = 3
 
 
 def get_system_prompt(
@@ -33,7 +31,7 @@ def get_system_prompt(
     yolo = yolo if yolo is not None else base._default_yolo
 
     def system_prompt_func(args: BuiltinSystemPromptArgs) -> str:
-        role_doc = 'coding sub-agent' if is_sub_agent else 'coding agent'
+        role_doc = 'terse ' + ('sub-agent' if is_sub_agent else 'coder')
         spawn_doc = None
         plan_mode_doc = None
         shell_doc = None
@@ -78,7 +76,7 @@ AGENTS.md:
 ```
 '''
         # Use RAG to search skill files, no need to list all skills
-        rag = f'{index}: Use `SkillRag` tool to search and retrieve skills.'
+        rag = f'{index}. Use `SkillRag` tool to search and retrieve skills.'
         index += 1
         if args.KIMI_SKILLS:
             skill_doc = 'Skills:\n' + args.KIMI_SKILLS

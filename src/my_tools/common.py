@@ -1,8 +1,5 @@
-# Token limit threshold - if output exceeds this, export to a temp file
-# Using 8000 as a conservative threshold to stay well below typical model limits
 import os
 from pathlib import Path
-import tempfile
 import queue
 import subprocess
 import threading
@@ -15,6 +12,7 @@ OUTPUT_TOKEN_LIMIT = 1024
 _temp_folder = Path.home() / '.kimi' / 'sessions'
 _temp_idx = 0
 _temp_set: dict[Path, int] = dict()
+
 
 def _estimate_tokens(text: str) -> int:
     """Rough estimation of token count (approximately 4 characters per token)."""
@@ -368,3 +366,4 @@ class ProcessTask:
     def stream(self) -> 'BackgroundStream' | None:
         """The underlying BackgroundStream if the process has been started."""
         return self._stream
+

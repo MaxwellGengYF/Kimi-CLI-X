@@ -8,9 +8,9 @@ from kimi_agent_sdk import Session
 import kimix.base as base
 from kimix.base import print_debug, print_warning, print_error, print_agent_json, print_info
 from . import _globals
-from .session import close_session_async, _create_default_session, _print_usage, clear_context
+from .session import close_session_async, _create_default_session, _print_usage, clear_default_context
 from my_tools.common import _export_to_temp_file
-from kimix.utils.safety import sanitize_for_tokenizer
+from kimi_cli.safety_check import sanitize_for_tokenizer
 
 class PlanLoader:
     def __init__(self, file_path: str | Path) -> None:
@@ -282,7 +282,7 @@ Call `Note` tool per step to record the plan.
                 prompt_str += f'Remember the last session:\n{joined_str}\n'
             set_writing_path(None)
             prompt_str += f'Implement:\n{step}'
-            clear_context()
+            clear_default_context()
             prompt(prompt_str)
             if idx != len(steps) - 1:  # not last
                 if plan_loader is not None:

@@ -4,8 +4,6 @@ from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 from my_tools.common import _maybe_export_output_async
 
-from my_tools.file.chdir import Cd
-
 class MkdirParams(BaseModel):
     path: str = Field(
         description="Directory path to create."

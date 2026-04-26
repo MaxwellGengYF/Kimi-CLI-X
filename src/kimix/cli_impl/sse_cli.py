@@ -40,6 +40,38 @@ async def _sse_cli_main(host: str, port: int) -> None:
 
     tool_start_times: dict[str, float] = {}
 
+    async def _cmd_new() -> None:
+        nonlocal session
+        session = await client.create_session("SSE CLI debug session")
+        print(f"[SSE CLI] New session: {session.id}")
+
+    async def _cmd_abort() -> None:
+        ok = await client.abort_session(session.id)
+        print(f"[SSE CLI] Abort: {'ok' if ok else 'failed'}")
+
+    async def _cmd_status() -> None:
+        status = await client.get_session_status()
+        print(f"[SSE CLI] Status: {status}")
+
+    async def _cmd_sessions() -> None:
+        sessions = await client.list_sessions()
+        for s in sessions:
+            print(f"  {s.id}: {s.title}")
+
+    async def _cmd_messages() -> None:
+        messages = await client.get_messages(session.id, limit=20)
+        for m in messages:
+            content = m.text_content[:100] if m.text_content else ""
+            print(f"  [{m.role}] {content}...")
+
+    commands: dict[str, callable] = {
+        "/new": _cmd_new,
+        "/abort": _cmd_abort,
+        "/status": _cmd_status,
+        "/sessions": _cmd_sessions,
+        "/messages": _cmd_messages,
+    }
+
     while True:
         try:
             text = input("> ")
@@ -49,28 +81,9 @@ async def _sse_cli_main(host: str, port: int) -> None:
         cmd = text.strip()
         if cmd == "/exit":
             break
-        if cmd == "/new":
-            session = await client.create_session("SSE CLI debug session")
-            print(f"[SSE CLI] New session: {session.id}")
-            continue
-        if cmd == "/abort":
-            ok = await client.abort_session(session.id)
-            print(f"[SSE CLI] Abort: {'ok' if ok else 'failed'}")
-            continue
-        if cmd == "/status":
-            status = await client.get_session_status()
-            print(f"[SSE CLI] Status: {status}")
-            continue
-        if cmd == "/sessions":
-            sessions = await client.list_sessions()
-            for s in sessions:
-                print(f"  {s.id}: {s.title}")
-            continue
-        if cmd == "/messages":
-            messages = await client.get_messages(session.id, limit=20)
-            for m in messages:
-                content = m.text_content[:100] if m.text_content else ""
-                print(f"  [{m.role}] {content}...")
+        handler = commands.get(cmd)
+        if handler is not None:
+            await handler()
             continue
         if not cmd:
             continue

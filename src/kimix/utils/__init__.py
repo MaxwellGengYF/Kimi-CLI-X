@@ -23,7 +23,7 @@ from .session import (
     _create_default_session,
     _print_usage,
     print_usage,
-    clear_context,
+    clear_default_context,
 )
 from .prompt import prompt_async, prompt, prompt_path, execute_plan
 from .fix_error import fix_error, async_prompt, async_fix_error
@@ -55,7 +55,7 @@ __all__ = [
     "_create_default_session",
     "_print_usage",
     "print_usage",
-    "clear_context",
+    "clear_default_context",
     "prompt_async",
     "execute_plan",
     "prompt",

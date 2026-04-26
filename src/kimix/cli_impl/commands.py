@@ -7,7 +7,7 @@ from . import constants
 from .utils import _input, _split_text
 from kimix.base import print_success, print_error, print_warning, print_info, colorful_text, Color
 from kimix.utils import (
-    prompt, clear_context, get_default_session, fix_error,
+    prompt, clear_default_context, get_default_session, fix_error,
     print_usage, execute_plan
 )
 
@@ -18,13 +18,14 @@ def _cmd_help(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
 
 
 def _cmd_clear(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
-    clear_context()
+    clear_default_context()
     return None, False
 
 
 def _cmd_summarize(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
+    import asyncio
     from kimix.summarize import summarize
-    summarize()
+    asyncio.run(summarize())
     return None, False
 
 
@@ -77,7 +78,7 @@ def _cmd_cd(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
         os.chdir(path)
         base._default_skill_dirs = []
         if get_default_session():
-            clear_context(True, True)
+            clear_default_context(True, True)
         print_success(f'Changed directory to: {Path(".").resolve()}')
     except Exception as e:
         print_error(f'Failed to change directory: {e}')
@@ -111,7 +112,7 @@ def _cmd_think(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
         print_error('Command must be /think:on or /think:off')
         return None, False
     if get_default_session():
-        clear_context(True, True)
+        clear_default_context(True, True)
     return None, False
 
 
@@ -158,7 +159,7 @@ def _cmd_plan(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
         print_error('Command must be /plan:on or /plan:off')
         return None, False
     if get_default_session():
-        clear_context(True, True)
+        clear_default_context(True, True)
     return None, False
 
 
