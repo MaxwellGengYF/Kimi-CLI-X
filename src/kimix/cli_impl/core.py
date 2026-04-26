@@ -98,7 +98,6 @@ def _run_cli() -> None:
     exec_ctx = {
         '__name__': '__main__'
     }
-    parser = set_arg()
 
     # Check for 'serve' subcommand (opencode-style HTTP server)
     import sys
@@ -114,6 +113,7 @@ def _run_cli() -> None:
         serve_cli(serve_args)
         return
 
+    parser = set_arg()
     if server_mode():
         print_debug('Enable legacy server mode.')
         from .server import server_cli

@@ -23,7 +23,8 @@ from kimix_lark_bot.messaging import FeishuMessagingClient
 from kimix_lark_bot.process_manager import KimixProcessManager, extract_path_from_text
 from kimix_lark_bot.config import AgentConfig
 from kimix_lark_bot.brain import BotBrain
-from kimix.server.client import KimixSyncClient, check_health_sync
+
+from kimix_lark_bot.kimix_client_x import KimixSyncClient, check_health_sync
 
 logger = logging.getLogger(__name__)
 

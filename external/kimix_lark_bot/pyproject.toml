@@ -9,5 +9,8 @@ dependencies = [
     "websockets>=12.0",
 ]
 
+[tool.setuptools]
+packages = ["kimix_lark_bot"]
+
 [project.scripts]
 kimix_lark_bot = "kimix_lark_bot.__main__:main"
