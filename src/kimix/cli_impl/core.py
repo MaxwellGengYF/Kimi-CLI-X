@@ -114,6 +114,12 @@ def _run_cli() -> None:
         return
 
     parser = set_arg()
+    args = parser.parse_args()
+    if args.sse_cli:
+        print_debug('Launching SSE CLI debugger.')
+        from .sse_cli import run_sse_cli
+        run_sse_cli(host=args.host, port=args.port)
+        return
     if server_mode():
         print_debug('Enable legacy server mode.')
         from .server import server_cli

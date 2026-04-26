@@ -290,13 +290,13 @@ class SessionManager:
 
         def _output_fn(chunk: str, is_think: bool) -> None:
             nonlocal collected_text
-            collected_text.append(chunk)
             part_type = "reasoning" if is_think else "text"
-            full_text = "".join(collected_text) if not is_think else ""
+            if not is_think:
+                collected_text.append(chunk)
             part = MessagePart(
                 id=text_part_id,
                 type=part_type,
-                text=full_text if not is_think else chunk,
+                text="".join(collected_text) if not is_think else chunk,
                 sessionID=session_id,
                 messageID=asst_msg_id,
                 createdAt=time.time(),

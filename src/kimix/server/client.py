@@ -518,7 +518,6 @@ class KimixAsyncClient:
 
 class KimixSyncClient:
     """Synchronous wrapper around KimixAsyncClient.
-
     For use in contexts where async is not available (e.g., lark bot handlers).
     """
 
@@ -588,7 +587,6 @@ class KimixSyncClient:
 
 
 # ── SSE Stream Parser (internal) ──────────────────────────────────
-
 
 async def _parse_sse_stream(
     response: httpx.Response,
