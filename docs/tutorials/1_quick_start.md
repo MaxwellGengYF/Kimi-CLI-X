@@ -226,6 +226,7 @@ uv run kimix --plan --clean
 | `/fix:<command>` | 运行一条命令，如果出错则自动尝试修复 |
 | `/txt` | 进入多行文本输入模式（以 `/end` 结束，`/cancel` 取消） |
 | `/plan:on` / `/plan:off` | 开启 / 关闭计划模式 |
+| `/todo` | 使用 Agent 队列，执行长任务 |
 | `/script` | 编写并执行 Python 脚本（以 `/end` 结束输入） |
 | `/cmd:<command>` | 执行系统命令 |
 | `/cd:<path>` | 切换当前工作目录 |

@@ -8,9 +8,10 @@ from kimi_agent_sdk import Session
 import kimix.base as base
 from kimix.base import print_debug, print_warning, print_error, print_agent_json, print_info
 from . import _globals
-from .session import close_session_async, _create_default_session, _print_usage, clear_default_context
+from .session import close_session_async, _create_default_session, _print_usage, clear_default_context, create_session, close_session
 from my_tools.common import _export_to_temp_file
 from kimi_cli.safety_check import sanitize_for_tokenizer
+
 
 class PlanLoader:
     def __init__(self, file_path: str | Path) -> None:
@@ -61,6 +62,7 @@ class PlanLoader:
             return ""
         with open(path, 'rb') as f:
             return hashlib.sha256(f.read()).hexdigest()
+
     @staticmethod
     def compute_hash(content: str) -> str:
         return hashlib.sha256(content.encode('utf-8', 'replace')).hexdigest()
@@ -224,25 +226,31 @@ def execute_plan(prompt_str: str, ask_if_use_cache: Callable[[str], bool] | None
                 print_error(f'plan file {plan_file} already exists. quit.')
                 return
             prompt_str = f'''
-make a plan for this requirement:
+Plan only. Do not execute:
 ```
 {prompt_str}
 ```
-Call `Note` tool per step to record the plan.
+Record each step with `Note`.
 '''
             task_finished = False
-            for i in range(4):
-                prompt(prompt_str)
-                if not is_note_called():
-                    print_warning(
-                        f'Prompt did not write the proper plan. let it try again({i + 1}/4).')
-                else:
-                    task_finished = True
-                    break
-            if not task_finished:
-                print_error(
-                    'Execute plan failed, the plan file cannot generated.')
-                return
+            plan_session: Session | None = None
+            try:
+                plan_session = create_session('agent_boss.yaml')
+                for i in range(4):
+                    prompt(prompt_str, session=plan_session)
+                    if not is_note_called():
+                        print_warning(
+                            f'Prompt did not write the proper plan. let it try again({i + 1}/4).')
+                    else:
+                        task_finished = True
+                        break
+                if not task_finished:
+                    print_error(
+                        'Execute plan failed, the plan file cannot generated.')
+                    return
+            finally:
+                if plan_session:
+                    close_session(plan_session)
             steps = read_file(plan_file)
             if plan_loader is None:
                 plan_loader = PlanLoader(cache_file)
@@ -292,19 +300,22 @@ Call `Note` tool per step to record the plan.
                 memory_file = _make_new_plan_file()
                 from kimix.base import generate_memory
                 lines = []
+
                 def export_func(text: str, is_thinking: bool):
                     if not is_thinking:
-                        lines.append(text) 
+                        lines.append(text)
                 prompt(generate_memory, output_function=export_func)
                 if lines:
                     memory_content = '\n'.join(lines)
-                    memory_file.write_text(memory_content, encoding='utf-8', errors='replace')
+                    memory_file.write_text(
+                        memory_content, encoding='utf-8', errors='replace')
                 else:
                     memory_file = None
                 if plan_loader is not None:
                     if memory_file:
                         plan_loader.memory_file_path = str(memory_file)
-                        plan_loader.memory_file_hash = PlanLoader.compute_hash(memory_content)
+                        plan_loader.memory_file_hash = PlanLoader.compute_hash(
+                            memory_content)
                     else:
                         plan_loader.memory_file_path = ''
                         plan_loader.memory_file_hash = ''

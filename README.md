@@ -79,7 +79,7 @@ according to the new git commits, update document `{i}`
 | 文档 | 简介 |
 |------|------|
 | [`docs/tutorials/1_quick_start.md`](docs/tutorials/1_quick_start.md) | **快速入门指南**。涵盖 Git Submodule 拉取、`uv` 环境安装、CLI 启动参数与交互命令的完整说明。 |
-| [`docs/tutorials/2_manager.md`](docs/tutorials/2_manager.md) | **Manager 深度解析**。从源码层面剖析 `kimix_manager` 的三大核心模块（`company.py`、`designer.py`、`base.py`），讲解任务编排、Worker 并发调度、Designer/Programmer 双分支模式及完整工作流示例。 |
+| [`docs/tutorials/2_swarm.md`](docs/tutorials/2_swarm.md) | **Agent Swarm**。Agent Swarm 教程，即将提供。 |
 | [`docs/tutorials/3_builtin_tools.md`](docs/tutorials/3_builtin_tools.md) | **内置工具完全指南**。系统介绍 Agent 的全部内置工具（文件 I/O、搜索、代码执行、进程管理、文档转换、计划模式、子代理等），并给出提示词引导策略与最佳实践。 |
 | [`docs/tutorials/4_skills.md`](docs/tutorials/4_skills.md) | **自定义 Skill 编写教程**。讲解 Skill 的设计原则、目录结构、`SKILL.md` 编写规范、附属资源组织方式、测试打包流程及安装使用方法。 |
 | [`docs/tutorials/5_server.md`](docs/tutorials/5_server.md) | **JSON-RPC 服务端教程**。介绍基于 TCP 的 JSON-RPC 2.0 协议格式、错误码、服务端接口、WebSocket 桥接及命令行启动参数。 |
@@ -95,6 +95,6 @@ according to the new git commits, update document `{i}`
 ## 推荐阅读路径
 
 1. **新用户**：从 [`1_quick_start.md`](docs/tutorials/1_quick_start.md) 开始，完成环境准备与基本使用。
-2. **想深入理解架构**：阅读 [`2_manager.md`](docs/tutorials/2_manager.md)，了解任务是如何被拆解、调度与执行的。
+2. **想深入理解架构**：阅读 [`2_swarm.md`](docs/tutorials/2_swarm.md)，了解 Agent Swarm 的任务拆解、调度与执行（即将提供）。
 3. **优化提示词效果**：参考 [`3_builtin_tools.md`](docs/tutorials/3_builtin_tools.md)，学会精准引导 Agent 调用工具。
 4. **扩展 Agent 能力**：跟随 [`4_skills.md`](docs/tutorials/4_skills.md)，编写并分发自定义的 Skill。

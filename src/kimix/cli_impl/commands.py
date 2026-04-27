@@ -97,39 +97,45 @@ def _cmd_fix(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     return None, False
 
 
+def _cmd_todo(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
+    print(
+        f'\n>>>> Make a task-list: input multiple-lines, end with {colorful_text('/end', Color.YELLOW)}, cancel with {colorful_text('/cancel', Color.YELLOW)}')
+    text: list[str] = []
+    while True:
+        s = _input('', text_arr)
+        if s.strip() == '/end':
+            break
+        if s.strip() == '/cancel':
+            text.clear()
+            break
+        text.append(s)
+    prompt_str = '\n'.join(text)
+
+    def ask_if_use_cache(path: str) -> bool:
+        v = input(f'found cache `{path}`, load it and continue? (y/n) ')
+        if v.strip().lower() == 'y':
+            return True
+        return False
+
+    def ask_if_execute(steps: list[str], start_index: int) -> bool:
+        print('Plan steps:\n' + ('\n' + '=' *
+              40 + '\n').join(steps[start_index:]))
+        if not ask_plan:
+            return True
+        print_warning('execute the plan? (y/n)')
+        return input().strip().lower() == 'y'
+    ask_plan = input(
+        'Ask after make plan? no for auto accept-all. (y/n)').strip().lower() == 'y'
+
+    if prompt_str.strip():
+        execute_plan(prompt_str, ask_if_use_cache,
+                     ask_if_execute)
+    return None, False
+
+
 def _cmd_plan(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     if len(task_split) < 2 or (not task_split[1]):
-        print(
-            f'\n>>>> Make a plan: input multiple-lines, end with {colorful_text('/end', Color.YELLOW)}, cancel with {colorful_text('/cancel', Color.YELLOW)}')
-        text: list[str] = []
-        while True:
-            s = _input('', text_arr)
-            if s.strip() == '/end':
-                break
-            if s.strip() == '/cancel':
-                text.clear()
-                break
-            text.append(s)
-        prompt_str = '\n'.join(text)
-
-        def ask_if_use_cache(path: str) -> bool:
-            v = input(f'found cache `{path}`, load it and continue? (y/n) ')
-            if v.strip().lower() == 'y':
-                return True
-            return False
-
-        def ask_if_execute(steps: list[str], start_index: int) -> bool:
-            print('Plan steps:\n' + ('\n' + '=' * 40 + '\n').join(steps[start_index:]))
-            if not ask_plan:
-                return True
-            print_warning('execute the plan? (y/n)')
-            return input().strip().lower() == 'y'
-        ask_plan = input(
-            'Ask after make plan? no for auto accept-all. (y/n)').strip().lower() == 'y'
-
-        if prompt_str.strip():
-            execute_plan(prompt_str, ask_if_use_cache,
-                         ask_if_execute)
+        print_error('Command must be /plan:on or /plan:off')
         return None, False
     value = task_split[1].strip().lower()
     if value == 'on':
@@ -192,5 +198,6 @@ _command_map = {
     'fix': _cmd_fix,
     'plan': _cmd_plan,
     'txt': _cmd_txt,
-    'file': _cmd_file
+    'file': _cmd_file,
+    'todo': _cmd_todo
 }

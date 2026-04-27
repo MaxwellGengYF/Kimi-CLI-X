@@ -36,6 +36,7 @@ Available commands:
   {colorful_text('/think:off', fg=Color.YELLOW)}      - Disable thinking mode
   {colorful_text('/plan:on', fg=Color.YELLOW)}        - Enable plan mode
   {colorful_text('/plan:off', fg=Color.YELLOW)}       - Disable plan mode
+  {colorful_text('/todo', fg=Color.YELLOW)}           - Start a long-term task, use agent-list
   {colorful_text('/script', fg=Color.YELLOW)}         - Write python script
   {colorful_text('/cmd', fg=Color.YELLOW)}            - Write cmd 
   {colorful_text('/cd', fg=Color.YELLOW)}             - change dir

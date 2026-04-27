@@ -68,7 +68,7 @@ async def _create_session_async(
         if type(agent_file) is not Path:
             agent_file = Path(agent_file)
         if not agent_file.is_absolute():
-            agent_file = Path(__file__).parent.parent / agent_file
+            agent_file = base._default_agent_file_dir / agent_file
     skills_dirs = _ensure_skill_dirs(skills_dir) if skills_dir is not None else base.get_skill_dirs()
     system_prompts : str | None = None
     if provider_dict:
