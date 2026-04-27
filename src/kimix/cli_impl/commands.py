@@ -8,7 +8,7 @@ from .utils import _input, _split_text
 from kimix.base import print_success, print_error, print_warning, print_info, colorful_text, Color
 from kimix.utils import (
     prompt, clear_default_context, get_default_session, fix_error,
-    print_usage, execute_plan
+    print_usage, execute_plan, check_plan_cache
 )
 
 
@@ -98,6 +98,27 @@ def _cmd_fix(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
 
 
 def _cmd_todo(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
+    def _ask_if_use_cache(path: str) -> bool:
+        v = input(f'found cache `{path}`, load it and continue? (y/n) ')
+        if v.strip().lower() == 'y':
+            return True
+        return False
+
+    use_cache, plan_loader = check_plan_cache(_ask_if_use_cache)
+    if use_cache:
+        def ask_if_execute(steps: list[str], start_index: int) -> bool:
+            print('Plan steps:\n' + ('\n' + '=' *
+                  40 + '\n').join(steps[start_index:]))
+            if not ask_plan:
+                return True
+            print_warning('execute the plan? (y/n)')
+            return input().strip().lower() == 'y'
+        ask_plan = input(
+            'Ask after make plan? no for auto accept-all. (y/n)').strip().lower() == 'y'
+        execute_plan('', ask_if_use_cache=None,
+                     ask_if_execute_plan=ask_if_execute, use_cache=use_cache, plan_loader=plan_loader)
+        return None, False
+
     print(
         f'\n>>>> Make a task-list: input multiple-lines, end with {colorful_text('/end', Color.YELLOW)}, cancel with {colorful_text('/cancel', Color.YELLOW)}')
     text: list[str] = []
@@ -111,12 +132,6 @@ def _cmd_todo(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
         text.append(s)
     prompt_str = '\n'.join(text)
 
-    def ask_if_use_cache(path: str) -> bool:
-        v = input(f'found cache `{path}`, load it and continue? (y/n) ')
-        if v.strip().lower() == 'y':
-            return True
-        return False
-
     def ask_if_execute(steps: list[str], start_index: int) -> bool:
         print('Plan steps:\n' + ('\n' + '=' *
               40 + '\n').join(steps[start_index:]))
@@ -128,8 +143,8 @@ def _cmd_todo(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
         'Ask after make plan? no for auto accept-all. (y/n)').strip().lower() == 'y'
 
     if prompt_str.strip():
-        execute_plan(prompt_str, ask_if_use_cache,
-                     ask_if_execute)
+        execute_plan(prompt_str, ask_if_use_cache=None,
+                     ask_if_execute_plan=ask_if_execute)
     return None, False
 
 

@@ -68,6 +68,25 @@ class PlanLoader:
         return hashlib.sha256(content.encode('utf-8', 'replace')).hexdigest()
 
 
+def check_plan_cache(ask_if_use_cache: Callable[[str], bool] | None = None) -> tuple[bool, PlanLoader | None]:
+    cache_file = Path.home() / '.kimi' / 'plan' / '.cache.json'
+    plan_loader: PlanLoader | None = None
+    use_cache = False
+
+    if ask_if_use_cache is not None and cache_file.exists():
+        plan_loader = PlanLoader(cache_file)
+        plan_loader.load()
+        cached_plan_path = Path(plan_loader.plan_file_path)
+        if cached_plan_path.exists():
+            current_hash = PlanLoader.compute_file_hash(cached_plan_path)
+            if current_hash == plan_loader.plan_file_hash and plan_loader.finished_step_count > 0 and plan_loader.finished_step_count < plan_loader.steps_count:
+                use_cache = ask_if_use_cache(str(cached_plan_path))
+                if use_cache:
+                    print_debug(
+                        f'Using cache, jumping to step {plan_loader.finished_step_count}.')
+    return use_cache, plan_loader
+
+
 async def prompt_async(
     prompt_str: str,
     session: Session | None = None,
@@ -178,40 +197,17 @@ def _make_new_plan_file() -> Path:
     return Path.home() / '.kimi' / 'plan' / Path('plan_' + str(uuid.uuid1()).replace('-', '') + '.md')
 
 
-def execute_plan(prompt_str: str, ask_if_use_cache: Callable[[str], bool] | None = None, ask_if_execute_plan: Callable[[list[str], int], bool] | None = None) -> None:
+def execute_plan(prompt_str: str, ask_if_use_cache: Callable[[str], bool] | None = None, ask_if_execute_plan: Callable[[list[str], int], bool] | None = None, plan_loader: PlanLoader | None = None) -> None:
     from kimix.base import _default_plan_mode
     import os
     assert (
         not _default_plan_mode), 'Can not use this in auto-plan mode. (use /plan:off)'
     from my_tools.note import set_writing_path, is_note_called, read_file
-
-    cache_file = Path.home() / '.kimi' / 'plan' / '.cache.json'
-    plan_loader: PlanLoader | None = None
     use_cache = False
-
-    if ask_if_use_cache is not None and cache_file.exists():
-        plan_loader = PlanLoader(cache_file)
-        plan_loader.load()
-        cached_plan_path = Path(plan_loader.plan_file_path)
-        if cached_plan_path.exists():
-            current_hash = PlanLoader.compute_file_hash(cached_plan_path)
-            if current_hash == plan_loader.plan_file_hash and plan_loader.finished_step_count > 0 and plan_loader.finished_step_count < plan_loader.steps_count:
-                use_cache = ask_if_use_cache(str(cached_plan_path))
-                if use_cache:
-                    # if not plan_loader.memory_file_path:
-                    #     print_error('Memory file path missing in cache.')
-                    #     return
-                    # mem_path = Path(plan_loader.memory_file_path)
-                    # if not mem_path.exists():
-                    #     print_error('Memory file does not match cache.')
-                    #     return
-                    # mem_hash = PlanLoader.compute_file_hash(mem_path)
-                    # if mem_hash != plan_loader.memory_file_hash:
-                    #     print_error(
-                    #         'Memory file hash does not match cache.')
-                    #     return
-                    print_debug(
-                        f'Using cache, jumping to step {plan_loader.finished_step_count}.')
+    if plan_loader is not None:
+        use_cache = True
+    elif ask_if_use_cache is not None:
+        use_cache, plan_loader = check_plan_cache(ask_if_use_cache)
 
     try:
         if not use_cache:
@@ -230,7 +226,7 @@ Plan only. Do not execute:
 ```
 {prompt_str}
 ```
-Record each step with `Note`.
+Record only ONE step with `Note` per turn. Do not write multiple steps at once.
 '''
             task_finished = False
             plan_session: Session | None = None
@@ -253,7 +249,7 @@ Record each step with `Note`.
                     close_session(plan_session)
             steps = read_file(plan_file)
             if plan_loader is None:
-                plan_loader = PlanLoader(cache_file)
+                plan_loader = PlanLoader(Path.home() / '.kimi' / 'plan' / '.cache.json')
             plan_loader.steps_count = len(steps)
             plan_loader.plan_file_path = str(plan_file)
             plan_loader.plan_file_hash = PlanLoader.compute_file_hash(
