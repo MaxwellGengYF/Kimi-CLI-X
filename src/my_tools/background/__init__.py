@@ -16,7 +16,7 @@ class TaskListParams(BaseModel):
 class TaskList(CallableTool2):
     """List all background tasks."""
     name: str = "TaskList"
-    description: str = "List background tasks with their status."
+    description: str = "List background tasks."
     params: type[BaseModel] = TaskListParams
 
     def __init__(self, session: Session):
@@ -69,7 +69,7 @@ class TaskOutputParams(BaseModel):
 class TaskOutput(CallableTool2):
     """Get output from a background task."""
     name: str = "TaskOutput"
-    description: str = "Get accumulated output from a background task."
+    description: str = "Get background task output."
     params: type[BaseModel] = TaskOutputParams
     def __del__(self):
         session_id = getattr(self, '_session_id', None)
@@ -129,7 +129,7 @@ class TaskStopParams(BaseModel):
 class TaskStop(CallableTool2):
     """Stop and cancel a background task."""
     name: str = "TaskStop"
-    description: str = "Stop and cancel a background task by its task ID."
+    description: str = "Cancel a background task."
     params: type[BaseModel] = TaskStopParams
 
     def __init__(self, session: Session):

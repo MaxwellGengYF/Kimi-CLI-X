@@ -23,7 +23,7 @@ class Params(BaseModel):
 class FetchURL(CallableTool2[Params]):
     """Fetch a web page and return its content as Markdown."""
     name: str = "FetchURL"
-    description: str = "Fetch content from a URL using a headless browser and return it as Markdown."
+    description: str = "Fetch a web page as Markdown."
     params: type[Params] = Params
 
     async def __call__(self, params: Params) -> ToolReturnValue:

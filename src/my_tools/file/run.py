@@ -39,7 +39,7 @@ class RunParams(BaseModel):
 
 class Run(CallableTool2[RunParams]):
     name: str = "Run"
-    description: str = "Execute a program."
+    description: str = "Run an executable."
     params: type[RunParams] = RunParams
 
     def __init__(self, session: Session):

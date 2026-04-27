@@ -4,12 +4,19 @@ from __future__ import annotations
 import asyncio
 import json
 import tempfile
+from collections.abc import AsyncIterator, Sequence
 from pathlib import Path
-from typing import Any
 
 from kaos.path import KaosPath
-from kosong.chat_provider import ChatProvider, StreamedMessage, TokenUsage
-from kosong.message import TextPart, ToolCall
+from kosong.chat_provider import (
+    ChatProvider,
+    StreamedMessage,
+    StreamedMessagePart,
+    ThinkingEffort,
+    TokenUsage,
+)
+from kosong.message import Message, TextPart, ToolCall
+from kosong.tooling import Tool
 
 from kimi_agent_sdk import Session, ToolResult
 from kimix.utils import _create_session_async
@@ -18,14 +25,14 @@ from kimix.utils import _create_session_async
 class FixedStreamedMessage:
     """StreamedMessage that yields predefined parts."""
 
-    def __init__(self, parts: list[Any]) -> None:
+    def __init__(self, parts: list[StreamedMessagePart]) -> None:
         self._parts = parts
         self._msg_id = "fixed-msg-001"
 
-    def __aiter__(self) -> Any:
+    def __aiter__(self) -> AsyncIterator[StreamedMessagePart]:
         return self._iterate()
 
-    async def _iterate(self) -> Any:
+    async def _iterate(self) -> AsyncIterator[StreamedMessagePart]:
         for part in self._parts:
             yield part
 
@@ -43,7 +50,7 @@ class FixedChatProvider:
 
     name = "fixed"
 
-    def __init__(self, responses: list[list[Any]]) -> None:
+    def __init__(self, responses: list[list[StreamedMessagePart]]) -> None:
         self._responses = responses
         self._index = 0
 
@@ -52,10 +59,25 @@ class FixedChatProvider:
         return "fixed-model"
 
     @property
-    def thinking_effort(self) -> Any:
+    def thinking_effort(self) -> ThinkingEffort | None:
         return None
 
-    async def generate(self, system_prompt: str, tools: Any, history: Any) -> StreamedMessage:
+    async def generate(
+        self, system_prompt: str, tools: Sequence[Tool], history: Sequence[Message]
+    ) -> StreamedMessage:
+        print('=' * 20 + ' system_prompt ' + '=' * 20)
+        print(system_prompt)
+        print('=' * 20 + ' tools ' + '=' * 20)
+        s = ''
+        for i, tool in enumerate(tools, 1):
+            s += (f"  [{i}] {tool.name}") + '\n'
+            s += (f"      description: {tool.description}") + '\n'
+            s += (f"      parameters:  {json.dumps(tool.parameters, indent=6, ensure_ascii=False)}") + '\n'
+        # Path('tools.md').write_text(s, encoding='utf-8', errors='replace')
+        print('Exported ' + str(len(s)))
+        print('=' * 20 + ' history ' + '=' * 20)
+        for msg in history:
+            print(msg)
         if self._index < len(self._responses):
             parts = self._responses[self._index]
         else:
@@ -63,7 +85,7 @@ class FixedChatProvider:
         self._index += 1
         return FixedStreamedMessage(parts)
 
-    def with_thinking(self, effort: Any) -> FixedChatProvider:
+    def with_thinking(self, effort: ThinkingEffort) -> FixedChatProvider:
         return self
 
 
@@ -95,7 +117,8 @@ max_retries_per_step = 1
             print(text_parts)
             result = " ".join(text_parts)
             if "Hello from fixed LLM" not in result:
-                raise RuntimeError(f"Expected greeting in result, got: {result}")
+                raise RuntimeError(
+                    f"Expected greeting in result, got: {result}")
         finally:
             await session.close()
 
@@ -145,7 +168,8 @@ max_retries_per_step = 1
             if len(tool_calls) < 1:
                 raise RuntimeError("Expected at least one tool call")
             if tool_calls[0].function.name != "fake_tool":
-                raise RuntimeError(f"Expected fake_tool, got: {tool_calls[0].function.name}")
+                raise RuntimeError(
+                    f"Expected fake_tool, got: {tool_calls[0].function.name}")
             if not any("Tool call completed" in t for t in text_parts):
                 raise RuntimeError("Expected completion text in result")
         finally:
@@ -201,7 +225,8 @@ max_retries_per_step = 1
             if len(tool_calls) < 1:
                 raise RuntimeError("Expected at least one tool call")
             if tool_calls[0].function.name != "ReadFile":
-                raise RuntimeError(f"Expected ReadFile, got: {tool_calls[0].function.name}")
+                raise RuntimeError(
+                    f"Expected ReadFile, got: {tool_calls[0].function.name}")
             if len(tool_results) < 1:
                 raise RuntimeError("Expected at least one tool result")
             result_output = str(tool_results[0].return_value.output)

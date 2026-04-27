@@ -56,11 +56,7 @@ class SyntaxLint(CallableTool2):  # type: ignore[type-arg]
     """Check file syntax using the appropriate linter based on file extension."""
 
     name: str = "SyntaxLint"
-    description: str = (
-        "Validate file syntax using language-specific tools. "
-        "Supports Python (.py), "
-        "and C++ (.cpp, .cc, .cxx, .h, .hpp, .hxx, .hh, .c++)."
-    )
+    description: str = "Validate Python or C++ file syntax."
     params: type[Params] = Params
 
     async def __call__(self, params: Params) -> ToolReturnValue:

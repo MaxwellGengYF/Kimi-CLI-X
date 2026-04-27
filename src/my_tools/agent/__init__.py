@@ -28,7 +28,7 @@ class SubAgentParams(BaseModel):
 
 class Agent(CallableTool2):
     name: str = "Agent"
-    description: str = "Agent an isolated sub-agent to handle a specific task."
+    description: str = "Launch a sub-agent for a task."
     params: type[SubAgentParams] = SubAgentParams
 
     def __init__(self, session: Session):

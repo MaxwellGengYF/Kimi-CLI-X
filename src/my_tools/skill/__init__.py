@@ -24,7 +24,7 @@ class SkillRag(CallableTool2[IndexerParams]):
     """Indexer tool for semantic search over text files."""
 
     name: str = "SkillRag"
-    description: str = "Search keywords in skills."
+    description: str = "Search skills by keywords."
     params: type[IndexerParams] = IndexerParams
     file_builder_inited: bool = False
     file_builder: FileBuilder | None = None

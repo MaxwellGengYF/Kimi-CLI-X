@@ -35,7 +35,7 @@ os.environ['PYTHONIOENCODING'] = 'utf-8'
 
 class Python(CallableTool2[Params]):
     name: str = "Python"
-    description: str = "Execute Python code in subprocess."
+    description: str = "Execute Python code."
     params: type[Params] = Params
 
     def __init__(self, session: Session):

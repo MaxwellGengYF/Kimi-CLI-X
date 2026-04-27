@@ -12,7 +12,7 @@ class MkdirParams(BaseModel):
 
 class Mkdir(CallableTool2):
     name: str = "Mkdir"
-    description: str = "Create a directory (including parent directories if needed)."
+    description: str = "Create a directory."
     params: type[MkdirParams] = MkdirParams
 
     async def __call__(self, params: MkdirParams) -> ToolReturnValue:

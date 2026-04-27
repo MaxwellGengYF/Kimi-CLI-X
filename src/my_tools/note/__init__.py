@@ -49,7 +49,7 @@ class Params(BaseModel):
 
 class Note(CallableTool2):
     name: str = "Note"
-    description: str = 'append note to a file.'
+    description: str = 'Append a note to a file.'
     params: type[Params] = Params
 
     async def __call__(self, params: Params) -> ToolReturnValue:

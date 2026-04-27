@@ -17,7 +17,7 @@ class InputParams(BaseModel):
 
 class Input(CallableTool2):
     name: str = "Input"
-    description: str = "Send text input to a running process's stdin."
+    description: str = "Send text to a process's stdin."
     params: type[InputParams] = InputParams
 
     def __init__(self, session: Session):
