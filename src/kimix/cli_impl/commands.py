@@ -118,8 +118,10 @@ def _cmd_plan(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
                 return True
             return False
 
-        def ask_if_execute(steps: list[str]) -> bool:
-            print('Plan steps:\n' + ('\n' + '=' * 40 + '\n').join(steps))
+        def ask_if_execute(steps: list[str], start_index: int) -> bool:
+            print('Plan steps:\n' + ('\n' + '=' * 40 + '\n').join(steps[start_index:]))
+            if not ask_plan:
+                return True
             print_warning('execute the plan? (y/n)')
             return input().strip().lower() == 'y'
         ask_plan = input(
@@ -127,7 +129,7 @@ def _cmd_plan(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
 
         if prompt_str.strip():
             execute_plan(prompt_str, ask_if_use_cache,
-                         ask_if_execute if ask_plan else None)
+                         ask_if_execute)
         return None, False
     value = task_split[1].strip().lower()
     if value == 'on':
