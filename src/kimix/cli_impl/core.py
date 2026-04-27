@@ -99,13 +99,14 @@ def _run_cli() -> None:
     global exec_ctx
     exec_ctx = {'__name__': '__main__'}
 
-    is_serve, args = set_arg()
-    if is_serve:
+    subcmd, args = set_arg()
+
+    if subcmd == "serve":
         from kimix.server.serve import serve_cli
         serve_cli(args)
         return
 
-    if args.sse_cli:
+    if subcmd == "ssecli":
         print_debug('Launching SSE CLI debugger.')
         from .sse_cli import run_sse_cli
         run_sse_cli(host=args.host, port=args.port)

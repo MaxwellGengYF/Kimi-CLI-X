@@ -1,22 +1,32 @@
 # -*- coding: utf-8 -*-
-"""Event bus for broadcasting server-side events (SSE)."""
+"""Event bus for broadcasting server-side events (SSE).
+
+All events are broadcast as BusEvent instances with the opencode-style format:
+    {"type": "<event_type>", "properties": {...}}
+
+No SSE `event:` field is used — event type is determined by JSON data.type.
+"""
 
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
-import time
 import threading
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class BusEvent:
-    """A structured event to be broadcast via SSE."""
+    """A structured event to be broadcast via SSE.
+
+    Format matches opencode protocol:
+        data: {"type":"<event_type>","properties":{...}}
+    """
+
     type: str
     properties: Dict[str, Any] = field(default_factory=dict)
 
@@ -32,8 +42,8 @@ class EventBus:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._subscribers: list[Callable[[BusEvent], None]] = []
-        self._async_queues: list[asyncio.Queue[Optional[BusEvent]]] = []
+        self._subscribers: List[Callable[[BusEvent], None]] = []
+        self._async_queues: List[asyncio.Queue[Optional[BusEvent]]] = []
 
     def subscribe(self, callback: Callable[[BusEvent], None]) -> Callable[[], None]:
         """Subscribe with a sync callback. Returns an unsubscribe function."""
@@ -46,6 +56,7 @@ class EventBus:
                     self._subscribers.remove(callback)
                 except ValueError:
                     pass
+
         return _unsub
 
     def create_async_queue(self) -> asyncio.Queue[Optional[BusEvent]]:
@@ -62,7 +73,7 @@ class EventBus:
             except ValueError:
                 pass
 
-    def get_all_queues(self) -> list[asyncio.Queue[Optional[BusEvent]]]:
+    def get_all_queues(self) -> List[asyncio.Queue[Optional[BusEvent]]]:
         with self._lock:
             return list(self._async_queues)
 

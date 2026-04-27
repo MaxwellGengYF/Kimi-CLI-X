@@ -28,16 +28,6 @@ def serve_cli(args: argparse.Namespace) -> None:
         )
         sys.exit(1)
 
-    try:
-        from sse_starlette.sse import EventSourceResponse  # noqa: F401
-    except ImportError:
-        print(
-            "Error: sse-starlette is required for `kimix serve`. "
-            "Install with: pip install sse-starlette",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
     from kimix.server.app import create_app
 
     app = create_app()

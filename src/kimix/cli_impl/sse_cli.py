@@ -10,7 +10,6 @@ from typing import Any
 from kimix.base import print_error
 from kimix.server.client import KimixAsyncClient, parse_event, EventType
 
-
 def _fmt_arg(s: str, max_len: int = 120) -> str:
     """Truncate long arguments, keeping head and tail."""
     if len(s) <= max_len:
@@ -18,7 +17,6 @@ def _fmt_arg(s: str, max_len: int = 120) -> str:
     head = max_len // 2
     tail = max_len - head - 3
     return s[:head] + "..." + s[-tail:]
-
 
 def _fmt_ts(unix_t: float) -> str:
     """Format unix timestamp to HH:MM:SS."""
@@ -77,22 +75,15 @@ async def _sse_cli_main(host: str, port: int) -> None:
         return False
 
     async def _cmd_clear(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
-        ok = await client.clear_session(session.id)
-        print(f"[SSE CLI] Clear: {'ok' if ok else 'failed'}")
+        print("[SSE CLI] /clear is not available in opencode-style server mode")
         return False
 
     async def _cmd_summarize(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
-        ok = await client.summarize_session(session.id)
-        print(f"[SSE CLI] Summarize: {'ok' if ok else 'failed'}")
+        print("[SSE CLI] /summarize is not available in opencode-style server mode")
         return False
 
     async def _cmd_fix(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
-        if len(task_split) < 2:
-            print_error("Command must be /fix:<command>")
-            return False
-        command_to_fix = (":".join(task_split[1:])).strip()
-        ok = await client.fix_session(session.id, command=command_to_fix)
-        print(f"[SSE CLI] Fix: {'ok' if ok else 'failed'}")
+        print("[SSE CLI] /fix is not available in opencode-style server mode")
         return False
     
     async def _cmd_unknown(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
@@ -121,7 +112,7 @@ async def _sse_cli_main(host: str, port: int) -> None:
         if not cmd:
             continue
 
-        if cmd.startswith("/"):
+        if cmd.startswith("/"): # command mode
             task = cmd[1:]
             split_idx = task.find(":")
             if split_idx >= 0:

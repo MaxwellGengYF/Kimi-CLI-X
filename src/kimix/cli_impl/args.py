@@ -16,6 +16,10 @@ def set_arg() -> tuple[bool, argparse.Namespace]:
     serve_parser.add_argument("--host", "--hostname", default="127.0.0.1", help="Host to bind to")
     serve_parser.add_argument("--port", type=int, default=4096, help="Port to bind to")
 
+    sse_cli_parser = subparsers.add_parser("ssecli", description="Kimix SSE CLI for debug")
+    sse_cli_parser.add_argument('--host', default='127.0.0.1', help='Host to connect to (for ssecli)')
+    sse_cli_parser.add_argument('--port', type=int, default=4096, help='Port to connect to (for ssecli)')
+
     parser.add_argument('-c', '--clean', action='store_true',
                         help='Delete cache file after quit')
     parser.add_argument('-no_color', '--no_color', action='store_true',
@@ -30,15 +34,15 @@ def set_arg() -> tuple[bool, argparse.Namespace]:
                         help='Specify custom skill directory(s)')
     parser.add_argument('--config', type=str, default=None,
                         help='Path to a JSON config file to load as default provider')
-    parser.add_argument('--host', default='127.0.0.1', help='Host to connect to (for --sse_cli)')
-    parser.add_argument('--port', type=int, default=4096, help='Port to connect to (for --sse_cli)')
-    parser.add_argument('--sse_cli', action='store_true',
-                        help='Launch SSE debug client (connects to kimix serve)')
     args = parser.parse_args()
 
     if args.command == 'serve':
         print_debug('Starting kimix serve (opencode-style HTTP server).')
-        return True, args
+        return "serve", args
+
+    if args.command == 'ssecli':
+        print_debug('Starting kimix SSE cli (opencode-style HTTP CLI for debugging).')
+        return "ssecli", args
 
     if args.no_color:
         base._colorful_print = False
@@ -105,4 +109,4 @@ def set_arg() -> tuple[bool, argparse.Namespace]:
             else:
                 print_warning(f'Skill dir not found: {str(skill_dir_path)}')
         base.set_default_skill_dirs(skill_dirs)
-    return False, args
+    return None, args

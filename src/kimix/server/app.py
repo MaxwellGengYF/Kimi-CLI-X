@@ -1,20 +1,20 @@
 # -*- coding: utf-8 -*-
 """Kimix opencode-style HTTP server (FastAPI + SSE).
 
-Provides REST API endpoints compatible with the opencode serve interface.
+Provides REST API endpoints fully compatible with the opencode serve interface.
 
-Routes:
-    GET  /global/health              — Health check
-    GET  /event                      — SSE event stream
-    POST /session                    — Create session
-    GET  /session                    — List sessions
-    GET  /session/status             — Get all session statuses
-    GET  /session/{sessionID}        — Get session info
-    DELETE /session/{sessionID}      — Delete session
-    GET  /session/{sessionID}/message — Get messages
-    POST /session/{sessionID}/message — Send message (sync wait)
-    POST /session/{sessionID}/prompt_async — Send message (fire-and-forget)
-    POST /session/{sessionID}/abort  — Abort session
+Routes (opencode-standard):
+    GET  /global/health                    — Health check
+    GET  /event                            — SSE event stream (global)
+    POST /session                          — Create session
+    GET  /session                          — List sessions
+    GET  /session/status                   — Get all session statuses
+    GET  /session/{sessionID}              — Get session info
+    DELETE /session/{sessionID}            — Delete session
+    GET  /session/{sessionID}/message      — Get messages
+    POST /session/{sessionID}/prompt_async — Send message (fire-and-forget, 204)
+    POST /session/{sessionID}/abort        — Abort session
+    POST /session/{sessionID}/permissions/{permissionID} — Grant permission
 """
 
 from __future__ import annotations
@@ -27,13 +27,12 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
-from sse_starlette.sse import EventSourceResponse
+from starlette.responses import StreamingResponse
 
 from kimix.server.bus import bus, BusEvent
 from kimix.server.session_manager import session_manager
-from kimix.summarize import summarize
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +47,7 @@ class CreateSessionRequest(BaseModel):
 
 
 class PromptPart(BaseModel):
-    type: str = Field("text", description="Part type: text, tool, reasoning, etc.")
+    type: str = Field("text", description="Part type: text")
     text: str = Field("", description="Text content")
 
 
@@ -56,18 +55,6 @@ class PromptInput(BaseModel):
     parts: List[PromptPart] = Field(default_factory=list, description="Message parts")
     agent: Optional[str] = Field(None, description="Agent name to use")
     model: Optional[str] = Field(None, description="Model name to use")
-
-
-class UpdateSessionRequest(BaseModel):
-    title: Optional[str] = Field(None, description="New session title")
-
-
-class FixSessionRequest(BaseModel):
-    command: str = Field(..., description="Command to run and fix")
-    extra_prompt: Optional[str] = Field(None, description="Extra prompt context")
-    skip_success: bool = Field(True, description="Skip if no error on first run")
-    keycode: List[str] = Field(default_factory=lambda: ["error"], description="Error keywords to look for")
-    max_loop: int = Field(4, description="Maximum fix attempts")
 
 
 # ── OpenAPI Response Models ──────────────────────────────────────
@@ -79,35 +66,11 @@ class HealthResponse(BaseModel):
 
 
 class SessionResponse(BaseModel):
-    id: str = Field(..., description="Session UUID")
+    id: str = Field(..., description="Session ID (ses_ prefix)")
     title: Optional[str] = Field(None, description="Session title")
     createdAt: float = Field(..., description="Creation timestamp (unix)")
     updatedAt: float = Field(..., description="Last update timestamp (unix)")
     parentID: Optional[str] = Field(None, description="Parent session ID")
-
-
-class MessagePartResponse(BaseModel):
-    id: str = Field(..., description="Part UUID")
-    type: str = Field(..., description="Part type: text | tool | reasoning | step-start | step-finish")
-    text: Optional[str] = Field(None, description="Text content")
-    tool: Optional[str] = Field(None, description="Tool name (for tool parts)")
-    state: Optional[Dict[str, Any]] = Field(None, description="Tool state or step metadata")
-    sessionID: str = Field(..., description="Session ID")
-    messageID: str = Field(..., description="Message ID")
-    createdAt: float = Field(..., description="Creation timestamp")
-
-
-class MessageInfoResponse(BaseModel):
-    id: str = Field(..., description="Message UUID")
-    role: str = Field(..., description="Message role: user | assistant | system")
-    sessionID: str = Field(..., description="Session ID")
-    agent: str = Field(..., description="Agent name")
-    createdAt: float = Field(..., description="Creation timestamp")
-
-
-class MessageResponse(BaseModel):
-    info: MessageInfoResponse = Field(..., description="Message metadata")
-    parts: List[MessagePartResponse] = Field(default_factory=list, description="Message parts")
 
 
 class SessionStatusResponse(BaseModel):
@@ -162,23 +125,30 @@ def create_app() -> FastAPI:
         return {"healthy": True, "version": VERSION}
 
     # ── SSE Event Stream ─────────────────────────────────────
+    #
+    # OpenCode protocol: NO SSE `event:` field is used.
+    # All events are plain `data: {json}\n\n` lines.
+    # We use a raw StreamingResponse to have full control over
+    # the wire format instead of sse-starlette which adds event: fields.
 
     @app.get(
         "/event",
         tags=["Events"],
         summary="SSE event stream",
-        description="Server-Sent Events stream for real-time session updates, tool calls, and messages.",
-        response_class=EventSourceResponse,
+        description=(
+            "Server-Sent Events stream for real-time session updates. "
+            "Global endpoint — pushes events for ALL sessions. "
+            "Client should filter by sessionID in properties."
+        ),
     )
-    async def event_stream(request: Request) -> EventSourceResponse:
+    async def event_stream(request: Request) -> StreamingResponse:
         async def _generate():  # type: ignore[return]
             # Send initial connected event
-            yield {
-                "data": json.dumps({
-                    "type": "server.connected",
-                    "properties": {},
-                }),
-            }
+            connected = json.dumps(
+                {"type": "server.connected", "properties": {}},
+                ensure_ascii=False,
+            )
+            yield f"data: {connected}\n\n"
 
             q = bus.create_async_queue()
             try:
@@ -186,28 +156,31 @@ def create_app() -> FastAPI:
                     if await request.is_disconnected():
                         break
                     try:
-                        event = await asyncio.wait_for(q.get(), timeout=1.0)
+                        event = await asyncio.wait_for(q.get(), timeout=15.0)
                     except asyncio.TimeoutError:
                         if await request.is_disconnected():
                             break
-                        # Heartbeat
-                        yield {
-                            "data": json.dumps({
-                                "type": "server.heartbeat",
-                                "properties": {},
-                            }),
-                        }
+                        # SSE comment heartbeat (no event: field, just a comment)
+                        yield ": heartbeat\n\n"
                         continue
                     except asyncio.CancelledError:
                         break
                     if event is None:
                         break
-                    yield {"data": event.to_json()}
+                    yield f"data: {event.to_json()}\n\n"
             finally:
                 bus.remove_async_queue(q)
                 logger.info("SSE client disconnected")
 
-        return EventSourceResponse(_generate())
+        return StreamingResponse(
+            _generate(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     # ── Session CRUD ─────────────────────────────────────────
 
@@ -259,42 +232,22 @@ def create_app() -> FastAPI:
 
     @app.delete(
         "/session/{sessionID}",
-        response_model=bool,
         tags=["Session"],
         summary="Delete session",
         description="Delete a session and close its underlying SDK session.",
         responses={404: {"model": ErrorResponse, "description": "Session not found"}},
+        status_code=200,
     )
-    async def delete_session(sessionID: str) -> bool:
+    async def delete_session(sessionID: str) -> Response:
         ok = await session_manager.delete_session(sessionID)
         if not ok:
             raise HTTPException(status_code=404, detail=f"Session not found: {sessionID}")
-        return True
-
-    @app.patch(
-        "/session/{sessionID}",
-        response_model=SessionResponse,
-        tags=["Session"],
-        summary="Update session",
-        description="Update session metadata (e.g. title).",
-        responses={404: {"model": ErrorResponse, "description": "Session not found"}},
-    )
-    async def update_session(sessionID: str, body: UpdateSessionRequest) -> Dict[str, Any]:
-        try:
-            info = session_manager.get_session(sessionID)
-        except KeyError:
-            raise HTTPException(status_code=404, detail=f"Session not found: {sessionID}")
-        if body.title is not None:
-            info.title = body.title
-            info.updatedAt = time.time()
-            bus.emit_type("session.updated", sessionID=sessionID, info=info.to_dict())
-        return info.to_dict()
+        return Response(status_code=200)
 
     # ── Messages ─────────────────────────────────────────────
 
     @app.get(
         "/session/{sessionID}/message",
-        response_model=List[MessageResponse],
         tags=["Message"],
         summary="Get messages",
         description="Get messages for a session. Optionally limit the number of most recent messages.",
@@ -309,45 +262,20 @@ def create_app() -> FastAPI:
         except KeyError:
             raise HTTPException(status_code=404, detail=f"Session not found: {sessionID}")
 
-    @app.post(
-        "/session/{sessionID}/message",
-        response_model=MessageResponse,
-        tags=["Message"],
-        summary="Send message (sync)",
-        description="Send a prompt to the session and wait for the full assistant response. Blocks until completion.",
-        responses={
-            404: {"model": ErrorResponse, "description": "Session not found"},
-            400: {"model": ErrorResponse, "description": "Invalid input"},
-            500: {"model": ErrorResponse, "description": "Internal server error"},
-        },
-    )
-    async def send_message(sessionID: str, body: PromptInput) -> Dict[str, Any]:
-        text_parts = [p.text for p in body.parts if p.type == "text" and p.text]
-        text = "\n".join(text_parts)
-        if not text:
-            raise HTTPException(status_code=400, detail="No text content in parts")
-        try:
-            result = await session_manager.prompt(
-                sessionID, text, agent=body.agent
-            )
-            return result
-        except KeyError:
-            raise HTTPException(status_code=404, detail=f"Session not found: {sessionID}")
-        except Exception as exc:
-            raise HTTPException(status_code=500, detail=str(exc))
+    # ── Prompt Async (fire-and-forget) ───────────────────────
 
     @app.post(
         "/session/{sessionID}/prompt_async",
         status_code=204,
         tags=["Message"],
         summary="Send message (async)",
-        description="Send a prompt fire-and-forget style. Response events are streamed via SSE.",
+        description="Send a prompt fire-and-forget style. Returns 204 immediately. Response events are streamed via SSE /event.",
         responses={
             404: {"model": ErrorResponse, "description": "Session not found"},
             400: {"model": ErrorResponse, "description": "Invalid input"},
         },
     )
-    async def send_prompt_async(sessionID: str, body: PromptInput) -> None:
+    async def send_prompt_async(sessionID: str, body: PromptInput) -> Response:
         text_parts = [p.text for p in body.parts if p.type == "text" and p.text]
         text = "\n".join(text_parts)
         if not text:
@@ -358,72 +286,38 @@ def create_app() -> FastAPI:
             )
         except KeyError:
             raise HTTPException(status_code=404, detail=f"Session not found: {sessionID}")
+        return Response(status_code=204)
+
+    # ── Abort ────────────────────────────────────────────────
 
     @app.post(
         "/session/{sessionID}/abort",
-        response_model=bool,
         tags=["Session"],
         summary="Abort session",
         description="Abort the current running prompt in a session.",
         responses={404: {"model": ErrorResponse, "description": "Session not found"}},
+        status_code=200,
     )
-    async def abort_session(sessionID: str) -> bool:
+    async def abort_session(sessionID: str) -> Response:
         try:
-            return session_manager.abort_session(sessionID)
+            session_manager.abort_session(sessionID)
         except KeyError:
             raise HTTPException(status_code=404, detail=f"Session not found: {sessionID}")
+        return Response(status_code=200)
+
+    # ── Permissions ──────────────────────────────────────────
 
     @app.post(
-        "/session/{sessionID}/clear",
-        response_model=bool,
+        "/session/{sessionID}/permissions/{permissionID}",
         tags=["Session"],
-        summary="Clear session",
-        description="Clear the session history and reset its state.",
+        summary="Grant permission",
+        description="Grant a pending permission request.",
         responses={404: {"model": ErrorResponse, "description": "Session not found"}},
+        status_code=200,
     )
-    async def clear_session(sessionID: str) -> bool:
-        try:
-            return await session_manager.clear_session(sessionID)
-        except KeyError:
-            raise HTTPException(status_code=404, detail=f"Session not found: {sessionID}")
-
-    @app.post(
-        "/session/{sessionID}/summarize",
-        response_model=bool,
-        tags=["Session"],
-        summary="Summarize session",
-        description="Summarize and compact the session context.",
-        responses={404: {"model": ErrorResponse, "description": "Session not found"}},
-    )
-    async def summarize_session(sessionID: str) -> bool:
-        try:
-            sdk_session = session_manager.get_sdk_session(sessionID)
-        except KeyError:
-            raise HTTPException(status_code=404, detail=f"Session not found: {sessionID}")
-        if sdk_session is None:
-            raise HTTPException(status_code=404, detail=f"Session not found: {sessionID}")
-        await summarize(session=sdk_session)
-        return True
-
-    @app.post(
-        "/session/{sessionID}/fix",
-        response_model=bool,
-        tags=["Session"],
-        summary="Fix error in session",
-        description="Run a command and auto-fix errors using the session.",
-        responses={404: {"model": ErrorResponse, "description": "Session not found"}},
-    )
-    async def fix_session_endpoint(sessionID: str, body: FixSessionRequest) -> bool:
-        try:
-            return await session_manager.fix_session(
-                sessionID,
-                command=body.command,
-                extra_prompt=body.extra_prompt,
-                skip_success=body.skip_success,
-                keycode=tuple(body.keycode),
-                max_loop=body.max_loop,
-            )
-        except KeyError:
-            raise HTTPException(status_code=404, detail=f"Session not found: {sessionID}")
+    async def grant_permission(sessionID: str, permissionID: str) -> Response:
+        # Permission handling — acknowledge for now
+        logger.info("Permission granted: session=%s, permission=%s", sessionID, permissionID)
+        return Response(status_code=200)
 
     return app

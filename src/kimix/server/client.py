@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 """Kimix opencode-style HTTP / SSE async client.
 
-Replaces the old KimixJsonRpcClient / KimixWebSocketClient / KimixSessionClient
-with an HTTP REST + SSE client that talks to `kimix serve`.
+API surface mirrors the opencode client protocol for full compatibility.
 
-API surface mirrors sail.opencode.client for consistency.
+Supports:
+- REST API: session CRUD, prompt_async (204), abort, permissions
+- SSE: /event global stream with auto-reconnect
+- Event parsing: message.part.updated → text/reasoning/tool/step-start/step-finish
 """
 
 from __future__ import annotations
@@ -15,7 +17,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, AsyncIterator, Callable, Dict, Iterator, List, Optional
+from typing import Any, AsyncIterator, Callable, Dict, List, Optional
 
 import httpx
 
@@ -41,6 +43,7 @@ class MessagePart:
     tool_name: Optional[str] = None
     tool_status: Optional[str] = None
     tool_state: Optional[Dict[str, Any]] = None
+    call_id: Optional[str] = None
     reason: Optional[str] = None
     cost: Optional[float] = None
     tokens: Optional[Dict[str, Any]] = None
@@ -59,14 +62,15 @@ class MessagePart:
             part.text = data.get("text")
         elif msg_type == MessagePartType.TOOL:
             part.tool_name = data.get("tool")
+            part.call_id = data.get("callID")
             state = data.get("state", {})
             part.tool_status = state.get("status")
             part.tool_state = state
         elif msg_type == MessagePartType.REASONING:
             part.text = data.get("text")
         elif msg_type == MessagePartType.STEP_FINISH:
-            state = data.get("state", {})
-            part.reason = state.get("reason")
+            # opencode: reason, cost, tokens are at part level
+            part.reason = data.get("reason")
             part.cost = data.get("cost")
             part.tokens = data.get("tokens")
         elif msg_type == MessagePartType.UNKNOWN:
@@ -91,11 +95,12 @@ class Message:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Message":
         info = data.get("info", {})
+        time_info = info.get("time", {})
         return cls(
             id=info.get("id", ""),
             role=info.get("role", "assistant"),
             parts=[MessagePart.from_dict(p) for p in data.get("parts", [])],
-            created_at=info.get("createdAt"),
+            created_at=time_info.get("created"),
         )
 
 
@@ -120,7 +125,12 @@ class Session:
 
 @dataclass
 class SSEEvent:
-    """Parsed Server-Sent Event."""
+    """Parsed Server-Sent Event.
+
+    In opencode protocol, there is no SSE `event:` field.
+    All type info is in the JSON data.type.
+    """
+
     event: str = ""
     data: str = ""
     id: Optional[str] = None
@@ -163,7 +173,7 @@ class ParsedEvent:
     tool_name: str = ""
     tool_status: str = ""
     tool_title: str = ""
-    tool_input: str = ""
+    tool_input: Any = ""
     tool_output: str = ""
     tool_error: str = ""
     tool_call_id: str = ""
@@ -175,6 +185,12 @@ class ParsedEvent:
     raw: Dict[str, Any] = field(default_factory=dict)
 
     def is_terminal(self) -> bool:
+        """Check if this event signals the end of a prompt response.
+
+        Terminal conditions (per opencode protocol):
+        1. session.status with type == "idle"
+        2. step-finish with reason != "tool-calls" (e.g. reason == "stop")
+        """
         if self.type == EventType.SESSION_IDLE:
             return True
         if self.type == EventType.STEP_FINISH:
@@ -188,7 +204,7 @@ class ParsedEvent:
 def parse_event(event: SSEEvent, session_id: str = "") -> ParsedEvent:
     """Parse a raw SSE event into a structured ParsedEvent.
 
-    Compatible with both opencode native format and kimix format.
+    Compatible with opencode protocol format.
     """
     if event.event == "__reconnected__":
         return ParsedEvent(
@@ -212,11 +228,14 @@ def parse_event(event: SSEEvent, session_id: str = "") -> ParsedEvent:
     if event_type == "message.part.updated":
         return _parse_part_updated(data)
 
-    if event_type in ("message.updated", "message.created", "session.updated", "session.created"):
+    if event_type in (
+        "message.updated",
+        "message.created",
+        "session.updated",
+        "session.created",
+        "session.diff",
+    ):
         return ParsedEvent(type=EventType.SKIP)
-
-    if event_type == "message.part.delta":
-        return _parse_part_delta(data)
 
     if event_type in ("session.idle", "session.status"):
         return _parse_session_status(data, event_type)
@@ -239,19 +258,19 @@ def _parse_part_updated(data: Dict[str, Any]) -> ParsedEvent:
         )
     if part_type == "tool":
         state = part.get("state", {})
-        tool_name = part.get("tool", "") or state.get("title", "unknown")
+        tool_name = part.get("tool", "")
+        call_id = part.get("callID", "")
         status = state.get("status", "")
-        title = state.get("title", tool_name)
+        tool_input = state.get("input", {})
         return ParsedEvent(
             type=EventType.TOOL,
             tool_name=tool_name,
             tool_status=status,
-            tool_title=title,
-            tool_input=state.get("input", ""),
+            tool_title=tool_name,
+            tool_input=tool_input,
             tool_output=state.get("output", ""),
             tool_error=state.get("error", ""),
-            tool_call_id=state.get("toolCallId", ""),
-            created_at=part.get("createdAt", 0.0),
+            tool_call_id=call_id,
             raw=data,
         )
     if part_type == "reasoning":
@@ -264,27 +283,15 @@ def _parse_part_updated(data: Dict[str, Any]) -> ParsedEvent:
     if part_type == "step-start":
         return ParsedEvent(type=EventType.STEP_START, raw=data)
     if part_type == "step-finish":
-        state = part.get("state", {})
-        reason = state.get("reason", "")
+        # opencode: reason, cost, tokens at part level (not in state)
+        reason = part.get("reason", "")
         finished = reason not in ("tool-calls", "tool_calls")
         return ParsedEvent(
             type=EventType.STEP_FINISH,
             text=reason,
             finished=finished,
-            raw=data,
-        )
-    return ParsedEvent(type=EventType.SKIP)
-
-
-def _parse_part_delta(data: Dict[str, Any]) -> ParsedEvent:
-    props = data.get("properties", {})
-    delta = props.get("delta", "")
-    field_name = props.get("field", "")
-    if delta and field_name in ("text", "reasoning"):
-        return ParsedEvent(
-            type=EventType.TEXT_DELTA,
-            delta=delta,
-            text=delta,
+            cost=part.get("cost", 0.0),
+            tokens=part.get("tokens", {}),
             raw=data,
         )
     return ParsedEvent(type=EventType.SKIP)
@@ -301,15 +308,24 @@ def _parse_session_status(data: Dict[str, Any], event_type: str) -> ParsedEvent:
 
 
 def _matches_session(data: Dict[str, Any], session_id: str) -> bool:
+    """Check if an event belongs to the given session.
+
+    Checks multiple possible locations per opencode protocol:
+    - properties.sessionID
+    - properties.part.sessionID
+    - properties.info.sessionID
+    """
     props = data.get("properties", {})
-    sid: Optional[str] = (
-        props.get("sessionID")
-        or props.get("session_id")
-        or data.get("sessionID")
-    )
+    sid: Optional[str] = props.get("sessionID")
     if not sid:
-        info = props.get("info", {}) if props else {}
-        sid = info.get("sessionID")
+        part = props.get("part", {})
+        if isinstance(part, dict):
+            sid = part.get("sessionID")
+    if not sid:
+        info = props.get("info", {})
+        if isinstance(info, dict):
+            sid = info.get("sessionID")
+    # If no sessionID found in event, don't filter it out
     return not sid or sid == session_id
 
 
@@ -351,8 +367,6 @@ def abort_session_sync(
 class KimixAsyncClient:
     """Async HTTP + SSE client for kimix serve (opencode-style API).
 
-    Drop-in replacement for the old KimixSessionClient.
-
     Example::
 
         async with KimixAsyncClient(port=4096) as client:
@@ -373,7 +387,9 @@ class KimixAsyncClient:
         self.host = host
         self.port = port
         self._base_url = f"http://{host}:{port}"
-        self._client = httpx.AsyncClient(timeout=httpx.Timeout(timeout), trust_env=False)
+        self._client = httpx.AsyncClient(
+            timeout=httpx.Timeout(timeout), trust_env=False
+        )
 
     async def close(self) -> None:
         await self._client.aclose()
@@ -389,14 +405,13 @@ class KimixAsyncClient:
 
     async def health_check(self) -> bool:
         try:
-            url = f"{self._base_url}/global/health"
-            print(url)
-            resp = await self._client.get(url)
-            print(resp)
+            resp = await self._client.get(f"{self._base_url}/global/health")
             data = resp.json()
             return bool(data.get("healthy", False))
         except Exception as exc:
-            logger.warning("[KimixClient] health_check: %s: %s", type(exc).__name__, exc)
+            logger.warning(
+                "[KimixClient] health_check: %s: %s", type(exc).__name__, exc
+            )
             return False
 
     # ── Session CRUD ─────────────────────────────────────────
@@ -408,12 +423,16 @@ class KimixAsyncClient:
         return Session.from_dict(resp.json())
 
     async def get_session(self, session_id: str) -> Session:
-        resp = await self._client.get(f"{self._base_url}/session/{session_id}")
+        resp = await self._client.get(
+            f"{self._base_url}/session/{session_id}"
+        )
         resp.raise_for_status()
         return Session.from_dict(resp.json())
 
     async def delete_session(self, session_id: str) -> bool:
-        resp = await self._client.delete(f"{self._base_url}/session/{session_id}")
+        resp = await self._client.delete(
+            f"{self._base_url}/session/{session_id}"
+        )
         return resp.status_code == 200
 
     async def list_sessions(self) -> List[Session]:
@@ -421,7 +440,9 @@ class KimixAsyncClient:
         resp.raise_for_status()
         return [Session.from_dict(s) for s in resp.json()]
 
-    async def get_messages(self, session_id: str, limit: int = 10) -> List[Message]:
+    async def get_messages(
+        self, session_id: str, limit: int = 10
+    ) -> List[Message]:
         resp = await self._client.get(
             f"{self._base_url}/session/{session_id}/message",
             params={"limit": limit},
@@ -451,66 +472,11 @@ class KimixAsyncClient:
         )
         return resp.status_code == 204
 
-    async def send_message(
-        self,
-        session_id: str,
-        text: str,
-        agent: Optional[str] = None,
-        timeout: float = 600.0,
-    ) -> Message:
-        """Send message and wait for the response (blocking)."""
-        body: Dict[str, Any] = {"parts": [{"type": "text", "text": text}]}
-        if agent:
-            body["agent"] = agent
-        resp = await self._client.post(
-            f"{self._base_url}/session/{session_id}/message",
-            json=body,
-            timeout=httpx.Timeout(timeout, read=timeout),
-        )
-        resp.raise_for_status()
-        return Message.from_dict(resp.json())
-
     async def abort_session(self, session_id: str) -> bool:
         resp = await self._client.post(
             f"{self._base_url}/session/{session_id}/abort"
         )
         return resp.status_code == 200
-
-    async def clear_session(self, session_id: str) -> bool:
-        resp = await self._client.post(
-            f"{self._base_url}/session/{session_id}/clear"
-        )
-        return resp.status_code == 200
-
-    async def summarize_session(self, session_id: str) -> bool:
-        resp = await self._client.post(
-            f"{self._base_url}/session/{session_id}/summarize"
-        )
-        return resp.status_code == 200
-
-    async def fix_session(
-        self,
-        session_id: str,
-        command: str,
-        extra_prompt: Optional[str] = None,
-        skip_success: bool = True,
-        keycode: Optional[List[str]] = None,
-        max_loop: int = 4,
-    ) -> bool:
-        body: Dict[str, Any] = {
-            "command": command,
-            "skip_success": skip_success,
-            "max_loop": max_loop,
-        }
-        if extra_prompt is not None:
-            body["extra_prompt"] = extra_prompt
-        if keycode is not None:
-            body["keycode"] = keycode
-        resp = await self._client.post(
-            f"{self._base_url}/session/{session_id}/fix", json=body
-        )
-        resp.raise_for_status()
-        return resp.json()
 
     # ── SSE Streaming ────────────────────────────────────────
 
@@ -522,7 +488,9 @@ class KimixAsyncClient:
         """Stream SSE events from /event endpoint."""
         url = f"{self._base_url}/event"
         request = self._client.build_request(
-            "GET", url, timeout=httpx.Timeout(timeout, connect=10.0, read=timeout)
+            "GET",
+            url,
+            timeout=httpx.Timeout(timeout, connect=10.0, read=timeout),
         )
         response = await self._client.send(request, stream=True)
         try:
@@ -558,19 +526,33 @@ class KimixAsyncClient:
                 if reconnects > max_reconnects:
                     logger.error("[SSE] Max reconnects reached: %s", exc)
                     raise
-                logger.warning("[SSE] Reconnecting (%d/%d): %s", reconnects, max_reconnects, exc)
+                logger.warning(
+                    "[SSE] Reconnecting (%d/%d): %s",
+                    reconnects,
+                    max_reconnects,
+                    exc,
+                )
                 if on_reconnect:
                     on_reconnect(reconnects)
                 await asyncio.sleep(reconnect_delay * reconnects)
-                yield SSEEvent(event="__reconnected__", data=str(reconnects))
+                yield SSEEvent(
+                    event="__reconnected__", data=str(reconnects)
+                )
 
 
 # ── SSE Stream Parser (internal) ──────────────────────────────────
 
+
 async def _parse_sse_stream(
     response: httpx.Response,
 ) -> AsyncIterator[SSEEvent]:
-    """Parse HTTP response body into SSEEvent stream."""
+    """Parse HTTP response body into SSEEvent stream.
+
+    Handles the opencode SSE format where:
+    - No `event:` field is used
+    - Events are `data: {json}` followed by blank line
+    - Comments (`: ...`) are ignored
+    """
     current = SSEEvent()
     data_lines: List[str] = []
 
