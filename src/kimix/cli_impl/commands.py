@@ -5,9 +5,9 @@ from pathlib import Path
 import kimix.base as base
 from . import constants
 from .utils import _input, _split_text
-from kimix.base import print_success, print_error, print_warning, print_info, colorful_text, Color
+from kimix.base import print_success, print_error, print_warning, print_debug, colorful_text, Color
 from kimix.utils import (
-    prompt, clear_default_context, get_default_session, fix_error,
+    clear_default_context, get_default_session, fix_error, compact_default_context,
     print_usage, execute_plan, check_plan_cache
 )
 
@@ -19,6 +19,30 @@ def _cmd_help(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
 
 def _cmd_clear(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     clear_default_context()
+    return None, False
+
+
+def _cmd_compact(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
+    print_debug('Start compacting...')
+    compact_default_context()
+    return None, False
+
+def _cmd_export(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
+    import asyncio
+    session = get_default_session()
+    if session is None:
+        print_error('No active session to export.')
+        return None, False
+    if len(task_split) < 2:
+        print_error('Command must be /export:file')
+        return None, False
+    output_path = ':'.join(task_split[1:]) if len(task_split) > 1 else None
+    try:
+        output, count = asyncio.run(session.export(output_path=output_path))
+        print_success(f'Exported {count} messages to {output}')
+    except Exception as e:
+        print_error(f'Export failed: {e}')
+
     return None, False
 
 
@@ -98,25 +122,36 @@ def _cmd_fix(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
 
 
 def _cmd_todo(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
+    if len(task_split) >= 2:
+        file_name_str = ':'.join(task_split[1:])
+        file_path = Path(file_name_str)
+        if not file_path.is_file():
+            print_error(f'file not found: {file_path}')
+            return None, False
+        prompt_str = file_path.read_text(encoding='utf-8', errors='replace')
+        execute_plan(prompt_str)
+        return None, False
+
     def _ask_if_use_cache(path: str) -> bool:
         v = input(f'found cache `{path}`, load it and continue? (y/n) ')
         if v.strip().lower() == 'y':
             return True
         return False
 
+    def ask_if_execute(steps: list[str], start_index: int) -> bool:
+        print('Plan steps:\n' + ('\n' + '=' *
+              40 + '\n').join(steps[start_index:]))
+        if not ask_plan:
+            return True
+        print_warning('execute the plan? (y/n)')
+        return input().strip().lower() == 'y'
+
     use_cache, plan_loader = check_plan_cache(_ask_if_use_cache)
     if use_cache:
-        def ask_if_execute(steps: list[str], start_index: int) -> bool:
-            print('Plan steps:\n' + ('\n' + '=' *
-                  40 + '\n').join(steps[start_index:]))
-            if not ask_plan:
-                return True
-            print_warning('execute the plan? (y/n)')
-            return input().strip().lower() == 'y'
         ask_plan = input(
             'Ask after make plan? no for auto accept-all. (y/n)').strip().lower() == 'y'
         execute_plan('', ask_if_use_cache=None,
-                     ask_if_execute_plan=ask_if_execute, use_cache=use_cache, plan_loader=plan_loader)
+                     ask_if_execute_plan=ask_if_execute, plan_loader=plan_loader)
         return None, False
 
     print(
@@ -132,13 +167,6 @@ def _cmd_todo(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
         text.append(s)
     prompt_str = '\n'.join(text)
 
-    def ask_if_execute(steps: list[str], start_index: int) -> bool:
-        print('Plan steps:\n' + ('\n' + '=' *
-              40 + '\n').join(steps[start_index:]))
-        if not ask_plan:
-            return True
-        print_warning('execute the plan? (y/n)')
-        return input().strip().lower() == 'y'
     ask_plan = input(
         'Ask after make plan? no for auto accept-all. (y/n)').strip().lower() == 'y'
 
@@ -214,5 +242,7 @@ _command_map = {
     'plan': _cmd_plan,
     'txt': _cmd_txt,
     'file': _cmd_file,
-    'todo': _cmd_todo
+    'todo': _cmd_todo,
+    'compact': _cmd_compact,
+    'export': _cmd_export
 }

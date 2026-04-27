@@ -231,7 +231,17 @@ def print_usage(session: Session | None = None) -> None:
         f'Context usage: {s}'
     )
 
-
+def compact_default_context():
+    if _globals._default_session and _globals._default_session.status.context_usage > 1e-8:
+        last_usage = _globals._default_session.status.context_usage
+        asyncio.run(_globals._default_session.compact())
+        curr_usage = _globals._default_session.status.context_usage
+        old_usage = percentage_str(last_usage)
+        new_usage = percentage_str(curr_usage)
+        print_success(
+        f'Context usage from {old_usage} to {new_usage}'
+    )
+        
 def clear_default_context(force_create: bool = False, resume: bool = False, print_info: bool = True) -> None:
     if _globals._default_session:
         if not force_create and _globals._default_session.status.context_usage < 1e-8:

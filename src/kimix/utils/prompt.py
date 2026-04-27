@@ -283,9 +283,9 @@ Record only ONE step with `Note` per turn. Do not write multiple steps at once.
             list = read_file(memory_file)
             if list:
                 joined_str = '\n'.join(list)
-                prompt_str += f'Remember the last session:\n{joined_str}\n'
+                prompt_str += f'Last session memory (remember, no implement):\n```\n{joined_str}```\n```'
             set_writing_path(None)
-            prompt_str += f'Implement:\n{step}'
+            prompt_str += f'Now implement this:\n{step}'
             clear_default_context()
             prompt(prompt_str)
             if idx != len(steps) - 1:  # not last
