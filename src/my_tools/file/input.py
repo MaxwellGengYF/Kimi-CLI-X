@@ -3,6 +3,7 @@ import asyncio
 
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
+from kimi_cli.session import Session
 from my_tools.background.utils import get_all_tasks
 
 class InputParams(BaseModel):
@@ -19,8 +20,12 @@ class Input(CallableTool2):
     description: str = "Send text input to a running process's stdin."
     params: type[InputParams] = InputParams
 
+    def __init__(self, session: Session):
+        super().__init__()
+        self._session_id = session.id
+
     async def __call__(self, params: InputParams) -> ToolReturnValue:
-        tasks = get_all_tasks()
+        tasks = get_all_tasks(self._session_id)
         task = tasks.get(params.task_id)
         if task is None:
             return ToolError(

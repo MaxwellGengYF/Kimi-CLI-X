@@ -3,8 +3,9 @@ import asyncio
 
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
+from kimi_cli.session import Session
 
-from .utils import generate_task_id, remove_task_id, add_task, get_all_tasks, BackgroundStream
+from .utils import generate_task_id, remove_task_id, add_task, get_all_tasks, BackgroundStream, discard_all_tasks
 from my_tools.common import _maybe_export_output_async, _export_to_temp_file_async
 
 class TaskListParams(BaseModel):
@@ -18,10 +19,14 @@ class TaskList(CallableTool2):
     description: str = "List background tasks with their status."
     params: type[BaseModel] = TaskListParams
 
+    def __init__(self, session: Session):
+        super().__init__()
+        self._session_id = session.id
+
     async def __call__(self, params: TaskListParams) -> ToolReturnValue:
         """Return formatted info of all tasks."""
         try:
-            tasks = get_all_tasks()
+            tasks = get_all_tasks(self._session_id)
             if not tasks:
                 return ToolOk(output="No background tasks running.")
             
@@ -66,11 +71,19 @@ class TaskOutput(CallableTool2):
     name: str = "TaskOutput"
     description: str = "Get accumulated output from a background task."
     params: type[BaseModel] = TaskOutputParams
+    def __del__(self):
+        session_id = getattr(self, '_session_id', None)
+        if session_id is not None:
+            discard_all_tasks(session_id)
+
+    def __init__(self, session: Session):
+        super().__init__()
+        self._session_id = session.id
 
     async def __call__(self, params: TaskOutputParams) -> ToolReturnValue:
         """Return the output of a task_id."""
         try:
-            tasks = get_all_tasks()
+            tasks = get_all_tasks(self._session_id)
             stream: BackgroundStream | None = None
             stream = tasks.get(params.task_id)
             if stream is None:
@@ -84,7 +97,7 @@ class TaskOutput(CallableTool2):
             task_alive = stream.thread_is_alive()
             output = stream.get_output() if task_alive else stream.pop_output()
             if not task_alive:
-                remove_task_id(params.task_id)
+                remove_task_id(self._session_id, params.task_id)
             if params.output_path:
                 from pathlib import Path
                 import anyio
@@ -119,10 +132,14 @@ class TaskStop(CallableTool2):
     description: str = "Stop and cancel a background task by its task ID."
     params: type[BaseModel] = TaskStopParams
 
+    def __init__(self, session: Session):
+        super().__init__()
+        self._session_id = session.id
+
     async def __call__(self, params: TaskStopParams) -> ToolReturnValue:
         """Stop and cancel the task with the given task_id."""
         try:
-            tasks = get_all_tasks()
+            tasks = get_all_tasks(self._session_id)
             if params.task_id not in tasks:
                 return ToolError(
                     message=f"Task '{params.task_id}' not found",
@@ -132,7 +149,7 @@ class TaskStop(CallableTool2):
             
             stream = tasks.pop(params.task_id)
             stopped = stream.stop()
-            remove_task_id(params.task_id)
+            remove_task_id(self._session_id, params.task_id)
             
             if stopped:
                 return ToolOk(output=f"Task '{params.task_id}' has been stopped.")

@@ -1,9 +1,32 @@
 import io
 import threading
 import queue
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
-_ALL_TASK_NAMES: set[str] = set()
+class TaskData:
+    def __init__(self) -> None:
+        self.task_names: dict[str, int] = {}
+        self.tasks: dict[str, BackgroundStream] = {}
+
+
+_task_data: dict[str, TaskData] = {}
+_task_data_lock = threading.Lock()
+
+
+def _get_or_add_task_data(session_id: str) -> TaskData:
+    with _task_data_lock:
+        data = _task_data.get(session_id)
+        if data is None:
+            data = TaskData()
+            _task_data[session_id] = data
+        return data
+def _get_task_data(session_id: str) -> TaskData | None:
+    with _task_data_lock:
+        return _task_data.get(session_id, None)
+    
+def _pop_task_data(session_id: str) -> TaskData | None:
+    with _task_data_lock:
+        return _task_data.pop(session_id, None)
 
 
 class BackgroundStream:
@@ -34,10 +57,11 @@ class BackgroundStream:
             if self._started:
                 return
 
-            self._queue = queue.Queue()
+            q: queue.Queue[str] = queue.Queue()
+            self._queue = q
 
             def func(v: BackgroundStream, function: Callable[[queue.Queue[str]], Any]) -> None:
-                v._success = False if function(v._queue) == False else True # defaultly success
+                v._success = False if function(q) == False else True # defaultly success
             self._thread = threading.Thread(
                 target=func, args=(self, function), daemon=True)
             self._stop_function = stop_function
@@ -120,66 +144,77 @@ class BackgroundStream:
         return thread_alive
 
 
-_ALL_TASK: dict[str, BackgroundStream] = dict()
 
-def generate_task_id(kind: str, name: str | None = None) -> str:
-    values = [kind]
+def generate_task_id(session_id: str, kind: str, name: str | None = None) -> str:
+    base_id = kind
     if name:
-        values.append(name)
-    base_id = '_'.join(values)
+        base_id = f"{kind}_{name}"
 
-    # Ensure uniqueness by checking _ALL_TASK_NAMES
-    task_id = base_id
-    counter = 1
-    while task_id in _ALL_TASK_NAMES:
-        task_id = f"{base_id}_{counter}"
-        counter += 1
-    _ALL_TASK_NAMES.add(task_id)
-    return task_id
+    data = _get_or_add_task_data(session_id)
+    if base_id not in data.task_names:
+        data.task_names[base_id] = 0
+        return base_id
+
+    data.task_names[base_id] += 1
+    return f"{base_id}_{data.task_names[base_id]}"
 
 
-def remove_task_id(task_id: str) -> BackgroundStream | None:
-    """Remove a task_id from the global task names set.
+
+def remove_task_id(session_id: str, task_id: str) -> BackgroundStream | None:
+    """Remove a task_id from the global task registry.
 
     Args:
+        session_id: The session identifier.
         task_id: The task identifier to remove.
     """
     try:
-        _ALL_TASK_NAMES.discard(task_id)
-        return _ALL_TASK.pop(task_id)
-    except:
+        data = _get_task_data(session_id)
+        if data is not None:
+            data.tasks.pop(task_id)
+    except KeyError:
         pass
     return None
 
 
-def add_task(task_id: str, stream: BackgroundStream) -> None:
+def add_task(session_id: str, task_id: str, stream: BackgroundStream) -> None:
     """Add a task to the global task registry.
 
     Args:
+        session_id: The session identifier.
         task_id: Unique identifier for the task.
         stream: The BackgroundStream instance to manage (should already be started).
     """
-    _ALL_TASK[task_id] = stream
-    _ALL_TASK_NAMES.add(task_id)
+    _get_or_add_task_data(session_id).tasks[task_id] = stream
 
 
-def get_all_tasks() -> dict[str, BackgroundStream]:
-    return _ALL_TASK
+def get_all_tasks(session_id: str) -> dict[str, BackgroundStream]:
+    return _get_or_add_task_data(session_id).tasks
 
 
-def join_task(task_id: str) -> bool:
+def join_task(session_id: str, task_id: str) -> bool:
     """Join a task and clean up its resources.
 
     Args:
+        session_id: The session identifier.
         task_id: The task identifier to join.
 
     Returns:
         True if the task was found and joined, False otherwise.
     """
-    if task_id not in _ALL_TASK:
+    data = _get_task_data(session_id)
+    if (data is None) or (task_id not in data.tasks):
         return False
 
-    stream = _ALL_TASK.pop(task_id)
+    stream = data.tasks.pop(task_id)
     stream.wait()
-    _ALL_TASK_NAMES.discard(task_id)
     return True
+
+
+def discard_all_tasks(session_id: str) -> None:
+    """Join all tasks and clear the global registries."""
+    data = _pop_task_data(session_id)
+    if data is None:
+        return
+    for stream in list(data.tasks.values()):
+        stream.stop()
+    del data

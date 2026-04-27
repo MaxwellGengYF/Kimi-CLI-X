@@ -5,6 +5,7 @@ from pathlib import Path
 
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
+from kimi_cli.session import Session
 from my_tools.common import _maybe_export_output_async, _export_to_temp_file_async, ProcessTask
 
 
@@ -41,6 +42,10 @@ class Run(CallableTool2[RunParams]):
     description: str = "Execute a program."
     params: type[RunParams] = RunParams
 
+    def __init__(self, session: Session):
+        super().__init__()
+        self._session_id = session.id
+
     async def __call__(self, params: RunParams) -> ToolReturnValue:
         import sys
         # check if using python
@@ -51,7 +56,7 @@ class Run(CallableTool2[RunParams]):
             return await self._run_in_background(params)
 
         task = ProcessTask(params.path, params.args, params.cwd, params.timeout)
-        task_id = task.start("run", Path(params.path).stem)
+        task_id = task.start(self._session_id, "run", Path(params.path).stem)
 
         # Wait for completion with timeout (allow a small buffer for cleanup)
         wait_timeout = params.timeout
@@ -65,7 +70,7 @@ class Run(CallableTool2[RunParams]):
             )
         # Clean up foreground task registration
         from my_tools.background.utils import remove_task_id
-        remove_task_id(task_id)
+        remove_task_id(self._session_id, task_id)
 
         # Get output
         output = task.stream.pop_output() if task.stream else ""
@@ -104,7 +109,7 @@ class Run(CallableTool2[RunParams]):
         """
         try:
             task = ProcessTask(params.path, params.args, params.cwd, params.timeout)
-            task_id = task.start("run", Path(params.path).stem)
+            task_id = task.start(self._session_id, "run", Path(params.path).stem)
 
             # Return success with task_id
             return ToolOk(

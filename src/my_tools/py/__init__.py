@@ -6,6 +6,7 @@ import anyio
 from my_tools.common import _maybe_export_output_async, _export_to_temp_file_async, ProcessTask
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
+from kimi_cli.session import Session
 
 
 class Params(BaseModel):
@@ -37,13 +38,17 @@ class Python(CallableTool2[Params]):
     description: str = "Execute Python code in subprocess."
     params: type[Params] = Params
 
+    def __init__(self, session: Session):
+        super().__init__()
+        self._session_id = session.id
+
     async def __call__(self, params: Params) -> ToolReturnValue:
         # Handle background execution
         if params.run_in_background:
             return await self._run_in_background(params)
 
         task = ProcessTask(sys.executable, ['-u', '-c', params.code], None, params.timeout)
-        task_id = task.start("python", "python")
+        task_id = task.start(self._session_id, "python", "python")
 
         # Wait for completion with timeout (allow a small buffer for cleanup)
         wait_timeout = params.timeout
@@ -57,7 +62,7 @@ class Python(CallableTool2[Params]):
             )
         # Clean up foreground task registration
         from my_tools.background.utils import remove_task_id
-        remove_task_id(task_id)
+        remove_task_id(self._session_id, task_id)
         # Get output
         output = task.stream.pop_output() if task.stream else ""
 
@@ -97,7 +102,7 @@ class Python(CallableTool2[Params]):
         """
         try:
             task = ProcessTask(sys.executable, ['-u', '-c', params.code], None, params.timeout)
-            task_id = task.start("python", "python")
+            task_id = task.start(self._session_id, "python", "python")
 
             # Return success with task_id
             return ToolOk(
