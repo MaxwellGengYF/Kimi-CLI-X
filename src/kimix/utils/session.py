@@ -54,6 +54,7 @@ async def _create_session_async(
     provider_dict: dict[str, Any] | None = None,
     chat_provider: ChatProvider | None = None,
     is_sub_agent: bool = False,
+    is_worker_system_prompt: bool = True,
 ) -> Session:
     if session_id is None:
         session_id = str(_globals._session_idx)
@@ -79,7 +80,7 @@ async def _create_session_async(
                 return _original_system_prompts(args) + '\n\n' + str(custom_system_prompt)
             system_prompts = _wrapped_system_prompts
     if system_prompts is None:
-        system_prompts = get_system_prompt(is_sub_agent, plan_mode, yolo, work_dir, skills_dirs)
+        system_prompts = get_system_prompt(is_sub_agent, plan_mode, yolo, work_dir, skills_dirs, is_worker_system_prompt)
     if resume:
         session = await Session.resume(
             session_id=session_id,
@@ -124,6 +125,8 @@ def create_session(
     plan_mode: Optional[bool] = None,
     provider_dict: dict[str, Any] | None = None,
     chat_provider: ChatProvider | None = None,
+    is_sub_agent: bool = False,
+    is_worker_system_prompt: bool = True,
 ) -> Session:
     return asyncio.run(_create_session_async(
         session_id=session_id,
@@ -136,6 +139,8 @@ def create_session(
         plan_mode=plan_mode,
         provider_dict=provider_dict,
         chat_provider=chat_provider,
+        is_sub_agent=is_sub_agent,
+        is_worker_system_prompt=is_worker_system_prompt
     ))
 
 

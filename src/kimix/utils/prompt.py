@@ -235,7 +235,7 @@ Record each step with `Note`.
             task_finished = False
             plan_session: Session | None = None
             try:
-                plan_session = create_session('agent_boss.yaml')
+                plan_session = create_session(agent_file='agent_boss.yaml', plan_mode=False, is_worker_system_prompt=False)
                 for i in range(4):
                     prompt(prompt_str, session=plan_session)
                     if not is_note_called():

@@ -10,13 +10,17 @@ from kimi_cli.soul.agent import BuiltinSystemPromptArgs
 # This system prompt is designed to stop the modern LLM from over thinking and hallucination
 _SYSTEM_PROMP = Template('''You are a ${AGENT_ROLE}.
 Rules: Direct output only. No chain-of-thought. No analysis. No step-by-step. No reasoning blocks. No thinking-effort. zero preamble. No postamble. Minimal explanation. Concisely. Shortly.
-Note:
-1. For long tasks, use `Run`/`Python` with `run_in_background=true`, then manage via `TaskList`, `TaskOutput`, `Input`, `TaskStop`. Return control immediately after starting.
-2. For complex or multi-step tasks, use `SetTodoList` to track progress.
+${NOTE}
 ${SPAWN}${SHELL}${PLAN_MODE}${YOLO_MODE}${RAG}
 ${AGENTS_MD}${SKILLS}
 ''')
 _START_INDEX = 3
+
+_NOTE = f'''
+Note:
+1. For long tasks, use `Run`/`Python` with `run_in_background=true`, then manage via `TaskList`, `TaskOutput`, `Input`, `TaskStop`. Return control immediately after starting.
+2. For complex or multi-step tasks, use `SetTodoList` to track progress.
+'''.strip()
 
 
 def get_system_prompt(
@@ -24,7 +28,9 @@ def get_system_prompt(
         plan_mode: bool | None = None,
         yolo: bool | None = None,
         work_dir: Optional[KaosPath] = None,
-        skills_dirs: Optional[list[KaosPath]] = None) -> Callable[[BuiltinSystemPromptArgs], str]:
+        skills_dirs: Optional[list[KaosPath]] = None,
+        is_worker: bool = True
+) -> Callable[[BuiltinSystemPromptArgs], str]:
     agent_md = (Path(str(work_dir)) if work_dir is not None else Path(
         os.curdir)) / 'AGENTS.md'
     plan_mode = plan_mode if plan_mode is not None else base._default_plan_mode
@@ -40,6 +46,7 @@ def get_system_prompt(
         rag = None
         yolo_doc = None
         index = _START_INDEX
+        note_doc = _NOTE if is_worker else ''
         # Agent
         if not is_sub_agent:
             spawn_doc = f'''{index}. Use `Agent` for: "parallelizable independent subtasks", "large-context analysis or tasks needing different expertise", "permission-graded operations like read-only analysis or sandboxed execution".'''
@@ -82,6 +89,7 @@ AGENTS.md:
             skill_doc = 'Skills:\n' + args.KIMI_SKILLS
         return _SYSTEM_PROMP.substitute(
             AGENT_ROLE=role_doc.strip(),
+            NOTE = note_doc,
             PYTHON_PATH=sys.executable,
             RAG=(rag.strip() + '\n') if rag else '',
             PLAN_MODE=(plan_mode_doc.strip() + '\n') if plan_mode_doc else '',
