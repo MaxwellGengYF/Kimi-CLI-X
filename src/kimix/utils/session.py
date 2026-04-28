@@ -241,13 +241,22 @@ def print_usage(session: Session | None = None) -> None:
 
 def compact_default_context():
     if _globals._default_session and _globals._default_session.status.context_usage > 1e-8:
+        print_debug('Start compacting...')
+        import time
+        start_time = time.time()
         last_usage = _globals._default_session.status.context_usage
         asyncio.run(_globals._default_session.compact())
         curr_usage = _globals._default_session.status.context_usage
         old_usage = percentage_str(last_usage)
         new_usage = percentage_str(curr_usage)
+        end_time = time.time()
+        time_seconds = end_time - start_time
+        hours = int(time_seconds) // 3600
+        minutes = (int(time_seconds) % 3600) // 60
+        seconds = int(time_seconds) % 60
+        time_text = f'  time: {hours}:{minutes:02d}:{seconds:02d}'
         print_success(
-        f'Context usage from {old_usage} to {new_usage}'
+        f'Context usage from {old_usage} to {new_usage}  time: {time_text}'
     )
         
 def clear_default_context(force_create: bool = False, resume: bool = False, print_info: bool = True) -> None:

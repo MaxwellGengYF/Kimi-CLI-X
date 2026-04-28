@@ -23,7 +23,6 @@ def _cmd_clear(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
 
 
 def _cmd_compact(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
-    print_debug('Start compacting...')
     compact_default_context()
     return None, False
 
@@ -86,8 +85,11 @@ def _cmd_cmd(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
         return None, False
     cmd = ':'.join(task_split[1:])
     try:
-        os.system(cmd)
-        print_success('Done.')
+        result = os.system(cmd)
+        if result == 0:
+            print_success('Done.')
+        else:
+            print_warning('Failed.')
     except Exception as e:
         print_error(str(e))
     return None, False
@@ -213,7 +215,7 @@ def _cmd_txt(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
 
 
 def _cmd_file(task_split: list[str], text_arr: list[str]) -> tuple[str | None, bool]:
-    if len(task_split) != 2:
+    if len(task_split) < 2:
         print_error(f'command format error, must be /file:path')
         return None, False
     file_name_str = ':'.join(task_split[1:])
