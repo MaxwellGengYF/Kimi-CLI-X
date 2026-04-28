@@ -22,6 +22,7 @@ from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import MagicMock
 
 from kimix.dag.agent_swarm import execute_swarm, merge_vfs_paths, _ALL_VFS_PATH
+from kimix.dag import DAG
 from kimix.utils import SystemPromptType
 
 _thread_local = threading.local()
@@ -127,17 +128,18 @@ def setup_mocks() -> None:
     swarm_mod.close_session_async = mock_close_session
 
 
-async def create_swarm_session(task_prompt: str) -> MockSession:
+async def create_swarm_session(task_prompt: str) -> DAG | None:
     """Create a swarm session and initialize the DAG."""
     agent_file = Path("agent_swarm.yaml")
     session = await mock_create_session(agent_file=agent_file, system_prompt=SystemPromptType.SwarmCoordinator)
     custom_data = session.get_custom_data()
     assert custom_data is not None
-    custom_data["swarm_dag"] = {"nodes": [], "edges": []}
+    dag = DAG()
+    custom_data["swarm_dag"] = dag
     custom_data["swarm_node_counter"] = 0
     coordinator_prompt = f"Task: {task_prompt}"
     await mock_prompt_async(coordinator_prompt, session, info_print=False)
-    return session
+    return dag
 
 
 def run_node(node_id: str, prompt: str, vfs_path: Path) -> None:
@@ -154,10 +156,10 @@ async def main() -> None:
 
     # Demonstrate create_swarm_session
     print("Creating swarm coordinator session...")
-    coordinator = await create_swarm_session(
+    dag = await create_swarm_session(
         "Build a calculator module with add, sub, and mul functions."
     )
-    print(f"Coordinator session created (dag={coordinator.get_custom_data().get('swarm_dag')})")
+    print(f"Coordinator session created (dag={dag})")
 
     nodes = [
         ("node_add", "Write function `add(a, b)` to calculator.py"),

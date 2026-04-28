@@ -10,6 +10,7 @@ from kimix.utils import (
     clear_default_context, get_default_session, fix_error, compact_default_context,
     print_usage, execute_plan, check_plan_cache
 )
+from kimix.dag.agent_swarm import run_swarm_session
 
 
 def _cmd_help(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
@@ -214,6 +215,20 @@ def _cmd_txt(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     return None, False
 
 
+def _cmd_swarm(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
+    if len(task_split) < 2:
+        print_error('Command must be /swarm:<task>')
+        return None, False
+    task_prompt = ':'.join(task_split[1:])
+    import asyncio
+    merged_path = asyncio.run(run_swarm_session(task_prompt))
+    if merged_path:
+        print_success(f'Swarm merged result: {merged_path}')
+    else:
+        print_warning('Swarm produced no outputs.')
+    return None, False
+
+
 def _cmd_file(task_split: list[str], text_arr: list[str]) -> tuple[str | None, bool]:
     if len(task_split) < 2:
         print_error(f'command format error, must be /file:path')
@@ -246,5 +261,6 @@ _command_map = {
     'file': _cmd_file,
     'todo': _cmd_todo,
     'compact': _cmd_compact,
-    'export': _cmd_export
+    'export': _cmd_export,
+    'swarm': _cmd_swarm
 }
