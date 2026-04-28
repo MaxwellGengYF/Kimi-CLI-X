@@ -6,6 +6,8 @@ import threading
 import time
 from typing import IO, TYPE_CHECKING
 
+from kimi_cli.session import Session
+
 if TYPE_CHECKING:
     from my_tools.background.utils import BackgroundStream
 OUTPUT_TOKEN_LIMIT = 1024
@@ -312,11 +314,11 @@ class ProcessTask:
             pass
         return False
 
-    def start(self, session_id: str, kind: str = "run", name: str | None = None) -> str:
+    def start(self, session: Session, kind: str = "run", name: str | None = None) -> str:
         """Start the background process and register it as a task.
 
         Args:
-            session_id: The session identifier.
+            session: The session instance.
             kind: Task kind prefix for the task ID.
             name: Optional name for the task ID (defaults to the executable stem).
 
@@ -326,11 +328,11 @@ class ProcessTask:
         from my_tools.background.utils import BackgroundStream, generate_task_id, add_task
         self._stream = BackgroundStream()
         # Generate a task ID based on the executable name
-        self._task_id = generate_task_id(session_id, kind, name or Path(self.path).stem)
+        self._task_id = generate_task_id(session, kind, name or Path(self.path).stem)
         self._stream.start(self._run_process_bg,
                            self._stop_function, self._input_function)
         # Register the task
-        add_task(session_id, self._task_id, self._stream)
+        add_task(session, self._task_id, self._stream)
         assert self._task_id is not None
         return self._task_id
 

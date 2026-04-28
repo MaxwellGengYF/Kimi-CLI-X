@@ -44,7 +44,7 @@ class Run(CallableTool2[RunParams]):
 
     def __init__(self, session: Session):
         super().__init__()
-        self._session_id = session.id
+        self._session = session
 
     async def __call__(self, params: RunParams) -> ToolReturnValue:
         import sys
@@ -56,7 +56,7 @@ class Run(CallableTool2[RunParams]):
             return await self._run_in_background(params)
 
         task = ProcessTask(params.path, params.args, params.cwd, params.timeout)
-        task_id = task.start(self._session_id, "run", Path(params.path).stem)
+        task_id = task.start(self._session, "run", Path(params.path).stem)
 
         # Wait for completion with timeout (allow a small buffer for cleanup)
         wait_timeout = params.timeout
@@ -70,7 +70,7 @@ class Run(CallableTool2[RunParams]):
             )
         # Clean up foreground task registration
         from my_tools.background.utils import remove_task_id
-        remove_task_id(self._session_id, task_id)
+        remove_task_id(self._session, task_id)
 
         # Get output
         output = task.stream.pop_output() if task.stream else ""
@@ -109,7 +109,7 @@ class Run(CallableTool2[RunParams]):
         """
         try:
             task = ProcessTask(params.path, params.args, params.cwd, params.timeout)
-            task_id = task.start(self._session_id, "run", Path(params.path).stem)
+            task_id = task.start(self._session, "run", Path(params.path).stem)
 
             # Return success with task_id
             return ToolOk(

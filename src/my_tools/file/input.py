@@ -22,10 +22,10 @@ class Input(CallableTool2):
 
     def __init__(self, session: Session):
         super().__init__()
-        self._session_id = session.id
+        self._session = session
 
     async def __call__(self, params: InputParams) -> ToolReturnValue:
-        tasks = get_all_tasks(self._session_id)
+        tasks = get_all_tasks(self._session)
         task = tasks.get(params.task_id)
         if task is None:
             return ToolError(

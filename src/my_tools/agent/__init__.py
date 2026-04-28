@@ -33,7 +33,7 @@ class Agent(CallableTool2):
 
     def __init__(self, session: Session):
         super().__init__()
-        self._session_id = session.id
+        self._session = session
 
     async def __call__(self, params: SubAgentParams) -> ToolReturnValue:
         # Handle background execution
@@ -166,10 +166,10 @@ class Agent(CallableTool2):
         try:
             # Create and start the background stream
             stream = BackgroundStream()
-            task_id = generate_task_id(self._session_id, "agent", "subagent")
+            task_id = generate_task_id(self._session, "agent", "subagent")
             stream.start(run_agent_bg, stop_function)
             # Register the task
-            add_task(self._session_id, task_id, stream)
+            add_task(self._session, task_id, stream)
 
             return ToolOk(
                 output=f"Sub-agent started in background.\nTask ID: {task_id}\n\nUse 'TaskList' to view all tasks, 'TaskOutput' to get output, 'TaskWait' to wait for completion, 'TaskStop' to stop the sub-agent."

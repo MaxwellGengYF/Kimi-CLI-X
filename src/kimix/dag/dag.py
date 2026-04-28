@@ -148,8 +148,12 @@ class DAG:
     def add_edge(self, upstream: str, downstream: str) -> None:
         """Add a dependency edge: upstream must complete before downstream.
 
+        Validates the DAG after adding the edge; if validation fails,
+        the edge is removed (fallback) and the exception is re-raised.
+
         Raises:
             KeyError: If either node does not exist.
+            DAGValidationError: If the edge creates an invalid DAG structure.
         """
         if upstream not in self._nodes:
             raise KeyError(f"Upstream node {upstream!r} not found")
@@ -157,6 +161,12 @@ class DAG:
             raise KeyError(f"Downstream node {downstream!r} not found")
         self._edges[downstream].add(upstream)
         self._nodes[downstream].dependencies.add(upstream)
+        try:
+            validate_dag(self._nodes, self._edges)
+        except DAGValidationError:
+            self._edges[downstream].discard(upstream)
+            self._nodes[downstream].dependencies.discard(upstream)
+            raise
 
     def get_node(self, name: str) -> TaskNode:
         """Retrieve a node by name.

@@ -21,12 +21,12 @@ class TaskList(CallableTool2):
 
     def __init__(self, session: Session):
         super().__init__()
-        self._session_id = session.id
+        self._session = session
 
     async def __call__(self, params: TaskListParams) -> ToolReturnValue:
         """Return formatted info of all tasks."""
         try:
-            tasks = get_all_tasks(self._session_id)
+            tasks = get_all_tasks(self._session)
             if not tasks:
                 return ToolOk(output="No background tasks running.")
             
@@ -72,18 +72,18 @@ class TaskOutput(CallableTool2):
     description: str = "Get background task output."
     params: type[BaseModel] = TaskOutputParams
     def __del__(self):
-        session_id = getattr(self, '_session_id', None)
-        if session_id is not None:
-            discard_all_tasks(session_id)
+        session = getattr(self, '_session', None)
+        if session is not None:
+            discard_all_tasks(session)
 
     def __init__(self, session: Session):
         super().__init__()
-        self._session_id = session.id
+        self._session = session
 
     async def __call__(self, params: TaskOutputParams) -> ToolReturnValue:
         """Return the output of a task_id."""
         try:
-            tasks = get_all_tasks(self._session_id)
+            tasks = get_all_tasks(self._session)
             stream: BackgroundStream | None = None
             stream = tasks.get(params.task_id)
             if stream is None:
@@ -97,7 +97,7 @@ class TaskOutput(CallableTool2):
             task_alive = stream.thread_is_alive()
             output = stream.get_output() if task_alive else stream.pop_output()
             if not task_alive:
-                remove_task_id(self._session_id, params.task_id)
+                remove_task_id(self._session, params.task_id)
             if params.output_path:
                 from pathlib import Path
                 import anyio
@@ -134,12 +134,12 @@ class TaskStop(CallableTool2):
 
     def __init__(self, session: Session):
         super().__init__()
-        self._session_id = session.id
+        self._session = session
 
     async def __call__(self, params: TaskStopParams) -> ToolReturnValue:
         """Stop and cancel the task with the given task_id."""
         try:
-            tasks = get_all_tasks(self._session_id)
+            tasks = get_all_tasks(self._session)
             if params.task_id not in tasks:
                 return ToolError(
                     message=f"Task '{params.task_id}' not found",
@@ -149,7 +149,7 @@ class TaskStop(CallableTool2):
             
             stream = tasks.pop(params.task_id)
             stopped = stream.stop()
-            remove_task_id(self._session_id, params.task_id)
+            remove_task_id(self._session, params.task_id)
             
             if stopped:
                 return ToolOk(output=f"Task '{params.task_id}' has been stopped.")
