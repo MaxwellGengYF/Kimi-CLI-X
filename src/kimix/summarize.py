@@ -4,7 +4,7 @@ from kimi_agent_sdk import Session
 from kimix.utils import *
 
 
-async def summarize(temp_file: str | None = None, session: Session | None = None) -> None:
+async def summarize(temp_file: str | None = None, session: Session | None = None, only_return_remember_str: bool = False) -> str | None:
     from pathlib import Path
     from kimix.utils import prompt_async, get_default_session
     from kimix.base import percentage_str, print_success
@@ -13,7 +13,7 @@ async def summarize(temp_file: str | None = None, session: Session | None = None
         session = get_default_session()
     if not session or session.status.context_usage <= 1e-5:
         print_warning('Context is empty.')
-        return
+        return None
     if temp_file is None:
         temp_file = _create_temp_file_name()
     try:
@@ -26,17 +26,21 @@ async def summarize(temp_file: str | None = None, session: Session | None = None
     def export_func(text: str, is_thinking: bool):
         if not is_thinking:
             lines.append(text) 
-    await prompt_async(generate_memory, info_print=False, output_function=export_func)
+    await prompt_async(generate_memory, session=session, info_print=False, output_function=export_func)
     await session.clear()
     if lines:
         memory_content = '\n'.join(lines)
-        await prompt_async(f'Remember this:\n```\n{memory_content}\n```\nno tool calling, no any action', info_print=False)
+        if only_return_remember_str:
+            memory_content = f'Remember this:\n```\n{memory_content}\n```\n'
+            return memory_content
+        await prompt_async(f'Remember this:\n```\n{memory_content}\n```\nno tool calling, no any action', session=session, info_print=False)
     else:
         print_warning('No memory generated.')
-        return
+        return None
     new_usage = session.status.context_usage
     print_success(
         f'Compact from {percentage_str(last_usage)} to {percentage_str(new_usage)}')
+    return None
 
 summarize_mistakes_prompt = Template('''Summarize these tool call errors concisely:
 $errors

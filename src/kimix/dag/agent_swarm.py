@@ -2,13 +2,32 @@ import tempfile
 
 from pathlib import Path
 
+from kimi_agent_sdk import Session
 from kimix.utils.session import _create_session_async, close_session_async
 from kimix.utils.prompt import prompt_async
 from kimi_cli.vfs.core import VFS, merge
+from kimix.dag import DAG
+from kimix.utils import SystemPromptType
 
 _ALL_VFS_PATH: dict[str, Path] = dict()
 
-async def execute_swarm(prompt_str: str, vfs_path: Path | None) -> str:
+async def create_swarm_session(task_prompt: str) -> Session:
+    """Create a swarm session using agent_swarm.yaml and initialize the DAG."""
+    agent_file = Path("agent_swarm.yaml")
+    session = await _create_session_async(agent_file=agent_file, system_prompt=SystemPromptType.SwarmCoordinator)
+    custom_data = session.get_custom_data()
+    assert custom_data is not None
+    custom_data["swarm_dag"] = DAG()
+    custom_data["swarm_node_counter"] = 0
+    coordinator_prompt = (
+        
+        f"Task: {task_prompt}"
+    )
+    await prompt_async(coordinator_prompt, session, info_print=False)
+    return session
+
+
+async def execute_swarm(node_id: str, prompt_str: str, vfs_path: Path | None) -> None:
     session = None
     try:
         session = await _create_session_async(
@@ -17,21 +36,13 @@ async def execute_swarm(prompt_str: str, vfs_path: Path | None) -> str:
         custom_data = session.get_custom_data()
         assert custom_data is not None
         await prompt_async(prompt_str, session)
-        summary: str = ''
-        from kimix.base import generate_memory
-        lines = []
-        def export_func(text: str, is_thinking: bool) -> None:
-            if not is_thinking:
-                lines.append(text)
-        await prompt_async(generate_memory, session, info_print=False, output_function=export_func)
-        if lines:
-            summary = '\n'.join(lines)
     finally:
         if session is not None:
+            if vfs_path is not None:
+                _ALL_VFS_PATH[node_id] = vfs_path
             await close_session_async(session)
-    return summary
 
-async def merge_vfs_paths() -> Path | None:
+async def merge_vfs_paths(finalize_prompt_str: str) -> Path | None:
     if not _ALL_VFS_PATH:
         return None
 
@@ -50,9 +61,9 @@ async def merge_vfs_paths() -> Path | None:
 
     conflicts, _applied = merge(*vfs_instances, apply=True)
 
-    if conflicts:
-        session = None
-        try:
+    session = None
+    try:
+        if conflicts:
             session = await _create_session_async()
             for rel_path, versions in conflicts.items():
                 conflict_prompt = f"Merge conflict for file `{rel_path}`.\nMultiple versions exist from different swarm nodes:\n"
@@ -63,7 +74,7 @@ async def merge_vfs_paths() -> Path | None:
                     except Exception:
                         content = '<binary or unreadable>'
                     conflict_prompt += f"\n--- Version from {node_id} ---\n{content}\n"
-                conflict_prompt += f"\nPlease produce the final merged content for `{rel_path}`. Output only the file content, no explanations."
+                conflict_prompt += f"\nProduce the final merged content for `{rel_path}`. Output only the file content, no explanations."
 
                 lines = []
                 def capture(text: str, is_thinking: bool) -> None:
@@ -75,9 +86,14 @@ async def merge_vfs_paths() -> Path | None:
                 dst = merged_path / rel_path
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 dst.write_text(merged_content, encoding='utf-8', errors='replace')
-        finally:
-            if session is not None:
-                await close_session_async(session)
+
+        if finalize_prompt_str:
+            if session is None:
+                session = await _create_session_async()
+            await prompt_async(finalize_prompt_str, session)
+    finally:
+        if session is not None:
+            await close_session_async(session)
 
     _ALL_VFS_PATH.clear()
     return merged_path

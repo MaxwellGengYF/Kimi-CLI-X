@@ -6,6 +6,7 @@ import hashlib
 from pathlib import Path
 from kimi_agent_sdk import Session
 import kimix.base as base
+from kimix.utils.system_prompt import SystemPromptType
 from kimix.base import print_debug, print_warning, print_error, print_agent_json, print_info
 from . import _globals
 from .session import close_session_async, _create_default_session, _print_usage, clear_default_context, create_session, close_session
@@ -221,17 +222,10 @@ def execute_plan(prompt_str: str, ask_if_use_cache: Callable[[str], bool] | None
             if plan_file.exists():
                 print_error(f'plan file {plan_file} already exists. quit.')
                 return
-            prompt_str = f'''
-Plan only. Do not execute:
-```
-{prompt_str}
-```
-Record all steps with `Note` per turn, one-by-one. Do not write multiple steps at once.
-'''
             task_finished = False
             plan_session: Session | None = None
             try:
-                plan_session = create_session(agent_file='agent_boss.yaml', plan_mode=False, is_worker_system_prompt=False)
+                plan_session = create_session(agent_file='agent_boss.yaml', plan_mode=False, system_prompt=SystemPromptType.TodoMaker)
                 for i in range(4):
                     prompt(prompt_str, session=plan_session)
                     if not is_note_called():

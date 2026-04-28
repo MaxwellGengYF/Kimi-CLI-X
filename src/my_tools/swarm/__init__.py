@@ -44,10 +44,9 @@ class AddNode(CallableTool2[AddNodeParams]):
                 from kimix.dag.agent_swarm import execute_swarm, _ALL_VFS_PATH
                 result: str
                 try:
-                    result = await execute_swarm(params.prompt, temp_dir)
+                    result = await execute_swarm(node_id, params.prompt, temp_dir)
                 except Exception as exc:
                     result = f"Error: {exc}"
-                _ALL_VFS_PATH[node_id] = temp_dir
                 return result
 
             node = TaskNode(node_id, _task)

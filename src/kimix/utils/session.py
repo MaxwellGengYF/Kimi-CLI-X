@@ -9,7 +9,7 @@ import kimix.base as base
 from kimix.base import print_success, print_debug, percentage_str
 from . import _globals
 from .config import _create_config
-from .system_prompt import get_system_prompt
+from .system_prompt import get_system_prompt, SystemPromptType
 
 
 def context_path() -> Path:
@@ -54,7 +54,7 @@ async def _create_session_async(
     provider_dict: dict[str, Any] | None = None,
     chat_provider: ChatProvider | None = None,
     is_sub_agent: bool = False,
-    is_worker_system_prompt: bool = True,
+    system_prompt: SystemPromptType = SystemPromptType.Worker,
     vfs_path: Path | None = None,
 ) -> Session:
     if session_id is None:
@@ -81,7 +81,7 @@ async def _create_session_async(
                 return _original_system_prompts(args) + '\n\n' + str(custom_system_prompt)
             system_prompts = _wrapped_system_prompts
     if system_prompts is None:
-        system_prompts = get_system_prompt(is_sub_agent, plan_mode, yolo, work_dir, skills_dirs, is_worker_system_prompt)
+        system_prompts = get_system_prompt(is_sub_agent, plan_mode, yolo, work_dir, skills_dirs, system_prompt)
     #### Custom arguments: defined in `kimi-cli\src\kimi_cli\soul\agent.py`, as `**custom_arguments`
     if resume:
         session = await Session.resume(
@@ -132,7 +132,7 @@ def create_session(
     provider_dict: dict[str, Any] | None = None,
     chat_provider: ChatProvider | None = None,
     is_sub_agent: bool = False,
-    is_worker_system_prompt: bool = True,
+    system_prompt: SystemPromptType = SystemPromptType.Worker,
     vfs_path: Path | None = None,
 ) -> Session:
     return asyncio.run(_create_session_async(
@@ -147,7 +147,7 @@ def create_session(
         provider_dict=provider_dict,
         chat_provider=chat_provider,
         is_sub_agent=is_sub_agent,
-        is_worker_system_prompt=is_worker_system_prompt,
+        system_prompt=system_prompt,
         vfs_path=vfs_path,
     ))
 

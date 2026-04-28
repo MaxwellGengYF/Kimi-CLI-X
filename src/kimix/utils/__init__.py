@@ -6,7 +6,7 @@ from ._globals import (
     _should_print_usage,
 )
 from .config import _create_config, _ensure_text_search
-from .system_prompt import _SYSTEM_PROMP, _START_INDEX, get_system_prompt
+from .system_prompt import _SYSTEM_PROMP, get_system_prompt, SystemPromptType
 from .session import (
     context_path,
     delete_session_dir,
@@ -32,6 +32,7 @@ from .utils import set_plan_mode
 
 __all__ = [
     "TextSearchIndex",
+    "SystemPromptType",
     "SearchResult",
     "_default_session",
     "_session_idx",
@@ -39,7 +40,6 @@ __all__ = [
     "_create_config",
     "_ensure_text_search",
     "_SYSTEM_PROMP",
-    "_START_INDEX",
     "get_system_prompt",
     "context_path",
     "delete_session_dir",

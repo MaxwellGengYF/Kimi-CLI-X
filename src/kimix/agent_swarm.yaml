@@ -7,5 +7,6 @@ agent:
     - "kimi_cli.tools.file:Grep"
     - "kimi_cli.tools.web:SearchWeb"
     - "my_tools.web.fetch_url:FetchURL"
+    - "my_tools.swarm:AddNode"
     - "my_tools.skill:SkillRag"
-    - "my_tools.note:Note"
+    - "my_tools.swarm:AddEdge"
