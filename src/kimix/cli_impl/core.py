@@ -109,7 +109,7 @@ def _run_cli() -> None:
     if subcmd == "ssecli":
         print_debug('Launching SSE CLI debugger.')
         from .sse_cli import run_sse_cli
-        run_sse_cli(host=args.host, port=args.port)
+        run_sse_cli(host=args.host, port=args.port, debug=getattr(args, 'debug', False))
         return
 
     _client_cli()
