@@ -131,15 +131,20 @@ def setup_mocks() -> None:
 async def create_swarm_session(task_prompt: str) -> DAG | None:
     """Create a swarm session and initialize the DAG."""
     agent_file = Path("agent_swarm.yaml")
-    session = await mock_create_session(agent_file=agent_file, system_prompt=SystemPromptType.SwarmCoordinator)
-    custom_data = session.get_custom_data()
-    assert custom_data is not None
-    dag = DAG()
-    custom_data["swarm_dag"] = dag
-    custom_data["swarm_node_counter"] = 0
-    coordinator_prompt = f"Task: {task_prompt}"
-    await mock_prompt_async(coordinator_prompt, session, info_print=False)
-    return dag
+    session = None
+    try:
+        session = await mock_create_session(agent_file=agent_file, system_prompt=SystemPromptType.SwarmCoordinator)
+        custom_data = session.get_custom_data()
+        assert custom_data is not None
+        dag = DAG()
+        custom_data["swarm_dag"] = dag
+        custom_data["swarm_node_counter"] = 0
+        coordinator_prompt = f"Task: {task_prompt}"
+        await mock_prompt_async(coordinator_prompt, session, info_print=False)
+        return dag
+    finally:
+        if session is not None:
+            await mock_close_session(session)
 
 
 def run_node(node_id: str, prompt: str, vfs_path: Path) -> None:

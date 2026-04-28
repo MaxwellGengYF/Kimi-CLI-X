@@ -10,7 +10,9 @@ from kimix.utils import (
     clear_default_context, get_default_session, fix_error, compact_default_context,
     print_usage, execute_plan, check_plan_cache
 )
-from kimix.dag.agent_swarm import run_swarm_session
+from kimix.dag.agent_swarm import create_swarm_session
+from kimix.dag import Executor
+import asyncio
 
 
 def _cmd_help(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
@@ -216,16 +218,46 @@ def _cmd_txt(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
 
 
 def _cmd_swarm(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
-    if len(task_split) < 2:
-        print_error('Command must be /swarm:<task>')
+    """Execute swarm command: input multiple lines as task prompt, call create_swarm_session,
+    then execute the returned DAG instance."""
+    print(
+        f'\n>>>> Start input multiple-lines for swarm task, end with {colorful_text("/end", Color.YELLOW)}, '
+        f'cancel with {colorful_text("/cancel", Color.YELLOW)}')
+    text: list[str] = []
+    while True:
+        s = _input('', text_arr)
+        if s.strip() == '/end':
+            break
+        if s.strip() == '/cancel':
+            print_warning('Swarm command cancelled.')
+            return None, False
+        text.append(s)
+    task_prompt = '\n'.join(text)
+    if not task_prompt.strip():
+        print_warning('Empty task prompt, skipping swarm command.')
         return None, False
-    task_prompt = ':'.join(task_split[1:])
-    import asyncio
-    merged_path = asyncio.run(run_swarm_session(task_prompt))
-    if merged_path:
-        print_success(f'Swarm merged result: {merged_path}')
-    else:
-        print_warning('Swarm produced no outputs.')
+
+    print_debug('Creating swarm session...')
+    try:
+        dag = asyncio.run(create_swarm_session(task_prompt))
+    except Exception as e:
+        print_error(f'Failed to create swarm session: {e}')
+        return None, False
+
+    if dag is None:
+        print_warning('Warning: create_swarm_session returned None, skipping execution.')
+        return None, False
+
+    print_debug(f'Swarm session created, DAG has {len(dag)} node(s).')
+
+    print_debug('Executing DAG...')
+    try:
+        executor = Executor()
+        results = executor.execute(dag)
+        print_success(f'Swarm execution completed. Results: {results}')
+    except Exception as e:
+        print_error(f'Swarm execution failed: {e}')
+
     return None, False
 
 

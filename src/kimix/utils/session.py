@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 import asyncio
 from pathlib import Path
 import os
@@ -10,6 +10,7 @@ from kimix.base import print_success, print_debug, percentage_str
 from . import _globals
 from .config import _create_config
 from .system_prompt import get_system_prompt, SystemPromptType
+from kimi_cli.soul.agent import BuiltinSystemPromptArgs
 
 
 def context_path() -> Path:
@@ -72,16 +73,16 @@ async def _create_session_async(
         if not agent_file.is_absolute():
             agent_file = base._default_agent_file_dir / agent_file
     skills_dirs = _ensure_skill_dirs(skills_dir) if skills_dir is not None else base.get_skill_dirs()
-    system_prompts : str | None = None
+    system_prompts: Callable[[BuiltinSystemPromptArgs], str] | None = None
+    if system_prompts is None:
+        system_prompts = get_system_prompt(is_sub_agent, plan_mode, yolo, work_dir, skills_dirs, system_prompt)
     if provider_dict:
         custom_system_prompt = provider_dict.get('system_prompt')
         if custom_system_prompt:
             _original_system_prompts = system_prompts
-            def _wrapped_system_prompts(args):
+            def _wrapped_system_prompts(args: BuiltinSystemPromptArgs) -> str:
                 return _original_system_prompts(args) + '\n\n' + str(custom_system_prompt)
             system_prompts = _wrapped_system_prompts
-    if system_prompts is None:
-        system_prompts = get_system_prompt(is_sub_agent, plan_mode, yolo, work_dir, skills_dirs, system_prompt)
     #### Custom arguments: defined in `kimi-cli\src\kimi_cli\soul\agent.py`, as `**custom_arguments`
     if resume:
         session = await Session.resume(
@@ -239,7 +240,7 @@ def print_usage(session: Session | None = None) -> None:
         f'Context usage: {s}'
     )
 
-def compact_default_context():
+def compact_default_context() -> None:
     if _globals._default_session and _globals._default_session.status.context_usage > 1e-8:
         print_debug('Start compacting...')
         import time

@@ -40,7 +40,7 @@ Available commands:
   {colorful_text('/script', fg=Color.YELLOW)}         - Write python script
   {colorful_text('/cmd', fg=Color.YELLOW)}            - Write cmd 
   {colorful_text('/cd', fg=Color.YELLOW)}             - change dir
-  {colorful_text('/swarm:<task>', fg=Color.YELLOW)}  - Execute swarm task with multiple agents
+  {colorful_text('/swarm', fg=Color.YELLOW)}          - Execute swarm task with multiple agents
 
 Or enter any prompt to send to the agent.
 '''
