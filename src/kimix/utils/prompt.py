@@ -226,7 +226,7 @@ Plan only. Do not execute:
 ```
 {prompt_str}
 ```
-Record only ONE step with `Note` per turn. Do not write multiple steps at once.
+Record all steps with `Note` per turn, one-by-one. Do not write multiple steps at once.
 '''
             task_finished = False
             plan_session: Session | None = None

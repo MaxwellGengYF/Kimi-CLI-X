@@ -5,16 +5,16 @@ description: Guide for using Kimi API utilities (session management, prompts, co
 
 # Kimi API Utilities Guide
 
-This guide explains how to use the utility functions from `kimix.kimi_utils` and `kimix.base` for session management, prompting, colorful printing, and threading.
+This guide explains how to use the utility functions from `kimix.utils` and `kimix.base` for session management, prompting, colorful printing, and threading.
 
-## Session Management (kimix.kimi_utils)
+## Session Management (kimix.utils)
 
 ### create_session
 
 Create a new or resume an existing Kimi session.
 
 ```python
-from kimix.kimi_utils import create_session
+from kimix.utils import create_session
 from kaos.path import KaosPath
 
 # Create a new session
@@ -28,11 +28,14 @@ session = create_session(
     resume=False,                      # Optional: resume existing session
     agent_file=None,                   # Optional: Path to custom agent_worker.yaml
     provider_dict=None,                # Optional: custom LLM provider config dict
-    is_sub_agent=False                 # Optional: mark as sub-agent session
+    is_sub_agent=False,                # Optional: mark as sub-agent session
+    is_worker_system_prompt=True,      # Optional: use worker system prompt
+    vfs_path=None,                     # Optional: Path for virtual file system
+    chat_provider=None                 # Optional: custom ChatProvider instance
 )
 
 # Close session when done
-from kimix.kimi_utils import close_session, close_session_async
+from kimix.utils import close_session, close_session_async
 close_session(session)
 # Or use async version
 await close_session_async(session)
@@ -41,7 +44,7 @@ await close_session_async(session)
 ### Default Session
 
 ```python
-from kimix.kimi_utils import get_default_session, _create_default_session
+from kimix.utils import get_default_session, _create_default_session
 
 # Get or create the global default session (session_id="default")
 session = _create_default_session(resume=True)
@@ -55,7 +58,7 @@ session = get_default_session()
 Send a prompt to the Kimi agent and get a response.
 
 ```python
-from kimix.kimi_utils import prompt, prompt_async
+from kimix.utils import prompt, prompt_async
 
 # Simple prompt
 prompt("What is the capital of France?")
@@ -65,7 +68,7 @@ prompt(
     "Analyze this code",
     session=session,                   # Optional: use specific session (None=default)
     read_agents_md=True,               # Optional: read AGENTS.md first if context is fresh
-    skill_name="python",               # Optional: enable skill (str or list of str)
+    skill_name="python",               # Optional: enable skill (str)
     output_function=custom_print,      # Optional: custom output handler for text chunks
     info_print=True,                   # Optional: print context usage after completion
     cancel_callable=None,              # Optional: callable that returns True to cancel
@@ -79,7 +82,7 @@ await prompt_async("Analyze this code", session=session)
 ### Cancel Prompt
 
 ```python
-from kimix.kimi_utils import cancel_prompt, get_cancel_event
+from kimix.utils import cancel_prompt, get_cancel_event
 
 # Cancel the current prompt on a session
 cancel_prompt(session)  # session=None uses default session
@@ -91,10 +94,13 @@ event = get_cancel_event(session)
 ### Context Management
 
 ```python
-from kimix.kimi_utils import clear_context, print_usage, delete_session_dir, context_path
+from kimix.utils import clear_default_context, compact_default_context, print_usage, delete_session_dir, context_path
 
 # Clear current context and start fresh
-clear_context(force_create=True, resume=True, print_info=True)
+clear_default_context(force_create=True, resume=True, print_info=True)
+
+# Compact context to reduce token usage
+compact_default_context()
 
 # Print current context usage
 print_usage(session)
@@ -109,7 +115,7 @@ delete_session_dir()
 ### Tool Call Errors
 
 ```python
-from kimix.kimi_utils import get_tool_call_errors
+from kimix.utils import get_tool_call_errors
 
 # Get and clear failed tool calls for a session
 errors = get_tool_call_errors(session)  # or session_id string
@@ -119,7 +125,7 @@ errors = get_tool_call_errors(session)  # or session_id string
 ### Session Settings
 
 ```python
-from kimix.kimi_utils import set_plan_mode
+from kimix.utils import set_plan_mode
 
 # Toggle plan mode (clears context automatically)
 set_plan_mode(value=True, resume=True)
@@ -134,8 +140,8 @@ from kimix.base import (
     print_success,    # Green bold - success messages
     print_error,      # Red bold - error messages
     print_warning,    # Yellow bold - warning messages
-    print_info,       # Magenta bold - info messages
-    print_debug,      # Cyan - debug messages (silent if _quiet=True)
+    print_info,       # Magenta - info messages
+    print_debug,      # Bright cyan - debug messages (silent if _quiet=True)
     print_string,     # Plain text (respects _print_func)
 )
 
@@ -150,7 +156,7 @@ print_debug("Variable x = 42")
 ### Advanced Color Printing
 
 ```python
-from kimix.base import colorful_print, Color, BgColor, Style
+from kimix.base import colorful_print, colorful_text, Color, BgColor, Style
 
 # Full control over colors and styles
 colorful_print(
@@ -159,6 +165,9 @@ colorful_print(
     bg=BgColor.YELLOW,
     styles=[Style.BOLD, Style.UNDERLINE]
 )
+
+# Get colored text without printing
+colored = colorful_text("Warning", fg=Color.YELLOW, styles=[Style.BOLD])
 
 # Available colors
 # Foreground: BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE
@@ -201,7 +210,7 @@ sync_all()
 ### Async Prompt Helpers
 
 ```python
-from kimix.kimi_utils import async_prompt, async_fix_error
+from kimix.utils import async_prompt, async_fix_error
 
 # Run prompt in background thread (creates new session if None, closes after)
 thread = async_prompt("Analyze this file", session=None)
@@ -213,26 +222,36 @@ thread = async_fix_error("python main.py", extra_prompt="Handle edge cases")
 ### Process Execution
 
 ```python
-from kimix.base import _run_process_with_log, run_process_with_error, run_script
+from kimix.base import run_process_with_error, run_process_with_error_async
 
-# Run command and capture output
-output, returncode = _run_process_with_log("ls -la")
-
-# Run command and capture only errors
+# Run command and capture output with error detection
 error_output = run_process_with_error(
     command="npm run build",
     keycode=("error", "failed"),     # Keywords to look for in output
     skip_success=True                # Return None if no error keywords found and code==0
 )
 
-# Run a Python script in a new console window
-proc = run_script("./script.py")
+# Async version
+error_output = await run_process_with_error_async(
+    command="npm run build",
+    keycode=("error", "failed"),
+    skip_success=True
+)
 ```
 
-## File Operations (kimix.kimi_utils)
+### Run Script in New Console
 
 ```python
-from kimix.kimi_utils import prompt_path
+from kimix.base import run_script
+
+# Launch a Python script in a new console window
+proc = run_script("./my_script.py")
+```
+
+## File Operations (kimix.utils)
+
+```python
+from kimix.utils import prompt_path
 from pathlib import Path
 
 # Prompt with file content
@@ -243,17 +262,17 @@ prompt_path(
     Path("tasks.txt"),
     split_word="---",
     session=session,
-    after_prompt_coro=generator_func  # Optional: generator called after each chunk
+    after_prompt_coro=generator_func  # Optional: callable returning a generator, next() called after each chunk
 )
 ```
 
-## Error Fix Loop (kimix.kimi_utils)
+## Error Fix Loop (kimix.utils)
 
 ```python
-from kimix.kimi_utils import fix_error
+from kimix.utils import fix_error
 
 # Automatically detect and fix errors from a command
-fix_error(
+success = fix_error(
     command="python main.py",
     extra_prompt="Make sure to handle edge cases",  # Optional: extra instructions
     keycode=("error", "exception"),                  # Optional: keywords to detect
@@ -261,6 +280,43 @@ fix_error(
     session=None,                                    # Optional: session to use
     max_loop=4                                       # Optional: max fix attempts
 )
+# Returns True if no error or fixed, False if max_loop reached
+```
+
+## Plan Execution (kimix.utils)
+
+### PlanLoader
+
+```python
+from kimix.utils.prompt import PlanLoader
+from pathlib import Path
+
+# Create a plan loader for a cache file
+loader = PlanLoader(Path.home() / '.kimi' / 'plan' / '.cache.json')
+loader.load()          # Load cached state
+loader.store()         # Save current state
+loader.delete()        # Remove cache file
+
+# Compute hashes
+hash = PlanLoader.compute_file_hash("plan.md")
+hash = PlanLoader.compute_hash("content string")
+```
+
+### execute_plan / check_plan_cache
+
+```python
+from kimix.utils import execute_plan, check_plan_cache
+
+# Execute a complex task with plan caching support
+execute_plan(
+    "Build a web application",
+    ask_if_use_cache=lambda path: True,           # Optional: callback to ask about using cache
+    ask_if_execute_plan=lambda steps, idx: True,  # Optional: callback to confirm plan execution
+    plan_loader=None                              # Optional: PlanLoader instance for resuming
+)
+
+# Check if there's a valid plan cache
+use_cache, plan_loader = check_plan_cache(ask_if_use_cache=lambda path: True)
 ```
 
 ## Configuration Variables (kimix.base)
@@ -273,11 +329,13 @@ from kimix.base import (
     _default_plan_mode,      # Plan mode (default: False)
     _default_yolo,           # Yolo mode (default: True)
     _default_agent_file,     # Path to agent_worker.yaml
+    _default_agent_file_dir, # Directory containing agent_worker.yaml
     _default_skill_dirs,     # List of skill directories
     _default_provider,       # Custom provider dict or None
     _quiet,                  # If True, suppresses print_debug
     _colorful_print,         # If False, disables ANSI colors
     _print_func,             # Optional custom print handler (text, end) -> None
+    COMMON_SKILL_DIRS,       # Default skill directory paths
 )
 ```
 
@@ -309,7 +367,7 @@ set_default_provider({"name": "custom", "api_key": "..."})
 ```python
 from kimix.base import get_skill_dirs
 
-# Auto-discover skill directories (checked paths: .agents/skills, .config/.agents/skills, .opencode/skills)
+# Auto-discover skill directories (checked paths: .agents/skills, .config/.agents/skills, .opencode/skills, skills)
 dirs = get_skill_dirs(use_kaos_path=True)
 ```
 
@@ -325,11 +383,24 @@ s = percentage_str(0.7533)  # Returns "75.3%"
 ### Path Utilities
 
 ```python
-from kimix.kimi_utils import make_kaos_dir
+from kimix.utils import make_kaos_dir
 from kaos.path import KaosPath
 
 # Convert any path to KaosPath
 kaos_path = make_kaos_dir("./my_folder")
+```
+
+## Search Utilities (kimix.utils)
+
+```python
+from kimix.utils import TextSearchIndex, SearchResult, _ensure_text_search
+
+# Lazy-load search classes (from my_tools.skill.faiss.text_search)
+TextSearchIndex, SearchResult = _ensure_text_search()
+
+# Or use directly if already loaded
+index = TextSearchIndex(...)
+results: list[SearchResult] = index.search("query")
 ```
 
 ## Complete Example
@@ -337,7 +408,7 @@ kaos_path = make_kaos_dir("./my_folder")
 ```python
 """Example script using Kimi API utilities."""
 from pathlib import Path
-from kimix.kimi_utils import create_session, prompt, close_session, clear_context
+from kimix.utils import create_session, prompt, close_session, clear_default_context
 from kimix.base import print_success, print_error, print_info
 
 # Create session
@@ -370,30 +441,35 @@ finally:
 3. **Handle errors** - Wrap prompts in try/except blocks
 4. **Background tasks** - Use `run_thread()` for long-running operations
 5. **Session reuse** - Reuse sessions for related prompts to save context
-6. **Clear context** - Call `clear_context()` when switching topics
-7. **Fix errors automatically** - Use `fix_error()` for iterative debugging
-8. **Skill directories** - Place skills in `.agents/skills/` for auto-discovery
-9. **Cancel long prompts** - Use `cancel_prompt()` to stop running prompts
+6. **Clear context** - Call `clear_default_context()` when switching topics
+7. **Compact context** - Use `compact_default_context()` to reduce token usage
+8. **Fix errors automatically** - Use `fix_error()` for iterative debugging
+9. **Skill directories** - Place skills in `.agents/skills/` for auto-discovery
+10. **Cancel long prompts** - Use `cancel_prompt()` to stop running prompts
 
 ## Common Imports
 
 ```python
 # Core utilities
-from kimix.kimi_utils import (
+from kimix.utils import (
     create_session, close_session, close_session_async,
-    prompt, prompt_async, clear_context, print_usage,
+    prompt, prompt_async, clear_default_context, compact_default_context, print_usage,
     get_default_session, get_tool_call_errors,
     set_plan_mode, cancel_prompt, get_cancel_event,
     prompt_path, fix_error, async_prompt, async_fix_error,
-    context_path, delete_session_dir, make_kaos_dir
+    context_path, delete_session_dir, make_kaos_dir,
+    execute_plan, check_plan_cache, PlanLoader,
+    TextSearchIndex, SearchResult, _ensure_text_search,
 )
 from kimix.base import (
     print_success, print_error, print_warning,
-    print_info, print_debug, colorful_print,
+    print_info, print_debug, colorful_print, colorful_text,
     Color, BgColor, Style, run_thread, sync_all,
-    run_process_with_error, get_skill_dirs, percentage_str,
+    run_process_with_error, run_process_with_error_async,
+    run_script,
+    get_skill_dirs, percentage_str, COMMON_SKILL_DIRS,
     set_default_thinking, set_default_plan_mode, set_default_yolo,
-    set_default_agent_file, set_default_skill_dirs, set_default_provider
+    set_default_agent_file_dir, set_default_agent_file, set_default_skill_dirs, set_default_provider
 )
 
 # Standard library

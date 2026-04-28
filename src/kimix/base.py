@@ -402,10 +402,13 @@ def get_skill_dirs(use_kaos_path: bool = True) -> list[Any]:
     return []
 
 
-generate_memory = '''Summarize session concisely; output directly:
-1. **Project Overview**: Project purpose and scope.
-2. **Key Decisions**: Important choices made.
-3. **Current State**: Completed work and verification status.
-4. **Important Files**: Key files and their roles.
-5. **TODOs/Pending Tasks**: Remaining work or next steps.
-6. **Technical Notes**: Relevant details to retain.'''
+generate_memory = '''Summarize the session for a coding agent. Output directly; no preamble.
+1. **Project Overview**: Purpose, scope, tech stack.
+2. **Key Decisions**: Critical choices, rationale, rejected alternatives.
+3. **Current State**: What works, what's merged/verified, active branch, test results.
+4. **Important Files**: Key paths and their roles (add, modify, delete).
+5. **Architecture / Data Flow**: Major components, interfaces, schema changes.
+6. **Dependencies**: Added, removed, upgraded packages or services.
+7. **TODOs / Blockers**: Remaining tasks, known issues, external dependencies.
+8. **Risks / Rollback**: Breaking changes, migration steps, revert strategy.
+9. **Technical Notes**: Patterns, constraints, APIs, env setup, performance or security considerations.'''
