@@ -55,6 +55,7 @@ async def _create_session_async(
     chat_provider: ChatProvider | None = None,
     is_sub_agent: bool = False,
     is_worker_system_prompt: bool = True,
+    vfs_path: Path | None = None,
 ) -> Session:
     if session_id is None:
         session_id = str(_globals._session_idx)
@@ -81,6 +82,7 @@ async def _create_session_async(
             system_prompts = _wrapped_system_prompts
     if system_prompts is None:
         system_prompts = get_system_prompt(is_sub_agent, plan_mode, yolo, work_dir, skills_dirs, is_worker_system_prompt)
+    #### Custom arguments: defined in `kimi-cli\src\kimi_cli\soul\agent.py`, as `**custom_arguments`
     if resume:
         session = await Session.resume(
             session_id=session_id,
@@ -92,8 +94,10 @@ async def _create_session_async(
             config=cfg,
             agent_file=agent_file,
             tool_call_failed_list=tool_call_failed_list,
+            # custom arguments
             custom_system_prompt=system_prompts,
             chat_provider=chat_provider,
+            vfs_path=vfs_path,
         )
         if not session:
             print_debug(f'Session {session_id} not found.')
@@ -107,9 +111,11 @@ async def _create_session_async(
             thinking=thinking if thinking is not None else base._default_thinking,
             config=cfg,
             agent_file=agent_file,
+            # custom arguments
             tool_call_failed_list=tool_call_failed_list,
             custom_system_prompt=system_prompts,
             chat_provider=chat_provider,
+            vfs_path=vfs_path,
         )
     return session
 
@@ -127,6 +133,7 @@ def create_session(
     chat_provider: ChatProvider | None = None,
     is_sub_agent: bool = False,
     is_worker_system_prompt: bool = True,
+    vfs_path: Path | None = None,
 ) -> Session:
     return asyncio.run(_create_session_async(
         session_id=session_id,
@@ -140,7 +147,8 @@ def create_session(
         provider_dict=provider_dict,
         chat_provider=chat_provider,
         is_sub_agent=is_sub_agent,
-        is_worker_system_prompt=is_worker_system_prompt
+        is_worker_system_prompt=is_worker_system_prompt,
+        vfs_path=vfs_path,
     ))
 
 
