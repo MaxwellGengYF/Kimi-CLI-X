@@ -13,7 +13,7 @@ class TestVFSInit:
         vfs = VFS(vr, wd)
         assert vfs.virtual_root == vr.resolve()
         assert vfs.work_dir == wd.resolve()
-        assert vfs._dirty_files == set()
+
 
 
 class TestVFSRel:

@@ -41,13 +41,11 @@ def test_multi_vfs_shared_workdir(tmp_path: Path) -> None:
     new_file_0 = vfs_list[0].virtual_root / "new0.txt"
     new_file_0.parent.mkdir(parents=True, exist_ok=True)
     new_file_0.write_text("new0")
-    vfs_list[0]._dirty_files.add(Path("new0.txt"))
 
     # VFS 1: creates another new file
     new_file_1 = vfs_list[1].virtual_root / "new1.txt"
     new_file_1.parent.mkdir(parents=True, exist_ok=True)
     new_file_1.write_text("new1")
-    vfs_list[1]._dirty_files.add(Path("new1.txt"))
 
     # Detect / auto-merge non-conflicts
     conflicts, applied = merge(*vfs_list, apply=True)
@@ -73,11 +71,9 @@ def test_multi_vfs_shared_workdir(tmp_path: Path) -> None:
     # After manual resolution, clear dirty state for all VFS on this path
     for vfs in vfs_list:
         rel = Path("shared.txt")
-        if rel in vfs._dirty_files:
-            vfs._dirty_files.discard(rel)
-            vfile = vfs.virtual_root / rel
-            if vfile.exists():
-                vfile.unlink()
+        vfile = vfs.virtual_root / rel
+        if vfile.exists():
+            vfile.unlink()
 
     # Final state assertions
     assert (wd / "shared.txt").read_text() in {"vfs0_edit", "vfs1_edit"}
