@@ -7,3 +7,4 @@ requirements.txt
 .kimix_cache/
 uv.lock
 clone_submodule.py
+sse_log_*

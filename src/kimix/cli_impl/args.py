@@ -19,6 +19,8 @@ def set_arg() -> tuple[bool, argparse.Namespace]:
     sse_cli_parser = subparsers.add_parser("ssecli", description="Kimix SSE CLI for debug")
     sse_cli_parser.add_argument('--host', default='127.0.0.1', help='Host to connect to (for ssecli)')
     sse_cli_parser.add_argument('--port', type=int, default=4096, help='Port to connect to (for ssecli)')
+    sse_cli_parser.add_argument('--debug', action='store_true',
+                                help='Print all SSE stream details and save to sse_log_<date>.txt')
 
     parser.add_argument('-c', '--clean', action='store_true',
                         help='Delete cache file after quit')

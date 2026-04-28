@@ -5,10 +5,12 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Any
+from datetime import datetime
+from pathlib import Path
+from typing import Any, TextIO
 
 from kimix.base import print_error
-from kimix.server.client import KimixAsyncClient, parse_event, EventType
+from kimix.server.client import KimixAsyncClient, parse_event, EventType, SSEEvent
 
 def _fmt_arg(s: str, max_len: int = 120) -> str:
     """Truncate long arguments, keeping head and tail."""
@@ -25,8 +27,14 @@ def _fmt_ts(unix_t: float) -> str:
     return time.strftime("%H:%M:%S", time.localtime(unix_t))
 
 
-async def _sse_cli_main(host: str, port: int) -> None:
+async def _sse_cli_main(host: str, port: int, debug: bool = False) -> None:
     client = KimixAsyncClient(host=host, port=port)
+    log_file: TextIO | None = None
+    if debug:
+        log_name = f"sse_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        log_path = Path.cwd() / log_name
+        log_file = open(log_path, "w", encoding="utf-8")
+        print(f"[SSE CLI] Debug mode ON, logging to {log_path}")
     print(f"[SSE CLI] Connecting to http://{host}:{port}")
 
     healthy = await client.health_check()
@@ -132,6 +140,21 @@ async def _sse_cli_main(host: str, port: int) -> None:
 
         print("[SSE CLI] Streaming events...")
         async for event in client.stream_events_robust(session.id):
+            if debug:
+                ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+                debug_lines = [
+                    f"[{ts}] ===== SSE RAW EVENT =====",
+                    f"[{ts}] event: {event.event!r}",
+                    f"[{ts}] data: {event.data!r}",
+                    f"[{ts}] id: {event.id!r}",
+                    f"[{ts}] =========================",
+                ]
+                for line in debug_lines:
+                    print(line)
+                    if log_file:
+                        log_file.write(line + "\n")
+                if log_file:
+                    log_file.flush()
             parsed = parse_event(event, session.id)
             if parsed.type == EventType.SKIP:
                 continue
@@ -181,11 +204,14 @@ async def _sse_cli_main(host: str, port: int) -> None:
         print()  # newline after stream
 
     await client.close()
+    if log_file:
+        log_file.close()
+        print(f"[SSE CLI] Debug log saved.")
     print("[SSE CLI] Bye.")
 
 
-def run_sse_cli(host: str, port: int) -> None:
+def run_sse_cli(host: str, port: int, debug: bool = False) -> None:
     try:
-        asyncio.run(_sse_cli_main(host, port))
+        asyncio.run(_sse_cli_main(host, port, debug))
     except KeyboardInterrupt:
         pass
