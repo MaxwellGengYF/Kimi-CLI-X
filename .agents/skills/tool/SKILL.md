@@ -242,7 +242,6 @@ The `my_tools/background/` module provides tools for managing background tasks:
 |------|-------------|------------|
 | `TaskList` | List all background tasks with their status | None |
 | `TaskOutput` | Get accumulated output from a background task | `task_id: str` |
-| `TaskWait` | Wait for a background task to complete | `task_id: str` |
 
 ### Utility Classes and Functions
 
@@ -274,8 +273,4 @@ task_id = generate_task_id("download", "file1")
 stream.start(my_background_function, stop_function)
 add_task(task_id, stream)
 
-# Later, use tools to interact with the task:
-# - TaskList: List all running tasks
-# - TaskOutput: Get output from a specific task
-# - TaskWait: Wait for a task to complete
 ```

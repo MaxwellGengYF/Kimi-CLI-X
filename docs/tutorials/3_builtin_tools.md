@@ -32,7 +32,7 @@
 - **不只“说”代码，而是直接“写”代码到文件中**（`WriteFile`、`StrReplaceFile`）
 - **不只“推测”问题，而是直接“读”文件、“搜”代码来验证**（`ReadFile`、`Grep`、`Glob`）
 - **不只“给出命令”，而是直接“运行”并观察输出**（`Run`、`Python`）
-- **处理耗时任务时进行异步管理**（`TaskList`、`TaskOutput`、`TaskStop`、`Input`）
+- **处理耗时任务时进行异步管理**（`TaskList`、`TaskOutput` `Input`）
 - **将 PDF、Word 等非结构化文档纳入工作流**（`Pdf2md`、`Docx2md`）
 - **在复杂任务前进入计划模式，降低出错概率**（`EnterPlanMode`、`ExitPlanMode`）
 
@@ -47,7 +47,7 @@
 | **文件与 I/O** | `WriteFile`, `ReadFile`, `StrReplaceFile`, `Mkdir`, `Rm` | 创建、读取、修改、删除文件与目录 |
 | **搜索与定位** | `Glob`, `Grep` | 按模式查找文件、在文件内容中搜索 |
 | **代码执行** | `Python`, `Run` | 执行 Python 脚本或任意可执行程序 |
-| **进程管理** | `Input`, `TaskList`, `TaskOutput`, `TaskStop` | 与后台进程交互、管理异步任务 |
+| **进程管理** | `Input`, `TaskList`, `TaskOutput` | 与后台进程交互、管理异步任务 |
 | **状态与标志** | `SetTodoList` | 设置状态标志、追踪多步骤任务进度 |
 | **文档转换** | `FetchURL`, `Pdf2md`, `Docx2md` | 获取网页内容、转换 PDF/Word 为 Markdown |
 | **计划与编排** | `EnterPlanMode`, `ExitPlanMode` | 在重大修改前制定计划并让用户确认 |
@@ -113,13 +113,11 @@
 - **`Input`**：向正在运行的后台进程的标准输入（stdin）发送文本。用于与交互式程序对话。
 - **`TaskList`**：列出所有后台任务及其当前状态（运行中、已完成等）。
 - **`TaskOutput`**：获取指定后台任务的累计输出，可设置阻塞等待（`block`）或定时轮询（`wait_time`）。
-- **`TaskStop`**：强制停止并取消一个后台任务。
 
 **典型工作流**：
 1. 用 `Run` 启动一个长时间运行的命令，并设置 `run_in_background=true`，获取 `task_id`。
 2. 用 `TaskOutput` 定期观察输出。
 3. 如需交互，用 `Input` 向 `task_id` 发送指令。
-4. 任务完成或出错时，用 `TaskStop` 结束进程。
 
 ### 五、状态与标志管理
 

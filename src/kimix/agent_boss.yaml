@@ -5,7 +5,6 @@ agent:
     - "kimi_cli.tools.file:ReadFile"
     - "kimi_cli.tools.file:Glob"
     - "kimi_cli.tools.file:Grep"
-    - "kimi_cli.tools.web:SearchWeb"
     - "my_tools.web.fetch_url:FetchURL"
     - "my_tools.skill:SkillRag"
     - "my_tools.note:Note"

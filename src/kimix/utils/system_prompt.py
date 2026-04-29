@@ -13,8 +13,8 @@ _SYSTEM_PROMP = (
 
 _NOTE = (
     'Note:\n'
-    '1. For long tasks, use `Run`/`Python` with `run_in_background=true`, then manage via '
-    '`TaskList`, `TaskOutput`, `Input`, `TaskStop`. Return control immediately after starting.\n'
+    '1. For long tasks, use `Run` with `run_in_background=true`, then manage via '
+    '`TaskList`, `TaskOutput`, `Input`. Return control immediately after starting.\n'
     '2. For complex or multi-step tasks, use `SetTodoList` to track progress.'
 )
 
@@ -58,10 +58,11 @@ def get_system_prompt(
                         '"large-context analysis or tasks needing different expertise", '
                         '"permission-graded operations like read-only analysis or sandboxed execution".'
                     )
+                items.append('Run: `python -c <code>` to execute Python code.')
                 if args.KIMI_OS == 'Windows':
-                    items.append('No Shell commands; use `Run`/`Python` instead.')
+                    items.append('No Shell commands; use `Run` instead.')
                 else:
-                    items.append(f'Shell: {args.KIMI_SHELL}.')
+                    items.append(f'Shell: {args.KIMI_SHELL}. use `Run`')
                 if plan_mode:
                     items.append('Plan mode: draft plan, run `ExitPlanMode`, then execute.')
                 start_index = 3

@@ -172,7 +172,7 @@ class Agent(CallableTool2):
             add_task(self._session, task_id, stream)
 
             return ToolOk(
-                output=f"Sub-agent started in background.\nTask ID: {task_id}\n\nUse 'TaskList' to view all tasks, 'TaskOutput' to get output, 'TaskWait' to wait for completion, 'TaskStop' to stop the sub-agent."
+                output=f"Sub-agent started in background.\nTask ID: {task_id}\n\nUse 'TaskList' to view all tasks, 'TaskOutput' to get output."
             )
 
         except Exception as exc:
