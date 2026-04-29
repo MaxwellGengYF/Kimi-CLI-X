@@ -45,7 +45,7 @@ class Python(CallableTool2[Params]):
         if params.run_in_background:
             return await self._run_in_background(params)
 
-        task = ProcessTask(sys.executable, ['-u', '-c', params.code], None, params.timeout)
+        task = ProcessTask(sys.executable, ['-u', '-c', params.code], None)
         task_id = task.start(self._session, "python", "python")
 
         # Wait for completion with timeout (allow a small buffer for cleanup)
@@ -99,7 +99,7 @@ class Python(CallableTool2[Params]):
             ToolOk with task_id on success, ToolError on failure.
         """
         try:
-            task = ProcessTask(sys.executable, ['-u', '-c', params.code], None, params.timeout)
+            task = ProcessTask(sys.executable, ['-u', '-c', params.code], None)
             task_id = task.start(self._session, "python", "python")
 
             # Return success with task_id

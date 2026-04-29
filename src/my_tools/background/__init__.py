@@ -57,7 +57,7 @@ class TaskOutputParams(BaseModel):
     )
     timeout: int = Field(
         default=60,
-        ge=1,
+        ge=3,
         le=300,
         description="Timeout in seconds."
     )
@@ -91,7 +91,7 @@ class TaskOutput(CallableTool2):
         try:
             tasks = get_all_tasks(self._session)
             stream: BackgroundStream | None = None
-            stream = tasks.get(params.task_id)
+            stream = tasks.get(params.task_id.strip())
             if stream is None:
                 return ToolError(
                     message=f"Task '{params.task_id}' not found",

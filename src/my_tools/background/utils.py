@@ -154,10 +154,11 @@ def generate_task_id(session: Session, kind: str, name: str | None = None) -> st
         return base_id
 
     data.task_names[base_id] += 1
-    return f"{base_id}_{data.task_names[base_id]}"
+    return f"{base_id}_{data.task_names[base_id]}".strip()
 
 
 def remove_task_id(session: Session, task_id: str) -> BackgroundStream | None:
+    task_id = task_id.strip()
     """Remove a task_id from the session task registry.
 
     Args:
@@ -174,6 +175,7 @@ def remove_task_id(session: Session, task_id: str) -> BackgroundStream | None:
 
 
 def add_task(session: Session, task_id: str, stream: BackgroundStream) -> None:
+    task_id = task_id.strip()
     """Add a task to the session task registry.
 
     Args:
@@ -189,6 +191,7 @@ def get_all_tasks(session: Session) -> dict[str, BackgroundStream]:
 
 
 def join_task(session: Session, task_id: str) -> bool:
+    task_id = task_id.strip()
     """Join a task and clean up its resources.
 
     Args:

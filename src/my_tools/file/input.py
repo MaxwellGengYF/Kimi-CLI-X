@@ -26,7 +26,7 @@ class Input(CallableTool2):
 
     async def __call__(self, params: InputParams) -> ToolReturnValue:
         tasks = get_all_tasks(self._session)
-        task = tasks.get(params.task_id)
+        task = tasks.get(params.task_id.strip())
         if task is None:
             return ToolError(
                 output="",

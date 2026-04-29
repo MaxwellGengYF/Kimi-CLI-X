@@ -122,7 +122,7 @@ async def _maybe_export_output_async(output: str, key: Path | None = None) -> st
 class ProcessTask:
     """Run a subprocess in the background with stream output and input support."""
 
-    def __init__(self, path: str, args: list[str] | None = None, cwd: str | None = None, timeout: float | None = None) -> None:
+    def __init__(self, path: str, args: list[str] | None = None, cwd: str | None = None) -> None:
         import shutil
         # On Windows, subprocess.Popen with shell=False does not resolve .cmd/.bat
         # via PATHEXT. Use shutil.which to find the real executable (e.g. pnpm.CMD).
@@ -133,7 +133,6 @@ class ProcessTask:
         self.path = path
         self.args = args or []
         self.cwd = cwd
-        self.timeout = timeout
         self._stop_event = threading.Event()
         self._process_ref: subprocess.Popen[str] | None = None
         self._stream: 'BackgroundStream' | None = None
@@ -201,8 +200,6 @@ class ProcessTask:
             stdout_thread.start()
             stderr_thread.start()
             # Wait for process completion with periodic stop checking
-            start_time = time.time()
-            is_timeout = False
             while process.poll() is None:
                 if self._stop_event.is_set():
                     process.terminate()
@@ -212,11 +209,6 @@ class ProcessTask:
                         process.kill()
                         process.wait()
                     break
-                if self.timeout is not None and time.time() - start_time > self.timeout:
-                    q.put_nowait(
-                        f"\n[Process timed out after {self.timeout} seconds]")
-                    self._stop_event.set()
-                    is_timeout = True
                 time.sleep(0.1)
 
             # Signal EOF to readers so they exit promptly
@@ -252,8 +244,7 @@ class ProcessTask:
             # Report completion status
             return_code = process.poll()
             if self._stop_event.is_set():
-                if not is_timeout:
-                    q.put_nowait("\n[Process stopped by user]")
+                q.put_nowait("\n[Process stopped by user]")
                 return False
             elif return_code is not None and return_code != 0:
                 q.put_nowait(f"\n[Process exited with code {return_code}]")

@@ -19,8 +19,8 @@ class RunParams(BaseModel):
     )
     timeout: int = Field(
         default=10,
-        ge=1,
-        le=60,
+        ge=3,
+        le=180,
         description="Timeout in seconds."
     )
     cwd: str | None = Field(
@@ -57,7 +57,7 @@ class Run(CallableTool2[RunParams]):
         if params.run_in_background:
             return await self._run_in_background(params)
 
-        task = ProcessTask(params.path, params.args, params.cwd, params.timeout)
+        task = ProcessTask(params.path, params.args, params.cwd)
         task_id = task.start(self._session, "run", Path(params.path).stem)
 
         # Wait for completion with timeout (allow a small buffer for cleanup)
@@ -110,7 +110,7 @@ class Run(CallableTool2[RunParams]):
             ToolOk with task_id on success, ToolError on failure.
         """
         try:
-            task = ProcessTask(params.path, params.args, params.cwd, params.timeout)
+            task = ProcessTask(params.path, params.args, params.cwd)
             task_id = task.start(self._session, "run", Path(params.path).stem)
 
             # Return success with task_id
