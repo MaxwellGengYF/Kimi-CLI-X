@@ -12,6 +12,7 @@ from kimix.dag.executor import Executor
 from kimix.utils import SystemPromptType
 
 _ALL_VFS_PATH: dict[str, Path] = dict()
+_MAX_AGENT_CONCURRENCY = 5
 
 async def create_swarm_session(task_prompt: str) -> DAG | None:
     """Create a swarm session using agent_swarm.yaml and initialize the DAG."""
@@ -45,7 +46,8 @@ async def execute_swarm_dag(dag: DAG, finalize_prompt: str = "") -> Path | None:
         return None
 
     def _execute() -> dict[str, Any]:
-        executor = Executor()
+        # Limit concurrent agents to prevent HTTP 429.
+        executor = Executor(max_workers=_MAX_AGENT_CONCURRENCY)
         return executor.execute(dag)
 
     await asyncio.to_thread(_execute)

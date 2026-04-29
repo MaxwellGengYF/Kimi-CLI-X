@@ -56,6 +56,7 @@ class Executor:
     """Thread pool executor that respects DAG dependencies."""
 
     def __init__(self, max_workers: int | None = None) -> None:
+        # Limit concurrent agents to prevent HTTP 429.
         self.max_workers = max_workers
 
     def execute(self, dag: DAG, ctx: Context | None = None) -> dict[str, Any]:
