@@ -13,7 +13,7 @@
         "reserved_context_size": 50000,
         "compaction_trigger_ratio": 0.85
     },
-    "max_tokens": 65536,
+    "max_tokens": 128000,
     "show_thinking_stream": true,
     "thinking_effort": "low",
     "background": {
