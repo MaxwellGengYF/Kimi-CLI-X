@@ -30,8 +30,6 @@ class Params(BaseModel):
 
 
 # Force UTF-8 encoding for subprocess on Windows
-os.environ['PYTHONIOENCODING'] = 'utf-8'
-
 
 class Python(CallableTool2[Params]):
     name: str = "Python"

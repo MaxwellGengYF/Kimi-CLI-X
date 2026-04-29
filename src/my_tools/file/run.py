@@ -43,6 +43,8 @@ class Run(CallableTool2[RunParams]):
     params: type[RunParams] = RunParams
 
     def __init__(self, session: Session):
+        import os
+        os.environ['PYTHONIOENCODING'] = 'utf-8'
         super().__init__()
         self._session = session
 
