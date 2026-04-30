@@ -80,6 +80,7 @@ class TestAddNode:
 
     @pytest.mark.asyncio
     async def test_node_execution_returns_prompt(self, mock_session: Session, add_node_tool: AddNode) -> None:
+        from unittest import mock
         prompt = "Refactor codebase"
         params = AddNodeParams(prompt=prompt)
         result = await add_node_tool(params)
@@ -89,7 +90,8 @@ class TestAddNode:
         node = dag.get_node(result.output)
         from kimix.dag import Context
         ctx = Context()
-        execution_result = node.execute(ctx)
+        with mock.patch("kimix.dag.agent_swarm.execute_swarm", new=mock.AsyncMock(return_value=prompt)):
+            execution_result = node.execute(ctx)
         assert execution_result == prompt
 
     @pytest.mark.asyncio

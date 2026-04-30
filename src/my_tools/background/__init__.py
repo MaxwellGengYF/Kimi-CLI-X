@@ -1,4 +1,5 @@
 """Background task management tools."""
+import sys
 import asyncio
 
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
@@ -78,13 +79,18 @@ class TaskOutput(CallableTool2):
     params: type[BaseModel] = TaskOutputParams
 
     def __del__(self):
+        if sys.is_finalizing():
+            return
         session = getattr(self, '_session', None)
         if session is not None:
             try:
                 loop = asyncio.get_running_loop()
                 loop.create_task(discard_all_tasks(session))
             except RuntimeError:
-                pass
+                try:
+                    asyncio.run(discard_all_tasks(session))
+                except:
+                    pass
 
     def __init__(self, session: Session):
         super().__init__()

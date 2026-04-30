@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import inspect
 import threading
 from typing import Any, Callable
@@ -95,7 +96,16 @@ class TaskNode:
         for attempt in range(self.retries + 1):
             try:
                 if inspect.iscoroutinefunction(self.func):
-                    result = asyncio.run(self.func(ctx))
+                    try:
+                        loop = asyncio.get_running_loop()
+                    except RuntimeError:
+                        loop = None
+                    if loop is not None:
+                        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                            future = pool.submit(asyncio.run, self.func(ctx))
+                            result = future.result()
+                    else:
+                        result = asyncio.run(self.func(ctx))
                 else:
                     result = self.func(ctx)
                 return result
