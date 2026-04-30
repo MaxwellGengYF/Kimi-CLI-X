@@ -811,6 +811,51 @@ class SessionManager:
         self._set_status(entry, "idle")
         return True
 
+    # ── Session Operations ───────────────────────────────────────
+
+    async def clear_session(self, session_id: str) -> bool:
+        """Clear a session's SDK state and local message history."""
+        entry = self._get_entry(session_id)
+        if entry.sdk_session:
+            await entry.sdk_session.clear()
+        entry.messages.clear()
+        entry.info.updatedAt = time.time()
+        logger.info("[SessionManager] Cleared session %s", session_id)
+        return True
+
+    async def compact_session(self, session_id: str, keep: Optional[int] = None) -> bool:
+        """Compact a session by trimming message history."""
+        entry = self._get_entry(session_id)
+        if entry.sdk_session:
+            await entry.sdk_session.compact()
+        if keep is not None and len(entry.messages) > keep:
+            entry.messages = entry.messages[-keep:]
+        entry.info.updatedAt = time.time()
+        logger.info("[SessionManager] Compacted session %s", session_id)
+        return True
+
+    async def export_session(
+        self, session_id: str, output_path: Optional[str] = None
+    ) -> tuple[str, int]:
+        """Export a session to a file. Returns (output_path, message_count)."""
+        entry = self._get_entry(session_id)
+        if entry.sdk_session is None:
+            raise ValueError(f"Session {session_id} has no active SDK session")
+        output, count = await entry.sdk_session.export(output_path=output_path)
+        logger.info("[SessionManager] Exported session %s to %s", session_id, output)
+        return output, count
+
+    def get_session_context(self, session_id: str) -> Dict[str, Any]:
+        """Return context usage for a specific session."""
+        entry = self._get_entry(session_id)
+        usage: Any = None
+        if entry.sdk_session:
+            try:
+                usage = entry.sdk_session.status.context_usage
+            except Exception:
+                pass
+        return {"sessionID": session_id, "context_usage": usage}
+
     # ── Helpers ───────────────────────────────────────────────────
 
     def _get_entry(self, session_id: str) -> ManagedSession:

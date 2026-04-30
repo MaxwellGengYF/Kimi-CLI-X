@@ -98,6 +98,7 @@ async def prompt_async(
     info_print: bool = True,
     cancel_callable: Callable[[], bool] | None = None,
     close_session_after_prompt: bool = False,
+    merge_wire_messages: bool = False
 ) -> None:
     if session is None:
         session = _create_default_session()
@@ -128,7 +129,7 @@ async def prompt_async(
             prompt_str = f'Read AGENTS.md.\n' + prompt_str
 
         if info_print:
-            print_debug(f'Start...', end='\n\n')
+            print_debug(f'Start...', end='\n')
 
         max_retries = 5
         for attempt in range(max_retries):
@@ -138,12 +139,13 @@ async def prompt_async(
             try:
                 import time
                 start_time = time.time()
-                async for message in session.prompt(prompt_str, merge_wire_messages=True):
+                base.PRINT_STREAM.think = False
+                async for message in session.prompt(prompt_str, merge_wire_messages=False):
                     if cancel_callable is not None and cancel_callable():
                         session.cancel()
                         break
-                    print_agent_json(
-                        lambda: message.model_dump_json(), output_function)
+                    print_agent_json(lambda: message.model_dump_json(), output_function)
+                print()
                 if info_print:
                     end_time = time.time()
                     _print_usage(session, end_time - start_time)
@@ -178,6 +180,7 @@ def prompt(
     info_print: bool = True,
     cancel_callable: Callable[[], bool] | None = None,
     close_session_after_prompt: bool = False,
+    merge_wire_messages: bool = False
 ) -> None:
     asyncio.run(
         prompt_async(
@@ -190,6 +193,7 @@ def prompt(
             info_print,
             cancel_callable,
             close_session_after_prompt,
+            merge_wire_messages
         ))
 
 

@@ -163,6 +163,9 @@ def _process_lru() -> None:
         _threads = [p for p in _threads if p.is_alive()]
 
 
+PRINT_STREAM = threading.local()
+
+
 def print_agent_json(get_message: Callable[[], str], output_function: Callable[[str, bool], Any] | None = None) -> None:
     json_str = None
     try:
@@ -172,41 +175,58 @@ def print_agent_json(get_message: Callable[[], str], output_function: Callable[[
         return
     js = json.loads(json_str)
 
+    think = getattr(PRINT_STREAM, 'think', False)
+
     def print_item(item: Any) -> None:
-        if type(item) == str:
-            if not (item.find('<choice>') >= 0 and item.find('</choice>') >= 0):
-                if output_function:
-                    output_function(item, False)
-                if _print_func:
-                    _print_func(item, '\n')
-                else:
-                    print(item, end='\n')
-        elif item.get("type") == "think" and not _quiet:
+        nonlocal think
+        if isinstance(item, str):
+            if think:
+                print()
+                think = False
+                PRINT_STREAM.think = False
+            if output_function:
+                output_function(item, False)
+            if _print_func:
+                _print_func(item, '')
+            else:
+                print(item, end='')
+            return
+
+        item_type = item.get("type")
+        if item_type == "think" and not _quiet:
             think_content = item.get("think", "")
             if think_content:
-                think_content = f"[Think] {think_content}"
+                if not think:
+                    think_content = f"\n[Think] {think_content}"
+                    think = True
+                    PRINT_STREAM.think = True
                 if output_function:
                     output_function(think_content, True)
-                colorful_print(think_content,
-                               fg=Color.BRIGHT_CYAN, end='\n')
-        elif item.get("type") == "text":
+                colorful_print(think_content, fg=Color.BRIGHT_CYAN, end='')
+        elif item_type == "text":
+            if think:
+                print()
+                think = False
+                PRINT_STREAM.think = False
             text_content = item.get("text", "")
-            if text_content:
-                if not (text_content.find('<choice>') >= 0 and text_content.find('</choice>') >= 0):
-                    if output_function:
-                        output_function(text_content, False)
-                    if _print_func:
-                        _print_func(f"\n{text_content}", '\n')
-                    else:
-                        print(f"\n{text_content}", end='\n')
-    if js.get("role") == "assistant":
-        content = js.get("content", [])
-        if type(content) == str:
-            if not (content.find('<choice>') >= 0 and content.find('</choice>') >= 0):
+            if text_content and not ("<choice>" in text_content and "</choice>" in text_content):
+                if output_function:
+                    output_function(text_content, False)
                 if _print_func:
-                    _print_func(content, '\n')
+                    _print_func(f"\n{text_content}", '')
                 else:
-                    print(content, end='\n')
+                    print(text_content, end='')
+        elif think:
+            think = False
+            PRINT_STREAM.think = False
+
+    if isinstance(js, dict) and js.get("role") == "assistant":
+        content = js.get("content", [])
+        if isinstance(content, str):
+            if _print_func:
+                _print_func(content, '')
+            else:
+                print(content, end='')
             return
         for item in content:
             print_item(item)

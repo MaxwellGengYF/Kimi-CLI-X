@@ -60,7 +60,7 @@ def async_prompt(
         from .session import create_session
         session = create_session()
         session_created = True
-    return run_thread(prompt, (prompt_str, session, read_agents_md, skill_name, output_function, info_print, cancel_callable, session_created))
+    return run_thread(prompt, (prompt_str, session, read_agents_md, skill_name, output_function, info_print, cancel_callable, session_created, True))
 
 
 def async_fix_error(

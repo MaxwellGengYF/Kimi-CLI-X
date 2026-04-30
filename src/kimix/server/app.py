@@ -15,6 +15,10 @@ Routes (opencode-standard):
     POST /session/{sessionID}/prompt_async — Send message (fire-and-forget, 204)
     POST /session/{sessionID}/abort        — Abort session
     POST /session/{sessionID}/permissions/{permissionID} — Grant permission
+    GET  /session/{sessionID}/clear        — Clear session
+    GET  /session/{sessionID}/context      — Get session context
+    GET  /session/{sessionID}/compact      — Compact session
+    GET  /session/{sessionID}/export       — Export session
 """
 
 from __future__ import annotations
@@ -319,5 +323,74 @@ def create_app() -> FastAPI:
         # Permission handling — acknowledge for now
         logger.info("Permission granted: session=%s, permission=%s", sessionID, permissionID)
         return Response(status_code=200)
+
+    # ── Options ──────────────────────────────────────────────
+
+    @app.get(
+        "/session/{sessionID}/clear",
+        tags=["Options"],
+        summary="Clear session",
+        description="Clear a specific session and return a confirmation.",
+        responses={404: {"model": ErrorResponse, "description": "Session not found"}},
+    )
+    async def clear_session(sessionID: str) -> Dict[str, Any]:
+        try:
+            await session_manager.clear_session(sessionID)
+        except KeyError:
+            raise HTTPException(status_code=404, detail=f"Session not found: {sessionID}")
+        return {"cleared": 1, "sessionID": sessionID}
+
+
+    @app.get(
+        "/session/{sessionID}/context",
+        tags=["Options"],
+        summary="Get session context",
+        description="Return context for a specific session.",
+        responses={404: {"model": ErrorResponse, "description": "Session not found"}},
+    )
+    async def get_session_context(sessionID: str) -> Dict[str, Any]:
+        try:
+            return session_manager.get_session_context(sessionID)
+        except KeyError:
+            raise HTTPException(status_code=404, detail=f"Session not found: {sessionID}")
+
+    @app.get(
+        "/session/{sessionID}/compact",
+        tags=["Options"],
+        summary="Compact session",
+        description="Compact a specific session by trimming message history.",
+        responses={404: {"model": ErrorResponse, "description": "Session not found"}},
+    )
+    async def compact_session(
+        sessionID: str,
+        keep: Optional[int] = Query(default=10, ge=0, description="Number of recent messages to keep"),
+    ) -> Dict[str, Any]:
+        try:
+            await session_manager.compact_session(sessionID, keep=keep)
+        except KeyError:
+            raise HTTPException(status_code=404, detail=f"Session not found: {sessionID}")
+        return {"compacted": 1, "sessionID": sessionID, "keep": keep}
+
+    @app.get(
+        "/session/{sessionID}/export",
+        tags=["Options"],
+        summary="Export session",
+        description="Export a specific session to a file.",
+        responses={
+            404: {"model": ErrorResponse, "description": "Session not found"},
+            400: {"model": ErrorResponse, "description": "Invalid input"},
+        },
+    )
+    async def export_session(
+        sessionID: str,
+        output_path: Optional[str] = Query(default=None, description="Output file path"),
+    ) -> Dict[str, Any]:
+        try:
+            output, count = await session_manager.export_session(sessionID, output_path=output_path)
+        except KeyError:
+            raise HTTPException(status_code=404, detail=f"Session not found: {sessionID}")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return {"output": output, "count": count, "sessionID": sessionID}
 
     return app

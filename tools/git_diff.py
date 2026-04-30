@@ -1,6 +1,7 @@
 import subprocess
 import sys
-
+import os
+os.environ['PYTHONIOENCODING'] = 'utf-8'
 def get_uncommitted_diff(filepath: str) -> str:
     """Return the uncommitted diff for a specific file."""
     result = subprocess.run(
@@ -8,6 +9,7 @@ def get_uncommitted_diff(filepath: str) -> str:
         capture_output=True,
         text=True,
         check=False,
+        errors='replace'
     )
     if result.returncode != 0:
         raise RuntimeError(f"git diff failed: {result.stderr.strip()}")
