@@ -507,6 +507,50 @@ class SessionManager:
             )
 
         try:
+            text = text.strip()
+            if text.startswith("/"):
+                task = text[1:]
+                split_idx = task.find(":")
+                if split_idx >= 0:
+                    cmd_name = task[:split_idx]
+                    cmd_args = task[split_idx + 1 :].split(":")
+                else:
+                    cmd_name = task
+                    cmd_args = []
+                handler = getattr(self, "_cmd_" + cmd_name, self._cmd_unknown)
+                new_text, response = await handler(session_id, cmd_args)
+                if response is not None:
+                    _emit_part(
+                        MessagePart(
+                            id=_gen_part_id(),
+                            type="text",
+                            text=json.dumps(response),
+                            sessionID=session_id,
+                            messageID=asst_msg_id,
+                        )
+                    )
+                    asst_msg.info.time["completed"] = _now_ms()
+                    entry.info.updatedAt = time.time()
+                    bus.emit_type(
+                        "message.updated",
+                        sessionID=session_id,
+                        info=asst_msg.info.to_dict(),
+                    )
+                    self._set_status(entry, "idle")
+                    return asst_msg.to_dict()
+                if new_text is not None:
+                    text = new_text.strip()
+                else:
+                    asst_msg.info.time["completed"] = _now_ms()
+                    entry.info.updatedAt = time.time()
+                    bus.emit_type(
+                        "message.updated",
+                        sessionID=session_id,
+                        info=asst_msg.info.to_dict(),
+                    )
+                    self._set_status(entry, "idle")
+                    return asst_msg.to_dict()
+
             async for wire_msg in sdk_session.prompt(text, merge_wire_messages=True):
                 # ── ApprovalRequest: auto-approve in server mode ─
                 if isinstance(wire_msg, ApprovalRequest):
@@ -816,6 +860,7 @@ class SessionManager:
     async def clear_session(self, session_id: str) -> bool:
         """Clear a session's SDK state and local message history."""
         entry = self._get_entry(session_id)
+        print('cleared server')
         if entry.sdk_session:
             await entry.sdk_session.clear()
         entry.messages.clear()
@@ -855,6 +900,28 @@ class SessionManager:
             except Exception:
                 pass
         return {"sessionID": session_id, "context_usage": usage}
+
+    # ── Special command handlers ─────────────────────────────────
+
+    async def _cmd_clear(self, session_id: str, args: list[str]) -> tuple[Optional[str], Optional[Any]]:
+        await self.clear_session(session_id)
+        return None, None
+
+    async def _cmd_compact(self, session_id: str, args: list[str]) -> tuple[Optional[str], Optional[Any]]:
+        await self.compact_session(session_id)
+        return None, None
+
+    async def _cmd_context(self, session_id: str, args: list[str]) -> tuple[Optional[str], Optional[Any]]:
+        result = self.get_session_context(session_id)
+        return None, result
+
+    async def _cmd_export(self, session_id: str, args: list[str]) -> tuple[Optional[str], Optional[Any]]:
+        output_path = ":".join(args) if args else None
+        output, count = await self.export_session(session_id, output_path=output_path)
+        return None, {"output": output, "count": count}
+
+    async def _cmd_unknown(self, session_id: str, args: list[str]) -> tuple[Optional[str], Optional[Any]]:
+        return None, {"detail": "Unknown command"}
 
     # ── Helpers ───────────────────────────────────────────────────
 

@@ -83,17 +83,31 @@ async def _sse_cli_main(host: str, port: int, debug: bool = False) -> None:
         return False
 
     async def _cmd_clear(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
-        print("[SSE CLI] /clear is not available in opencode-style server mode")
+        ok = await client.clear_session(session.id)
+        print(f"[SSE CLI] Clear: {'ok' if ok else 'failed'}")
         return False
 
-    async def _cmd_summarize(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
-        print("[SSE CLI] /summarize is not available in opencode-style server mode")
+    async def _cmd_compact(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
+        keep: int | None = None
+        if len(task_split) > 1:
+            try:
+                keep = int(task_split[1])
+            except ValueError:
+                print("[SSE CLI] Usage: /compact[:N] (N = messages to keep)")
+                return False
+        ok = await client.compact_session(session.id, keep=keep)
+        print(f"[SSE CLI] Compact: {'ok' if ok else 'failed'}")
         return False
 
-    async def _cmd_fix(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
-        print("[SSE CLI] /fix is not available in opencode-style server mode")
+    async def _cmd_export(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
+        output_path = task_split[1] if len(task_split) > 1 else None
+        try:
+            result = await client.export_session(session.id, output_path=output_path)
+            print(f"[SSE CLI] Export: {result.get('count', 0)} messages -> {result.get('output', 'n/a')}")
+        except Exception as exc:
+            print(f"[SSE CLI] Export failed: {exc}")
         return False
-    
+
     async def _cmd_unknown(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
         print(f"[SSE CLI] Unrecognized command: {task_split[0]}")
         return False
@@ -106,8 +120,8 @@ async def _sse_cli_main(host: str, port: int, debug: bool = False) -> None:
         "sessions": _cmd_sessions,
         "messages": _cmd_messages,
         "clear": _cmd_clear,
-        "summarize": _cmd_summarize,
-        "fix": _cmd_fix,
+        "export": _cmd_export,
+        "compact": _cmd_compact,
     }
 
     while True:

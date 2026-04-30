@@ -166,72 +166,68 @@ def _process_lru() -> None:
 PRINT_STREAM = threading.local()
 
 
-def print_agent_json(get_message: Callable[[], str], output_function: Callable[[str, bool], Any] | None = None) -> None:
-    json_str = None
-    try:
-        json_str = get_message()
-    except Exception:
-        print_debug('JSON error (possibly because streaming)...')
-        return
-    js = json.loads(json_str)
+def print_agent_json(wire_msg: Any, output_function: Callable[[str, bool], Any] | None = None) -> None:
+    # Lazy imports of wire message types
+    from kimi_cli.wire.types import (
+        ApprovalRequest,
+        StepBegin,
+        StepInterrupted,
+        TextPart,
+        ThinkPart,
+        ToolCall,
+        ToolCallPart,
+        ToolResult,
+    )
 
     think = getattr(PRINT_STREAM, 'think', False)
 
-    def print_item(item: Any) -> None:
-        nonlocal think
-        if isinstance(item, str):
-            if think:
-                print()
-                think = False
-                PRINT_STREAM.think = False
+    if isinstance(wire_msg, ApprovalRequest):
+        wire_msg.resolve("approve")
+        return
+
+    if isinstance(wire_msg, StepBegin):
+        print()
+        think = False
+        PRINT_STREAM.think = False
+        return
+
+    if isinstance(wire_msg, StepInterrupted):
+        print()
+        think = False
+        PRINT_STREAM.think = False
+        return
+
+    if isinstance(wire_msg, ThinkPart):
+        think_content = wire_msg.think
+        if think_content and not _quiet:
+            if not think:
+                think_content = f"[Think] {think_content}"
+                think = True
+                PRINT_STREAM.think = True
             if output_function:
-                output_function(item, False)
-            if _print_func:
-                _print_func(item, '')
-            else:
-                print(item, end='')
-            return
+                output_function(think_content, True)
+            colorful_print(think_content, fg=Color.BRIGHT_CYAN, end='')
+        return
 
-        item_type = item.get("type")
-        if item_type == "think" and not _quiet:
-            think_content = item.get("think", "")
-            if think_content:
-                if not think:
-                    think_content = f"\n[Think] {think_content}"
-                    think = True
-                    PRINT_STREAM.think = True
-                if output_function:
-                    output_function(think_content, True)
-                colorful_print(think_content, fg=Color.BRIGHT_CYAN, end='')
-        elif item_type == "text":
+    if isinstance(wire_msg, TextPart):
+        chunk = wire_msg.text
+        if chunk:
             if think:
                 print()
                 think = False
                 PRINT_STREAM.think = False
-            text_content = item.get("text", "")
-            if text_content and not ("<choice>" in text_content and "</choice>" in text_content):
+            if not ("<choice>" in chunk and "</choice>" in chunk):
                 if output_function:
-                    output_function(text_content, False)
+                    output_function(chunk, False)
                 if _print_func:
-                    _print_func(f"\n{text_content}", '')
+                    _print_func(f"\n{chunk}", '')
                 else:
-                    print(text_content, end='')
-        elif think:
-            think = False
-            PRINT_STREAM.think = False
+                    print(chunk, end='')
+        return
 
-    if isinstance(js, dict) and js.get("role") == "assistant":
-        content = js.get("content", [])
-        if isinstance(content, str):
-            if _print_func:
-                _print_func(content, '')
-            else:
-                print(content, end='')
-            return
-        for item in content:
-            print_item(item)
-    else:
-        print_item(js)
+    # ToolCall, ToolCallPart, ToolResult - ignore for console printing
+    if isinstance(wire_msg, (ToolCall, ToolCallPart, ToolResult)):
+        return
 
 
 def run_thread(function: Callable[..., Any], args: tuple[Any, ...] | None = None) -> threading.Thread:

@@ -31,7 +31,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from starlette.responses import StreamingResponse
 
@@ -273,7 +273,7 @@ def create_app() -> FastAPI:
         status_code=204,
         tags=["Message"],
         summary="Send message (async)",
-        description="Send a prompt fire-and-forget style. Returns 204 immediately. Response events are streamed via SSE /event.",
+        description="Send a prompt fire-and-forget style. Returns 204 immediately. Response events are streamed via SSE /event. Supports slash commands: /clear, /compact, /context, /export.",
         responses={
             404: {"model": ErrorResponse, "description": "Session not found"},
             400: {"model": ErrorResponse, "description": "Invalid input"},
@@ -284,10 +284,12 @@ def create_app() -> FastAPI:
         text = "\n".join(text_parts)
         if not text:
             raise HTTPException(status_code=400, detail="No text content in parts")
+        text = text.strip()
         try:
-            await session_manager.prompt_async(
-                sessionID, text, agent=body.agent
-            )
+            if text:
+                await session_manager.prompt_async(
+                    sessionID, text, agent=body.agent
+                )
         except KeyError:
             raise HTTPException(status_code=404, detail=f"Session not found: {sessionID}")
         return Response(status_code=204)

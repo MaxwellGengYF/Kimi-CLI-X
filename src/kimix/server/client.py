@@ -478,6 +478,35 @@ class KimixAsyncClient:
         )
         return resp.status_code == 200
 
+    async def clear_session(self, session_id: str) -> bool:
+        resp = await self._client.get(
+            f"{self._base_url}/session/{session_id}/clear"
+        )
+        return resp.status_code == 200
+
+    async def compact_session(
+        self, session_id: str, keep: Optional[int] = None
+    ) -> bool:
+        params = {}
+        if keep is not None:
+            params["keep"] = keep
+        resp = await self._client.get(
+            f"{self._base_url}/session/{session_id}/compact", params=params
+        )
+        return resp.status_code == 200
+
+    async def export_session(
+        self, session_id: str, output_path: Optional[str] = None
+    ) -> Dict[str, Any]:
+        params = {}
+        if output_path:
+            params["output_path"] = output_path
+        resp = await self._client.get(
+            f"{self._base_url}/session/{session_id}/export", params=params
+        )
+        resp.raise_for_status()
+        return resp.json()
+
     # ── SSE Streaming ────────────────────────────────────────
 
     async def stream_events(
