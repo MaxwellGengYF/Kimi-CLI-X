@@ -46,13 +46,13 @@ class Python(CallableTool2[Params]):
             return await self._run_in_background(params)
 
         task = ProcessTask(sys.executable, ['-u', '-c', params.code], None)
-        task_id = task.start(self._session, "python", "python")
+        task_id = await task.start(self._session, "python", "python")
 
         # Wait for completion with timeout (allow a small buffer for cleanup)
         wait_timeout = params.timeout
-        await anyio.to_thread.run_sync(task.wait, wait_timeout)
+        await task.wait(wait_timeout)
 
-        if task.thread_is_alive():
+        if await task.thread_is_alive():
             return ToolError(
                 output=f'Running in background. task_id: `{task_id}`. use `TaskOutput`',
                 message="Python execution timeout",
@@ -62,7 +62,7 @@ class Python(CallableTool2[Params]):
         from my_tools.background.utils import remove_task_id
         remove_task_id(self._session, task_id)
         # Get output
-        output = task.stream.pop_output() if task.stream else ""
+        output = await task.stream.pop_output() if task.stream else ""
 
         # Handle dest parameter if provided
         if params.dest:
@@ -73,7 +73,7 @@ class Python(CallableTool2[Params]):
             output = await _maybe_export_output_async(output)
 
         # Check success
-        success = task.stream.success() if task.stream else False
+        success = await task.stream.success() if task.stream else False
 
 
 
@@ -100,7 +100,7 @@ class Python(CallableTool2[Params]):
         """
         try:
             task = ProcessTask(sys.executable, ['-u', '-c', params.code], None)
-            task_id = task.start(self._session, "python", "python")
+            task_id = await task.start(self._session, "python", "python")
 
             # Return success with task_id
             return ToolOk(

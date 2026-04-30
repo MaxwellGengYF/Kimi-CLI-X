@@ -1,10 +1,10 @@
+import asyncio
+import codecs
 import os
 from pathlib import Path
 import queue
-import subprocess
 import threading
-import time
-from typing import IO, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from kimi_cli.session import Session
 
@@ -134,115 +134,139 @@ class ProcessTask:
         self.args = args or []
         self.cwd = cwd
         self._stop_event = threading.Event()
-        self._process_ref: subprocess.Popen[str] | None = None
+        self._process_ref: asyncio.subprocess.Process | None = None
         self._stream: 'BackgroundStream' | None = None
         self._task_id: str | None = None
+        self._input_queue: queue.Queue[str] = queue.Queue()
 
-    def _run_process_bg(self, q: queue.Queue[str]) -> bool:
+    async def _run_process_bg(self, q: queue.Queue[str]) -> bool:
         """Run the process and collect output into the queue."""
         process = None
         try:
             if self._stop_event.is_set():
                 return False
             # Start the process
-            process = subprocess.Popen(
-                [self.path] + self.args,
+            process = await asyncio.create_subprocess_exec(
+                self.path,
+                *self.args,
                 cwd=self.cwd,
                 env=os.environ,
-                stdin=subprocess.PIPE,  # Allow input via input_function
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                encoding='utf-8',
-                errors='replace'
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
             )
             self._process_ref = process
             # Read stdout and stderr concurrently with stop checking
 
             assert process.stdout is not None
             assert process.stderr is not None
+            assert process.stdin is not None
 
-            def read_stream(stream: IO[str], is_stderr: bool = False) -> None:
+            async def read_stdout() -> None:
                 try:
+                    decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
                     while True:
-                        if stream.closed or self._stop_event.is_set():
+                        if self._stop_event.is_set():
                             break
-                        data = stream.read()
+                        data = await process.stdout.read(1)
                         if data:
-                            prefix = "[stderr] " if is_stderr else ""
-                            q.put_nowait(prefix + data)
+                            char = decoder.decode(data)
+                            if char:
+                                q.put_nowait(char)
                         else:
-                            time.sleep(0.01)
-                except (IOError, OSError, ValueError):
+                            char = decoder.decode(b'', final=True)
+                            if char:
+                                q.put_nowait(char)
+                            break
+                except (IOError, OSError, ValueError, asyncio.CancelledError):
                     pass
 
-            def read_stream_one(stream: IO[str]) -> None:
+            async def read_stderr() -> None:
                 try:
+                    decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
                     while True:
-                        if stream.closed or self._stop_event.is_set():
+                        if self._stop_event.is_set():
                             break
-                        data = stream.read(1)
+                        data = await process.stderr.read(4096)
                         if data:
-                            q.put_nowait(data)
+                            text = decoder.decode(data)
+                            if text:
+                                q.put_nowait("[stderr] " + text)
                         else:
-                            time.sleep(0.01)
-                except (IOError, OSError, ValueError):
+                            text = decoder.decode(b'', final=True)
+                            if text:
+                                q.put_nowait("[stderr] " + text)
+                            break
+                except (IOError, OSError, ValueError, asyncio.CancelledError):
                     pass
 
-            # Start reader threads
-            stdout_thread = threading.Thread(
-                target=read_stream_one, args=(
-                    process.stdout, ), daemon=True
-            )
-            stderr_thread = threading.Thread(
-                target=read_stream, args=(process.stderr, True), daemon=True
-            )
-            stdout_thread.start()
-            stderr_thread.start()
+            async def write_stdin() -> None:
+                try:
+                    while True:
+                        if self._stop_event.is_set() or process.returncode is not None:
+                            break
+                        try:
+                            data = self._input_queue.get_nowait()
+                        except queue.Empty:
+                            await asyncio.sleep(0.01)
+                            continue
+                        process.stdin.write(data.encode('utf-8', errors='replace'))
+                        await process.stdin.drain()
+                except (IOError, OSError, ValueError, asyncio.CancelledError):
+                    pass
+
+            # Start reader/writer tasks
+            stdout_task = asyncio.create_task(read_stdout())
+            stderr_task = asyncio.create_task(read_stderr())
+            stdin_task = asyncio.create_task(write_stdin())
+
             # Wait for process completion with periodic stop checking
-            while process.poll() is None:
+            while process.returncode is None:
                 if self._stop_event.is_set():
                     process.terminate()
                     try:
-                        process.wait(timeout=2)
-                    except subprocess.TimeoutExpired:
+                        await asyncio.wait_for(process.wait(), timeout=2)
+                    except asyncio.TimeoutError:
                         process.kill()
-                        process.wait()
+                        await process.wait()
                     break
-                time.sleep(0.1)
+                await asyncio.sleep(0.1)
 
-            # Signal EOF to readers so they exit promptly
+            if process.returncode is not None and not self._stop_event.is_set():
+                await process.wait()
+
+            # Cancel tasks and wait for them to finish
+            stdout_task.cancel()
+            stderr_task.cancel()
+            stdin_task.cancel()
             try:
-                if process.stdout is not None:
-                    process.stdout.close()
-            except Exception:
+                await stdout_task
+            except asyncio.CancelledError:
                 pass
             try:
-                if process.stderr is not None:
-                    process.stderr.close()
-            except Exception:
+                await stderr_task
+            except asyncio.CancelledError:
+                pass
+            try:
+                await stdin_task
+            except asyncio.CancelledError:
                 pass
 
-            # Wait for readers to finish
-            stdout_thread.join(timeout=60)
-            stderr_thread.join(timeout=60)
             # Read any remaining data from stdout and stderr
             try:
-                if process.stdout is not None:
-                    remaining_stdout = process.stdout.read()
-                    if remaining_stdout:
-                        q.put_nowait(remaining_stdout)
+                remaining_stdout = await process.stdout.read()
+                if remaining_stdout:
+                    q.put_nowait(remaining_stdout.decode('utf-8', errors='replace'))
             except (IOError, OSError, ValueError):
                 pass
             try:
-                if process.stderr is not None:
-                    remaining_stderr = process.stderr.read()
-                    if remaining_stderr:
-                        q.put_nowait("[stderr] " + remaining_stderr)
+                remaining_stderr = await process.stderr.read()
+                if remaining_stderr:
+                    q.put_nowait("[stderr] " + remaining_stderr.decode('utf-8', errors='replace'))
             except (IOError, OSError, ValueError):
                 pass
             # Report completion status
-            return_code = process.poll()
+            return_code = process.returncode
             if self._stop_event.is_set():
                 q.put_nowait("\n[Process stopped by user]")
                 return False
@@ -256,25 +280,25 @@ class ProcessTask:
             return False
         finally:
             self._stop_event.set()
-            if process is not None and process.poll() is None:
+            if process is not None and process.returncode is None:
                 try:
                     process.kill()
-                    process.wait()
-                except:
+                    await process.wait()
+                except Exception:
                     pass
 
-    def _stop_function(self) -> None:
+    async def _stop_function(self) -> None:
         """Signal the background process to stop."""
         self._stop_event.set()
         # Also try to terminate the process directly if it's running
         proc = self._process_ref
-        if proc is not None and proc.poll() is None:
+        if proc is not None and proc.returncode is None:
             try:
                 proc.terminate()
             except Exception:
                 pass
 
-    def _input_function(self, data: str) -> bool:
+    async def _input_function(self, data: str) -> bool:
         """Push data to the process's stdin.
 
         Args:
@@ -290,22 +314,21 @@ class ProcessTask:
                 return False
             proc = self._process_ref
             if proc is None:
-                time.sleep(0.05)
+                await asyncio.sleep(0.05)
             else:
                 break
 
         # Write data to stdin
         try:
-            if proc.stdin is not None and proc.poll() is None:
-                proc.stdin.write(data)
-                proc.stdin.flush()
+            if proc.stdin is not None and proc.returncode is None:
+                self._input_queue.put_nowait(data)
                 return True
         except (IOError, OSError, ValueError):
             # Process may have terminated or stdin is closed
             pass
         return False
 
-    def start(self, session: Session, kind: str = "run", name: str | None = None) -> str:
+    async def start(self, session: Session, kind: str = "run", name: str | None = None) -> str:
         """Start the background process and register it as a task.
 
         Args:
@@ -320,25 +343,25 @@ class ProcessTask:
         self._stream = BackgroundStream()
         # Generate a task ID based on the executable name
         self._task_id = generate_task_id(session, kind, name or Path(self.path).stem)
-        self._stream.start(self._run_process_bg,
+        await self._stream.start(self._run_process_bg,
                            self._stop_function, self._input_function)
         # Register the task
         add_task(session, self._task_id, self._stream)
         assert self._task_id is not None
         return self._task_id
 
-    def wait(self, timeout: float | None = None) -> None:
-        self._stream.wait(timeout)
+    async def wait(self, timeout: float | None = None) -> None:
+        await self._stream.wait(timeout)
 
-    def thread_is_alive(self) -> bool:
-        return self._stream.thread_is_alive()
+    async def thread_is_alive(self) -> bool:
+        return await self._stream.thread_is_alive()
 
-    def stop(self) -> None:
+    async def stop(self) -> None:
         """Stop the background process."""
         if self._stream is not None:
-            self._stream.stop()
+            await self._stream.stop()
 
-    def input(self, data: str) -> bool:
+    async def input(self, data: str) -> bool:
         """Push data to the process's stdin.
 
         Args:
@@ -348,7 +371,7 @@ class ProcessTask:
             True if data was written successfully, False otherwise.
         """
         if self._stream is not None:
-            return bool(self._stream.input(data))
+            return await self._stream.input(data)
         return False
 
     @property

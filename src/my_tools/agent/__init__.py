@@ -167,7 +167,7 @@ class Agent(CallableTool2):
             # Create and start the background stream
             stream = BackgroundStream()
             task_id = generate_task_id(self._session, "agent", "subagent")
-            stream.start(run_agent_bg, stop_function)
+            await stream.start(run_agent_bg, stop_function)
             # Register the task
             add_task(self._session, task_id, stream)
 

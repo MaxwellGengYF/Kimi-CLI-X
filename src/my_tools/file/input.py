@@ -33,7 +33,7 @@ class Input(CallableTool2):
                 message=f"Task not found: {params.task_id}",
                 brief="Task not found"
             )
-        if not task.input(params.text):
+        if not await task.input(params.text):
             return ToolError(
                 output="",
                 message="Failed to send input to process",

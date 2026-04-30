@@ -33,7 +33,7 @@ class TaskList(CallableTool2):
 
             lines = []
             for task_id, stream in tasks.items():
-                status = stream.is_started()
+                status = await stream.is_started()
                 if status:
                     lines.append(task_id)
 
@@ -80,7 +80,11 @@ class TaskOutput(CallableTool2):
     def __del__(self):
         session = getattr(self, '_session', None)
         if session is not None:
-            discard_all_tasks(session)
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(discard_all_tasks(session))
+            except RuntimeError:
+                pass
 
     def __init__(self, session: Session):
         super().__init__()
@@ -98,13 +102,13 @@ class TaskOutput(CallableTool2):
                     output="",
                     brief=f"Task '{params.task_id}' not found"
                 )
-            if params.block or params.timeout > 0:
-                await asyncio.to_thread(stream.wait, params.timeout if params.timeout > 0 else None)
-            task_alive = stream.thread_is_alive()
+            if params.block:
+                await stream.wait(params.timeout)
+            task_alive = await stream.thread_is_alive()
             if params.kill and task_alive:
-                stream.stop()
+                await stream.stop()
                 task_alive = False
-            output = stream.get_output() if task_alive else stream.pop_output()
+            output = await stream.get_output() if task_alive else await stream.pop_output()
             if not task_alive:
                 remove_task_id(self._session, params.task_id)
             if params.output_path:
@@ -114,7 +118,7 @@ class TaskOutput(CallableTool2):
                 async with await anyio.open_file(path, 'w', encoding='utf-8') as f:
                     await f.write(output)
                 output = f"{'Task is still running, ' if task_alive else ''}output exported to file `{path}`"
-            elif output and task_alive and not stream.success():
+            elif output and task_alive and not await stream.success():
                 temp_path, _ = await _export_to_temp_file_async(key=None, content=output, ext='.txt')
                 output = f"Output exported to file `{temp_path}`"
             else:

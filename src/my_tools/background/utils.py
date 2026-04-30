@@ -1,7 +1,9 @@
+import asyncio
+import inspect
 import io
 import threading
 import queue
-from typing import Any, Callable, cast
+from typing import Any, Awaitable, Callable, cast
 
 from kimi_cli.session import Session
 
@@ -42,10 +44,10 @@ class BackgroundStream:
         self._success = False
         self._output = io.StringIO()
 
-    def success(self) -> bool:
+    async def success(self) -> bool:
         return self._success
 
-    def start(self, function: Callable[[queue.Queue[str]], Any], stop_function: Callable[[], Any], input_function: Callable[[str], Any] | None = None) -> None:
+    async def start(self, function: Callable[[queue.Queue[str]], Any] | Callable[[queue.Queue[str]], Awaitable[Any]], stop_function: Callable[[], Any] | Callable[[], Awaitable[Any]], input_function: Callable[[str], Any] | Callable[[str], Awaitable[Any]] | None = None) -> None:
         """Start the background thread with the given function.
 
         Args:
@@ -59,8 +61,15 @@ class BackgroundStream:
             q: queue.Queue[str] = queue.Queue()
             self._queue = q
 
-            def func(v: BackgroundStream, function: Callable[[queue.Queue[str]], Any]) -> None:
-                v._success = False if function(q) == False else True # defaultly success
+            def func(v: BackgroundStream, function: Callable[[queue.Queue[str]], Any] | Callable[[queue.Queue[str]], Awaitable[Any]]) -> None:
+                try:
+                    if inspect.iscoroutinefunction(function):
+                        result = asyncio.run(function(q))
+                    else:
+                        result = function(q)
+                except Exception:
+                    result = False
+                v._success = False if result == False else True # defaultly success
             self._thread = threading.Thread(
                 target=func, args=(self, function), daemon=True)
             self._stop_function = stop_function
@@ -68,28 +77,30 @@ class BackgroundStream:
             self._started = True
         self._thread.start()
 
-    def input(self, data: str) -> bool:
+    async def input(self, data: str) -> bool:
         if self._input_function:
+            if inspect.iscoroutinefunction(self._input_function):
+                return bool(await self._input_function(data))
             return bool(self._input_function(data))
         return False
 
-    def thread_is_alive(self) -> bool:
+    async def thread_is_alive(self) -> bool:
         with self._lock:
             return self._thread is not None and self._thread.is_alive()
 
-    def wait(self, timeout: float | None = None) -> None:
+    async def wait(self, timeout: float | None = None) -> None:
         """Wait for the background thread to complete."""
-        if not self.thread_is_alive():
+        if not await self.thread_is_alive():
             return
         thread = self._thread
         if thread is None:
             return
-        thread.join(timeout=timeout)
+        await asyncio.to_thread(thread.join, timeout=timeout)
         if not thread.is_alive():
             with self._lock:
                 self._thread = None
 
-    def get_output(self) -> str:
+    async def get_output(self) -> str:
         if self._queue is None:
             return self._output.getvalue()
 
@@ -100,13 +111,13 @@ class BackgroundStream:
                 break
         return self._output.getvalue()
 
-    def pop_output(self) -> str:
-        output = self.get_output()
+    async def pop_output(self) -> str:
+        output = await self.get_output()
         self._output.truncate(0)
         self._output.seek(0)
         return output
 
-    def get_queue(self) -> queue.Queue[str] | None:
+    async def get_queue(self) -> queue.Queue[str] | None:
         """Get the thread-safe queue for retrieving messages.
 
         Returns:
@@ -114,15 +125,15 @@ class BackgroundStream:
         """
         return self._queue
 
-    def is_started(self) -> bool:
+    async def is_started(self) -> bool:
         """Check if the stream has been started."""
         return self._started
 
-    def is_stopped(self) -> bool:
+    async def is_stopped(self) -> bool:
         """Check if the stream has been stopped."""
         return self._stopped
 
-    def stop(self) -> bool:
+    async def stop(self) -> bool:
         """Stop the background thread.
 
         Returns:
@@ -137,7 +148,10 @@ class BackgroundStream:
 
         if stop_func is not None:
             try:
-                stop_func()
+                if inspect.iscoroutinefunction(stop_func):
+                    await stop_func()
+                else:
+                    stop_func()
             except Exception:
                 pass
         return thread_alive
@@ -190,7 +204,7 @@ def get_all_tasks(session: Session) -> dict[str, BackgroundStream]:
     return _get_or_add_task_data(session).tasks
 
 
-def join_task(session: Session, task_id: str) -> bool:
+async def join_task(session: Session, task_id: str) -> bool:
     task_id = task_id.strip()
     """Join a task and clean up its resources.
 
@@ -206,15 +220,15 @@ def join_task(session: Session, task_id: str) -> bool:
         return False
 
     stream = data.tasks.pop(task_id)
-    stream.wait()
+    await stream.wait()
     return True
 
 
-def discard_all_tasks(session: Session) -> None:
+async def discard_all_tasks(session: Session) -> None:
     """Join all tasks and clear the session registries."""
     data = _pop_task_data(session)
     if data is None:
         return
     for stream in list(data.tasks.values()):
-        stream.stop()
+        await stream.stop()
     del data

@@ -1,0 +1,468 @@
+"""Comprehensive tests for BackgroundStream and task utilities."""
+
+import asyncio
+import queue
+import threading
+import time
+from typing import Any
+from unittest.mock import MagicMock
+
+import pytest
+
+from my_tools.background.utils import (
+    BackgroundStream,
+    TaskData,
+    _get_or_add_task_data,
+    _get_task_data,
+    _pop_task_data,
+    add_task,
+    discard_all_tasks,
+    generate_task_id,
+    get_all_tasks,
+    join_task,
+    remove_task_id,
+)
+
+
+# ---------------------------------------------------------------------------
+# BackgroundStream fixtures
+# ---------------------------------------------------------------------------
+@pytest.fixture
+def stream() -> BackgroundStream:
+    return BackgroundStream()
+
+
+@pytest.fixture
+def mock_session() -> MagicMock:
+    session = MagicMock()
+    session.custom_data = {}
+    return session
+
+
+# ---------------------------------------------------------------------------
+# BackgroundStream – construction / initial state
+# ---------------------------------------------------------------------------
+async def test_initial_state(stream: BackgroundStream) -> None:
+    assert await stream.is_started() is False
+    assert await stream.is_stopped() is False
+    assert await stream.thread_is_alive() is False
+    assert await stream.success() is False
+    assert await stream.get_output() == ""
+    assert await stream.get_queue() is None
+
+
+async def test_get_queue_returns_none_before_start(stream: BackgroundStream) -> None:
+    assert await stream.get_queue() is None
+
+
+# ---------------------------------------------------------------------------
+# BackgroundStream – start with sync function
+# ---------------------------------------------------------------------------
+async def test_start_sync_function(stream: BackgroundStream) -> None:
+    def worker(q: queue.Queue[str]) -> None:
+        q.put("hello")
+        q.put("world")
+        time.sleep(0.05)
+
+    await stream.start(worker, stop_function=lambda: None)
+    assert await stream.is_started() is True
+    assert await stream.thread_is_alive() is True
+
+    await stream.wait()
+    assert await stream.thread_is_alive() is False
+    assert await stream.get_output() == "helloworld"
+    assert await stream.success() is True
+
+
+async def test_start_idempotent(stream: BackgroundStream) -> None:
+    def worker(q: queue.Queue[str]) -> None:
+        q.put("a")
+
+    await stream.start(worker, stop_function=lambda: None)
+    # second start should be ignored
+    await stream.start(worker, stop_function=lambda: None)
+    await stream.wait()
+    assert await stream.get_output() == "a"
+
+
+# ---------------------------------------------------------------------------
+# BackgroundStream – start with async function
+# ---------------------------------------------------------------------------
+async def test_start_async_function(stream: BackgroundStream) -> None:
+    async def worker(q: queue.Queue[str]) -> None:
+        q.put("async")
+        q.put("data")
+
+    await stream.start(worker, stop_function=lambda: None)
+    await stream.wait()
+    assert await stream.get_output() == "asyncdata"
+    assert await stream.success() is True
+
+
+# ---------------------------------------------------------------------------
+# BackgroundStream – success handling
+# ---------------------------------------------------------------------------
+async def test_success_false_when_function_returns_false(stream: BackgroundStream) -> None:
+    def worker(q: queue.Queue[str]) -> bool:
+        q.put("x")
+        return False
+
+    await stream.start(worker, stop_function=lambda: None)
+    await stream.wait()
+    assert await stream.success() is False
+
+
+async def test_success_true_when_function_returns_true(stream: BackgroundStream) -> None:
+    def worker(q: queue.Queue[str]) -> bool:
+        q.put("x")
+        return True
+
+    await stream.start(worker, stop_function=lambda: None)
+    await stream.wait()
+    assert await stream.success() is True
+
+
+async def test_success_true_when_function_returns_non_bool(stream: BackgroundStream) -> None:
+    def worker(q: queue.Queue[str]) -> str:
+        q.put("x")
+        return "anything"
+
+    await stream.start(worker, stop_function=lambda: None)
+    await stream.wait()
+    assert await stream.success() is True
+
+
+async def test_success_false_on_exception(stream: BackgroundStream) -> None:
+    def worker(q: queue.Queue[str]) -> None:
+        raise RuntimeError("boom")
+
+    await stream.start(worker, stop_function=lambda: None)
+    await stream.wait()
+    assert await stream.success() is False
+
+
+async def test_success_false_on_async_exception(stream: BackgroundStream) -> None:
+    async def worker(q: queue.Queue[str]) -> None:
+        raise RuntimeError("async boom")
+
+    await stream.start(worker, stop_function=lambda: None)
+    await stream.wait()
+    assert await stream.success() is False
+
+
+# ---------------------------------------------------------------------------
+# BackgroundStream – get_output / pop_output
+# ---------------------------------------------------------------------------
+async def test_get_output_accumulates(stream: BackgroundStream) -> None:
+    def worker(q: queue.Queue[str]) -> None:
+        q.put("a")
+        q.put("b")
+
+    await stream.start(worker, stop_function=lambda: None)
+    await stream.wait()
+    assert await stream.get_output() == "ab"
+    # second call should return same content
+    assert await stream.get_output() == "ab"
+
+
+async def test_pop_output_clears_buffer(stream: BackgroundStream) -> None:
+    def worker(q: queue.Queue[str]) -> None:
+        q.put("a")
+        q.put("b")
+
+    await stream.start(worker, stop_function=lambda: None)
+    await stream.wait()
+    assert await stream.pop_output() == "ab"
+    assert await stream.pop_output() == ""
+
+
+async def test_get_output_without_queue_uses_internal_buffer(stream: BackgroundStream) -> None:
+    # before start, _output is empty
+    assert await stream.get_output() == ""
+
+
+async def test_get_output_partial_during_run(stream: BackgroundStream) -> None:
+    def worker(q: queue.Queue[str]) -> None:
+        q.put("partial")
+        time.sleep(0.05)
+        q.put("rest")
+
+    await stream.start(worker, stop_function=lambda: None)
+    # give thread time to put first item
+    time.sleep(0.02)
+    partial = await stream.get_output()
+    assert partial == "partial"
+    await stream.wait()
+    assert await stream.get_output() == "partialrest"
+
+
+# ---------------------------------------------------------------------------
+# BackgroundStream – stop
+# ---------------------------------------------------------------------------
+async def test_stop_before_start(stream: BackgroundStream) -> None:
+    result = await stream.stop()
+    assert result is False
+
+
+async def test_stop_with_sync_stop_function(stream: BackgroundStream) -> None:
+    stopped = threading.Event()
+
+    def worker(q: queue.Queue[str]) -> None:
+        time.sleep(1.0)
+
+    def stopper() -> None:
+        stopped.set()
+
+    await stream.start(worker, stop_function=stopper)
+    assert await stream.stop() is True
+    assert stopped.is_set()
+    assert await stream.is_stopped() is True
+
+
+async def test_stop_with_async_stop_function(stream: BackgroundStream) -> None:
+    stopped = asyncio.Event()
+
+    def worker(q: queue.Queue[str]) -> None:
+        time.sleep(1.0)
+
+    async def stopper() -> None:
+        stopped.set()
+
+    await stream.start(worker, stop_function=stopper)
+    assert await stream.stop() is True
+    assert stopped.is_set()
+    assert await stream.is_stopped() is True
+
+
+async def test_stop_ignores_exception_in_stop_function(stream: BackgroundStream) -> None:
+    def worker(q: queue.Queue[str]) -> None:
+        time.sleep(1.0)
+
+    def bad_stopper() -> None:
+        raise RuntimeError("stop error")
+
+    await stream.start(worker, stop_function=bad_stopper)
+    # should not raise
+    result = await stream.stop()
+    assert result is True
+    assert await stream.is_stopped() is True
+
+
+async def test_stop_idempotent(stream: BackgroundStream) -> None:
+    def worker(q: queue.Queue[str]) -> None:
+        time.sleep(1.0)
+
+    await stream.start(worker, stop_function=lambda: None)
+    assert await stream.stop() is True
+    assert await stream.stop() is False
+
+
+# ---------------------------------------------------------------------------
+# BackgroundStream – input
+# ---------------------------------------------------------------------------
+async def test_input_without_input_function(stream: BackgroundStream) -> None:
+    assert await stream.input("hello") is False
+
+
+async def test_input_with_sync_function(stream: BackgroundStream) -> None:
+    received: list[str] = []
+
+    def worker(q: queue.Queue[str]) -> None:
+        time.sleep(0.1)
+
+    def input_handler(data: str) -> bool:
+        received.append(data)
+        return True
+
+    await stream.start(worker, stop_function=lambda: None, input_function=input_handler)
+    assert await stream.input("test") is True
+    assert received == ["test"]
+    await stream.wait()
+
+
+async def test_input_with_async_function(stream: BackgroundStream) -> None:
+    received: list[str] = []
+
+    def worker(q: queue.Queue[str]) -> None:
+        time.sleep(0.1)
+
+    async def input_handler(data: str) -> bool:
+        received.append(data)
+        return True
+
+    await stream.start(worker, stop_function=lambda: None, input_function=input_handler)
+    assert await stream.input("async") is True
+    assert received == ["async"]
+    await stream.wait()
+
+
+async def test_input_returns_bool_cast(stream: BackgroundStream) -> None:
+    def worker(q: queue.Queue[str]) -> None:
+        time.sleep(0.1)
+
+    def input_handler(data: str) -> Any:
+        return None  # falsy
+
+    await stream.start(worker, stop_function=lambda: None, input_function=input_handler)
+    assert await stream.input("x") is False
+    await stream.wait()
+
+
+# ---------------------------------------------------------------------------
+# BackgroundStream – wait
+# ---------------------------------------------------------------------------
+async def test_wait_on_not_started(stream: BackgroundStream) -> None:
+    # should return immediately without error
+    await stream.wait()
+    assert await stream.thread_is_alive() is False
+
+
+async def test_wait_timeout(stream: BackgroundStream) -> None:
+    def worker(q: queue.Queue[str]) -> None:
+        time.sleep(1.0)
+
+    await stream.start(worker, stop_function=lambda: None)
+    await stream.wait(timeout=0.01)
+    # thread may still be alive due to timeout
+    assert await stream.is_started() is True
+
+
+async def test_wait_sets_thread_none_after_join(stream: BackgroundStream) -> None:
+    def worker(q: queue.Queue[str]) -> None:
+        q.put("done")
+
+    await stream.start(worker, stop_function=lambda: None)
+    await stream.wait()
+    assert await stream.thread_is_alive() is False
+
+
+# ---------------------------------------------------------------------------
+# BackgroundStream – threading safety (basic stress)
+# ---------------------------------------------------------------------------
+async def test_concurrent_get_output(stream: BackgroundStream) -> None:
+    def worker(q: queue.Queue[str]) -> None:
+        for i in range(100):
+            q.put(str(i))
+
+    await stream.start(worker, stop_function=lambda: None)
+    await stream.wait()
+    output = await stream.get_output()
+    # digits 0-9 → 1 char each (10), 10-99 → 2 chars each (180) → total 190
+    assert len(output) == 190
+
+
+# ---------------------------------------------------------------------------
+# TaskData / Session utilities
+# ---------------------------------------------------------------------------
+def test_task_data_initial_state() -> None:
+    td = TaskData()
+    assert td.task_names == {}
+    assert td.tasks == {}
+
+
+def test_get_or_add_task_data(mock_session: MagicMock) -> None:
+    data = _get_or_add_task_data(mock_session)
+    assert isinstance(data, TaskData)
+    assert "background_task_data" in mock_session.custom_data
+    # second call returns same object
+    assert _get_or_add_task_data(mock_session) is data
+
+
+def test_get_task_data(mock_session: MagicMock) -> None:
+    assert _get_task_data(mock_session) is None
+    data = _get_or_add_task_data(mock_session)
+    assert _get_task_data(mock_session) is data
+
+
+def test_pop_task_data(mock_session: MagicMock) -> None:
+    assert _pop_task_data(mock_session) is None
+    data = _get_or_add_task_data(mock_session)
+    assert _pop_task_data(mock_session) is data
+    assert _get_task_data(mock_session) is None
+
+
+# ---------------------------------------------------------------------------
+# generate_task_id
+# ---------------------------------------------------------------------------
+def test_generate_task_id_without_name(mock_session: MagicMock) -> None:
+    assert generate_task_id(mock_session, "kind") == "kind"
+    assert generate_task_id(mock_session, "kind") == "kind_1"
+    assert generate_task_id(mock_session, "kind") == "kind_2"
+
+
+def test_generate_task_id_with_name(mock_session: MagicMock) -> None:
+    assert generate_task_id(mock_session, "kind", "name") == "kind_name"
+    assert generate_task_id(mock_session, "kind", "name") == "kind_name_1"
+
+
+def test_generate_task_id_strips(mock_session: MagicMock) -> None:
+    assert generate_task_id(mock_session, "kind", "  name  ") == "kind_  name  "
+
+
+# ---------------------------------------------------------------------------
+# add_task / get_all_tasks / remove_task_id
+# ---------------------------------------------------------------------------
+def test_add_and_get_all_tasks(mock_session: MagicMock, stream: BackgroundStream) -> None:
+    add_task(mock_session, "t1", stream)
+    tasks = get_all_tasks(mock_session)
+    assert tasks == {"t1": stream}
+
+
+def test_remove_task_id(mock_session: MagicMock, stream: BackgroundStream) -> None:
+    add_task(mock_session, "t1", stream)
+    remove_task_id(mock_session, "t1")
+    assert get_all_tasks(mock_session) == {}
+
+
+def test_remove_task_id_missing(mock_session: MagicMock) -> None:
+    # should not raise
+    remove_task_id(mock_session, "missing")
+
+
+def test_add_task_strips_id(mock_session: MagicMock, stream: BackgroundStream) -> None:
+    add_task(mock_session, "  t1  ", stream)
+    assert "t1" in get_all_tasks(mock_session)
+
+
+# ---------------------------------------------------------------------------
+# join_task
+# ---------------------------------------------------------------------------
+async def test_join_task_success(mock_session: MagicMock, stream: BackgroundStream) -> None:
+    def worker(q: queue.Queue[str]) -> None:
+        q.put("done")
+
+    await stream.start(worker, stop_function=lambda: None)
+    add_task(mock_session, "t1", stream)
+    assert await join_task(mock_session, "t1") is True
+    assert get_all_tasks(mock_session) == {}
+
+
+async def test_join_task_not_found(mock_session: MagicMock) -> None:
+    assert await join_task(mock_session, "missing") is False
+
+
+async def test_join_task_no_data(mock_session: MagicMock) -> None:
+    assert await join_task(mock_session, "missing") is False
+
+
+# ---------------------------------------------------------------------------
+# discard_all_tasks
+# ---------------------------------------------------------------------------
+async def test_discard_all_tasks(mock_session: MagicMock) -> None:
+    def worker(q: queue.Queue[str]) -> None:
+        time.sleep(1.0)
+
+    stream1 = BackgroundStream()
+    stream2 = BackgroundStream()
+    await stream1.start(worker, stop_function=lambda: None)
+    await stream2.start(worker, stop_function=lambda: None)
+    add_task(mock_session, "t1", stream1)
+    add_task(mock_session, "t2", stream2)
+
+    await discard_all_tasks(mock_session)
+    assert _get_task_data(mock_session) is None
+
+
+async def test_discard_all_tasks_no_data(mock_session: MagicMock) -> None:
+    # should not raise
+    await discard_all_tasks(mock_session)

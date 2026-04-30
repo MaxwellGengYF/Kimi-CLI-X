@@ -58,13 +58,13 @@ class Run(CallableTool2[RunParams]):
             return await self._run_in_background(params)
 
         task = ProcessTask(params.path, params.args, params.cwd)
-        task_id = task.start(self._session, "run", Path(params.path).stem)
+        task_id = await task.start(self._session, "run", Path(params.path).stem)
 
         # Wait for completion with timeout (allow a small buffer for cleanup)
         wait_timeout = params.timeout
-        await anyio.to_thread.run_sync(task.wait, wait_timeout)
+        await task.wait(wait_timeout)
         
-        if task.thread_is_alive():
+        if await task.thread_is_alive():
             return ToolError(
                 output=f'Running in background. task_id: `{task_id}`. use `TaskOutput` or `TaskList` tool',
                 message="Process timeout",
@@ -75,7 +75,7 @@ class Run(CallableTool2[RunParams]):
         remove_task_id(self._session, task_id)
 
         # Get output
-        output = task.stream.pop_output() if task.stream else ""
+        output = await task.stream.pop_output() if task.stream else ""
 
         # Handle output export if needed
         if params.output_path:
@@ -84,7 +84,7 @@ class Run(CallableTool2[RunParams]):
             output = f'saved to file `{params.output_path}`'
         
         # Check success
-        success = task.stream.success() if task.stream else False
+        success = await task.stream.success() if task.stream else False
 
 
         if not success:
@@ -111,7 +111,7 @@ class Run(CallableTool2[RunParams]):
         """
         try:
             task = ProcessTask(params.path, params.args, params.cwd)
-            task_id = task.start(self._session, "run", Path(params.path).stem)
+            task_id = await task.start(self._session, "run", Path(params.path).stem)
 
             # Return success with task_id
             return ToolOk(
