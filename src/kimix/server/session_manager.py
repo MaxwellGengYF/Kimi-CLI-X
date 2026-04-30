@@ -517,8 +517,13 @@ class SessionManager:
                 else:
                     cmd_name = task
                     cmd_args = []
-                handler = getattr(self, "_cmd_" + cmd_name, self._cmd_unknown)
-                new_text, response = await handler(session_id, cmd_args)
+                try:
+                    handler = getattr(self, "_cmd_" + cmd_name, self._cmd_unknown)
+                    new_text, response = await handler(session_id, cmd_args)
+                except:
+                    response = None
+                    pass
+                response = None
                 if response is not None:
                     _emit_part(
                         MessagePart(
@@ -536,7 +541,6 @@ class SessionManager:
                         sessionID=session_id,
                         info=asst_msg.info.to_dict(),
                     )
-                    self._set_status(entry, "idle")
                     return asst_msg.to_dict()
                 if new_text is not None:
                     text = new_text.strip()
@@ -548,7 +552,6 @@ class SessionManager:
                         sessionID=session_id,
                         info=asst_msg.info.to_dict(),
                     )
-                    self._set_status(entry, "idle")
                     return asst_msg.to_dict()
 
             async for wire_msg in sdk_session.prompt(text, merge_wire_messages=True):
@@ -788,6 +791,8 @@ class SessionManager:
             logger.error(
                 "[SessionManager] Prompt error: %s", exc, exc_info=True
             )
+        finally:
+            self._set_status(entry, "idle")
 
         # ── Flush remaining buffers ──────────────────────────────
         _flush_reasoning()
@@ -809,8 +814,6 @@ class SessionManager:
             sessionID=session_id,
             info=asst_msg.info.to_dict(),
         )
-
-        self._set_status(entry, "idle")
 
         return asst_msg.to_dict()
 
@@ -890,16 +893,29 @@ class SessionManager:
         logger.info("[SessionManager] Exported session %s to %s", session_id, output)
         return output, count
 
-    def get_session_context(self, session_id: str) -> Dict[str, Any]:
+    async def get_session_context(self, session_id: str, keep: Optional[int] = None) -> Dict[str, Any]:
         """Return context usage for a specific session."""
         entry = self._get_entry(session_id)
-        usage: Any = None
+        print('cleared server')
         if entry.sdk_session:
-            try:
-                usage = entry.sdk_session.status.context_usage
-            except Exception:
-                pass
-        return {"sessionID": session_id, "context_usage": usage}
+            await entry.sdk_session.clear()
+        entry.messages.clear()
+        entry.info.updatedAt = time.time()
+        logger.info("[SessionManager] Cleared session %s", session_id)
+        return True
+        # entry = self._get_entry(session_id)
+        # usage: Any = None
+        # if entry.sdk_session:
+        #     try:
+        #         usage = entry.sdk_session.status.context_usage
+        #     except Exception:
+        #         pass
+        # if keep is not None and len(entry.messages) > keep:
+        #     entry.messages = entry.messages[-keep:]
+        # entry.messages.clear()
+        # entry.info.updatedAt = time.time()
+        # logger.info("[SessionManager] Get session  %s", session_id)
+        # return {"sessionID": session_id, "context_usage": usage}
 
     # ── Special command handlers ─────────────────────────────────
 
@@ -912,8 +928,9 @@ class SessionManager:
         return None, None
 
     async def _cmd_context(self, session_id: str, args: list[str]) -> tuple[Optional[str], Optional[Any]]:
-        result = self.get_session_context(session_id)
-        return None, result
+        await self.clear_session(session_id)
+        # result = self.get_session_context(session_id)
+        return None, None
 
     async def _cmd_export(self, session_id: str, args: list[str]) -> tuple[Optional[str], Optional[Any]]:
         output_path = ":".join(args) if args else None
