@@ -12,7 +12,9 @@ async def fix_error_async(
         skip_success: bool = True,
         keycode: tuple[str, ...] = ('error', ),
         session: Session | None = None,
-        max_loop: int = 4) -> bool:
+        max_loop: int = 4,
+        merge_wire_messages: bool = False,
+        ) -> bool:
     for i in range(max_loop):
         result = await run_process_with_error_async(
             command, keycode, skip_success=skip_success)
@@ -29,7 +31,7 @@ async def fix_error_async(
         if extra_prompt is not None:
             prompt_str = f'{extra_prompt}, {prompt_str}'
         from my_tools.common import _maybe_export_output
-        await prompt_async(_maybe_export_output(prompt_str), session)
+        await prompt_async(_maybe_export_output(prompt_str), session, merge_wire_messages=merge_wire_messages)
     return False
 
 
@@ -39,9 +41,11 @@ def fix_error(
         skip_success: bool = True,
         keycode: tuple[str, ...] = ('error', ),
         session: Session | None = None,
-        max_loop: int = 4) -> bool:
+        max_loop: int = 4,
+        merge_wire_messages: bool = False,
+        ) -> bool:
     asyncio.run(fix_error_async(
-        command, extra_prompt, skip_success, keycode, session, max_loop
+        command, extra_prompt, skip_success, keycode, session, max_loop, merge_wire_messages
     ))
 
 
@@ -68,8 +72,9 @@ def async_fix_error(
     extra_prompt: Optional[str] = None,
     skip_success: bool = True,
     keycode: tuple[str, ...] = ('error',),
+    max_loop: int = 4,
     session: Session | None = None
 ) -> Any:
     if session is None:
         session = _create_default_session()
-    return run_thread(fix_error, (command, extra_prompt, skip_success, keycode, session))
+    return run_thread(fix_error, (command, extra_prompt, skip_success, keycode, session, max_loop, True))
