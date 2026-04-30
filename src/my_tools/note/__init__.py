@@ -1,32 +1,14 @@
 """Manage persistent notes for working memory."""
 
-import json
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
 
 import anyio
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
+from kimi_cli.session import Session
 from pydantic import BaseModel, Field
-import threading
 
-WRITING_PATH = threading.local()
 MAGIC_SPLIT_STR = '\n>>>>>>>>>>9fbf5c1387a34\n'
-
-
-def set_writing_path(path: Path | None):
-    if path is not None:
-        setattr(WRITING_PATH, 'trigger', False)
-    setattr(WRITING_PATH, 'value', path)
-
-
-def is_note_called():
-    return getattr(WRITING_PATH, 'trigger', False)
-
-
-def get_writing_path() -> Path | None:
-    path: Path | None = getattr(WRITING_PATH, 'value', None)
-    return path
 
 
 def read_file(path: Path | None) -> list[str]:
@@ -52,8 +34,12 @@ class Note(CallableTool2):
     description: str = 'Append a note to a file.'
     params: type[Params] = Params
 
+    def __init__(self, session: Session):
+        super().__init__()
+        self._session = session
+
     async def __call__(self, params: Params) -> ToolReturnValue:
-        path: Path | None = getattr(WRITING_PATH, 'value', None)
+        path: Path | None = self._session.custom_data.get('note_writing_path')
         if path is None:
             return ToolError(
                 output="",
@@ -67,7 +53,7 @@ class Note(CallableTool2):
                 if previous_exists:
                     await f.write(MAGIC_SPLIT_STR)
                 await f.write(params.content)
-            setattr(WRITING_PATH, 'trigger', True)
+            self._session.custom_data['note_called'] = True
             return ToolOk(output=f"Note appended to {path}")
         except Exception as exc:
             return ToolError(

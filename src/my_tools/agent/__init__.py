@@ -8,8 +8,7 @@ from kimix.utils import prompt, close_session_async, _create_session_async
 from my_tools.common import _maybe_export_output_async
 from my_tools.background.utils import BackgroundStream, generate_task_id, add_task
 
-# Thread-local storage to track SubAgentScope context
-_sub_agent_scope = threading.local()
+SUB_AGENT_ACTIVE_KEY = "sub_agent_active"
 
 
 class SubAgentParams(BaseModel):
@@ -41,7 +40,7 @@ class Agent(CallableTool2):
             return await self._run_in_background(params)
 
         # Check if already inside a SubAgentScope
-        if getattr(_sub_agent_scope, 'active', False):
+        if self._session.custom_data.get(SUB_AGENT_ACTIVE_KEY, False):
             return ToolError(
                 output="",
                 message="You are a sub-agent, SubAgent cannot be called within this scope.",
@@ -60,7 +59,7 @@ class Agent(CallableTool2):
                 session = None
                 try:
                     import kimix.base as base
-                    _sub_agent_scope.active = True
+                    self._session.custom_data[SUB_AGENT_ACTIVE_KEY] = True
                     session = await _create_session_async(
                         thinking=params.thinking,
                         plan_mode=False,
@@ -72,7 +71,7 @@ class Agent(CallableTool2):
                 finally:
                     if session:
                         await close_session_async(session)
-                    _sub_agent_scope.active = False
+                    self._session.custom_data[SUB_AGENT_ACTIVE_KEY] = False
                 return None
 
             err_msg = await prompt_async()
@@ -97,7 +96,7 @@ class Agent(CallableTool2):
             ToolOk with task_id on success, ToolError on failure.
         """
         # Check if already inside a SubAgentScope
-        if getattr(_sub_agent_scope, 'active', False):
+        if self._session.custom_data.get(SUB_AGENT_ACTIVE_KEY, False):
             return ToolError(
                 output="",
                 message="You are a sub-agent, SubAgent cannot be called within this scope.",
@@ -123,7 +122,7 @@ class Agent(CallableTool2):
                     session = None
                     try:
                         import kimix.base as base
-                        _sub_agent_scope.active = True
+                        self._session.custom_data[SUB_AGENT_ACTIVE_KEY] = True
                         session = await _create_session_async(
                             thinking=params.thinking,
                             plan_mode=False,
@@ -136,7 +135,7 @@ class Agent(CallableTool2):
                     finally:
                         if session:
                             await close_session_async(session)
-                        _sub_agent_scope.active = False
+                        self._session.custom_data[SUB_AGENT_ACTIVE_KEY] = False
                     return None
 
                 err_msg = asyncio.run(prompt_async(_stop_event.is_set))

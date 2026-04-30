@@ -20,8 +20,6 @@ class PlanLoader:
         self.steps_count: int = 0
         self.plan_file_path: str = ""
         self.plan_file_hash: str = ""
-        self.memory_file_path: str = ""
-        self.memory_file_hash: str = ""
         self.finished_step_count: int = 0
 
     def load(self) -> None:
@@ -30,9 +28,7 @@ class PlanLoader:
                 data = json.load(f)
             self.steps_count = data.get('steps_count', 0)
             self.plan_file_path = data.get('plan_file_path', '')
-            self.memory_file_path = data.get('memory_file_path', '')
             self.plan_file_hash = data.get('plan_file_hash', '')
-            self.memory_file_hash = data.get('memory_file_hash', '')
             self.finished_step_count = data.get('finished_step_count', 0)
 
     def delete(self) -> None:
@@ -49,8 +45,6 @@ class PlanLoader:
             'steps_count': self.steps_count,
             'plan_file_path': self.plan_file_path,
             'plan_file_hash': self.plan_file_hash,
-            'memory_file_path': self.memory_file_path,
-            'memory_file_hash': self.memory_file_hash,
             'finished_step_count': self.finished_step_count,
         }
         with open(self.file_path, 'w', encoding='utf-8') as f:
@@ -207,118 +201,89 @@ def execute_plan(prompt_str: str, ask_if_use_cache: Callable[[str], bool] | None
     import os
     assert (
         not _default_plan_mode), 'Can not use this in auto-plan mode. (use /plan:off)'
-    from my_tools.note import set_writing_path, is_note_called, read_file
+    from my_tools.note import read_file
     use_cache = False
     if plan_loader is not None:
         use_cache = True
     elif ask_if_use_cache is not None:
         use_cache, plan_loader = check_plan_cache(ask_if_use_cache)
 
-    try:
-        if not use_cache:
-            # Step 1: generate plan
-            plan_file = _make_new_plan_file()
-            set_writing_path(plan_file)
-            try:
-                os.unlink(plan_file)
-            except:
-                pass
-            if plan_file.exists():
-                print_error(f'plan file {plan_file} already exists. quit.')
-                return
-            task_finished = False
-            plan_session: Session | None = None
-            try:
-                plan_session = create_session(agent_file='agent_boss.yaml', plan_mode=False, system_prompt=SystemPromptType.TodoMaker)
-                for i in range(4):
-                    prompt(prompt_str, session=plan_session)
-                    if not is_note_called():
-                        print_warning(
-                            f'Prompt did not write the proper plan. let it try again({i + 1}/4).')
-                    else:
-                        task_finished = True
-                        break
-                if not task_finished:
-                    print_error(
-                        'Execute plan failed, the plan file cannot generated.')
-                    return
-            finally:
-                if plan_session:
-                    close_session(plan_session)
-            steps = read_file(plan_file)
-            if plan_loader is None:
-                plan_loader = PlanLoader(Path.home() / '.kimi' / 'plan' / '.cache.json')
-            plan_loader.steps_count = len(steps)
-            plan_loader.plan_file_path = str(plan_file)
-            plan_loader.plan_file_hash = PlanLoader.compute_file_hash(
-                plan_file)
-            plan_loader.finished_step_count = 0
-            plan_loader.memory_file_path = ""
-            plan_loader.memory_file_hash = ""
-            plan_loader.store()
-        else:
-            assert plan_loader is not None
-            plan_file = Path(plan_loader.plan_file_path)
-            steps = read_file(plan_file)
-
-        memory_file: Path | None = None
-        if not steps:
-            print_warning('No plan made, quit.')
+    if not use_cache:
+        # Step 1: generate plan
+        plan_file = _make_new_plan_file()
+        try:
+            os.unlink(plan_file)
+        except:
+            pass
+        if plan_file.exists():
+            print_error(f'plan file {plan_file} already exists. quit.')
             return
-
-        if use_cache and plan_loader and plan_loader.finished_step_count > 0 and plan_loader.memory_file_path:
-            memory_file = Path(plan_loader.memory_file_path)
-
-        # Step 2: execute plan
-        start_idx = plan_loader.finished_step_count if plan_loader is not None else 0
-        if (ask_if_execute_plan is not None) and (not ask_if_execute_plan(steps, start_idx)):
-            print_warning('plan quit')
-            return
-        for idx in range(start_idx, len(steps)):
-            print_info(f'Executing step {idx}.')
-            step = steps[idx]
-            prompt_str = ''
-            list = read_file(memory_file)
-            if list:
-                joined_str = '\n'.join(list)
-                prompt_str += f'Last session memory (remember, no implement):\n```\n{joined_str}```\n```'
-            set_writing_path(None)
-            prompt_str += f'Now implement this:\n{step}'
-            clear_default_context()
-            prompt(prompt_str)
-            if idx != len(steps) - 1:  # not last
-                if plan_loader is not None:
-                    plan_loader.finished_step_count = idx + 1
-                    plan_loader.store()
-
-                memory_file = _make_new_plan_file()
-                from kimix.base import generate_memory
-                lines = []
-
-                def export_func(text: str, is_thinking: bool):
-                    if not is_thinking:
-                        lines.append(text)
-                prompt(generate_memory, output_function=export_func)
-                if lines:
-                    memory_content = '\n'.join(lines)
-                    memory_file.write_text(
-                        memory_content, encoding='utf-8', errors='replace')
+        task_finished = False
+        plan_session: Session | None = None
+        try:
+            plan_session = create_session(agent_file='agent_boss.yaml', plan_mode=False, system_prompt=SystemPromptType.TodoMaker)
+            custom_data = plan_session.get_custom_data()
+            if custom_data is not None:
+                custom_data['note_writing_path'] = plan_file
+                custom_data['note_called'] = False
+            for i in range(4):
+                prompt(prompt_str, session=plan_session)
+                if not (custom_data is not None and custom_data.get('note_called', False)):
+                    print_warning(
+                        f'Prompt did not write the proper plan. let it try again({i + 1}/4).')
                 else:
-                    memory_file = None
-                if plan_loader is not None:
-                    if memory_file:
-                        plan_loader.memory_file_path = str(memory_file)
-                        plan_loader.memory_file_hash = PlanLoader.compute_hash(
-                            memory_content)
-                    else:
-                        plan_loader.memory_file_path = ''
-                        plan_loader.memory_file_hash = ''
-                    plan_loader.store()
-            set_writing_path(None)
-        if plan_loader is not None:
-            plan_loader.delete()
-    finally:
-        set_writing_path(None)
+                    task_finished = True
+                    break
+            if not task_finished:
+                print_error(
+                    'Execute plan failed, the plan file cannot generated.')
+                return
+        finally:
+            if plan_session:
+                _cd = plan_session.get_custom_data()
+                if _cd is not None:
+                    _cd.pop('note_writing_path', None)
+                    _cd.pop('note_called', None)
+                close_session(plan_session)
+        steps = read_file(plan_file)
+        if plan_loader is None:
+            plan_loader = PlanLoader(Path.home() / '.kimi' / 'plan' / '.cache.json')
+        plan_loader.steps_count = len(steps)
+        plan_loader.plan_file_path = str(plan_file)
+        plan_loader.plan_file_hash = PlanLoader.compute_file_hash(
+            plan_file)
+        plan_loader.finished_step_count = 0
+        plan_loader.store()
+    else:
+        assert plan_loader is not None
+        plan_file = Path(plan_loader.plan_file_path)
+        steps = read_file(plan_file)
+
+    if not steps:
+        print_warning('No plan made, quit.')
+        return
+
+    # Step 2: execute plan
+    start_idx = plan_loader.finished_step_count if plan_loader is not None else 0
+    if (ask_if_execute_plan is not None) and (not ask_if_execute_plan(steps, start_idx)):
+        print_warning('plan quit')
+        return
+    clear_default_context()
+    for idx in range(start_idx, len(steps)):
+        print_info(f'Executing step {idx}.')
+        step = steps[idx]
+        prompt(f'''Implement:
+
+{step}
+
+After done, run `SetTodoList` to record.
+''')
+        if idx != len(steps) - 1:  # not last
+            if plan_loader is not None:
+                plan_loader.finished_step_count = idx + 1
+                plan_loader.store()
+    if plan_loader is not None:
+        plan_loader.delete()
 
 
 def prompt_path(path: Path, split_word: Optional[str] = None, session: Session | None = None, after_prompt_coro: Any = None) -> None:

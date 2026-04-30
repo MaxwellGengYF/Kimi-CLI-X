@@ -18,7 +18,6 @@ agent:
     - "kimi_cli.tools.plan.enter:EnterPlanMode"
     - "my_tools.agent:Agent"
     - "my_tools.lint:SyntaxLint"
-    - "my_tools.note:Note"
     # - "my_tools.office:Docx2md"
     # - "my_tools.pdf:Pdf2md"
     # - "kimi_cli.tools.shell:Shell"

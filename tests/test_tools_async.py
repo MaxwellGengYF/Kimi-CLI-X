@@ -60,16 +60,16 @@ class TestAgentBackground:
         mock_add_task.assert_called_once()
 
     async def test_nested_subagent_rejected(self, mock_session: MagicMock) -> None:
-        from my_tools.agent import Agent, SubAgentParams, _sub_agent_scope
+        from my_tools.agent import Agent, SubAgentParams
 
         agent = Agent(session=mock_session)
         params = SubAgentParams(prompt="nested", run_in_background=True)
-        _sub_agent_scope.active = True
+        mock_session.custom_data["sub_agent_active"] = True
         try:
             result = await agent(params)
             assert "cannot be called within this scope" in str(result.message)
         finally:
-            _sub_agent_scope.active = False
+            mock_session.custom_data["sub_agent_active"] = False
 
 
 # ---------------------------------------------------------------------------

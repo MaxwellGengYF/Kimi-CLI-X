@@ -43,6 +43,7 @@ def get_system_prompt(
         note_doc = ''
         agent_md_doc = ''
         skill_doc = ''
+
         match agent_role:
             case SystemPromptType.Worker:
                 rules = (
@@ -72,19 +73,29 @@ def get_system_prompt(
                         'Never write outside working directory or change system settings(if not asked).'
                     )
             case SystemPromptType.TodoMaker:
-                role_doc = '''You are a plan maker.
-Record all steps with `Note` per turn, one-by-one
-Do not write multiple steps at once.
+                role_doc = '''You are a plan maker. Only make plan, never implement.
+Record all steps using `Note` tool.
+No multiple steps at once.
 '''
+                rules = (
+                    'Rules: Direct output only. No chain-of-thought. No analysis. '
+                    'No reasoning blocks. No thinking-effort. zero preamble. '
+                    'No postamble. Minimal explanation. Concisely. Shortly.'
+                )
                 start_index = 1
             case SystemPromptType.SwarmCoordinator:
                 role_doc = (
                     'You are a swarm coordinator. Decompose the task into sub-agent nodes '
-                    'using AddNode and AddEdge tools to build a dependency DAG.\n'
+                    'using `AddNode` and `AddEdge` tools to build a dependency DAG.\n'
                     '- AddNode: create a sub-task with a clear, actionable prompt\n'
                     '- AddEdge: set execution order (upstream -> downstream)\n'
                     'Rules: keep graph acyclic; add edges only when necessary to maximize parallelism.\n'
                     'After building, report all nodes and edges.\n\n'
+                )
+                rules = (
+                    'Rules: Direct output only. No chain-of-thought. No analysis. '
+                    'No reasoning blocks. No thinking-effort. zero preamble. '
+                    'No postamble. Minimal explanation. Concisely. Shortly.'
                 )
                 start_index = 1
 
