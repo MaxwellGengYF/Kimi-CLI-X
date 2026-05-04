@@ -1,6 +1,7 @@
 """bzip2 tool - compress files."""
 import bz2
 import os
+import shutil
 from pathlib import Path
 
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
@@ -36,18 +37,14 @@ class Bzip2(CallableTool2[Params]):
                 try:
                     if decompress:
                         out_path = target.with_suffix("") if target.suffix == ".bz2" else target.parent / (target.name + ".decompressed")
-                        with bz2.open(target, "rb") as src:
-                            data = src.read()
-                        with open(out_path, "wb") as dst:
-                            dst.write(data)
+                        with bz2.open(target, "rb") as src, open(out_path, "wb") as dst:
+                            shutil.copyfileobj(src, dst)
                         if not keep:
                             target.unlink()
                     else:
                         out_path = target.parent / (target.name + ".bz2")
-                        with open(target, "rb") as src:
-                            data = src.read()
-                        with bz2.open(out_path, "wb") as dst:
-                            dst.write(data)
+                        with open(target, "rb") as src, bz2.open(out_path, "wb") as dst:
+                            shutil.copyfileobj(src, dst)
                         if not keep:
                             target.unlink()
                 except FileNotFoundError:

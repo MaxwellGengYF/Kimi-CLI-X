@@ -262,17 +262,24 @@ def _cmd_ralph(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     val = task_split[1].strip().lower()
     session = get_default_session()
     if val == 'on':
-        base._default_ralph = True
+        base._default_ralph = -1
         if session:
             session._cli._runtime.config.loop_control.max_ralph_iterations = -1
         print_success('Ralph mode ON.')
     elif val == 'off':
-        base._default_ralph = False
+        base._default_ralph = 0
         if session:
             session._cli._runtime.config.loop_control.max_ralph_iterations = 0
         print_success('Ralph mode OFF.')
     else:
-        print_error('Command must be /ralph:on or /ralph:off')
+        try:
+            num = int(val)
+            base._default_ralph = num
+            if session:
+                session._cli._runtime.config.loop_control.max_ralph_iterations = num
+            print_success(f'Ralph mode set to {num}.')
+        except ValueError:
+            print_error('Command must be /ralph:on, /ralph:off, /ralph:<num>, or /ralph')
     return None, False
 
 

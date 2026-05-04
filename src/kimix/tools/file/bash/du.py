@@ -7,20 +7,24 @@ from .params import Params
 
 from kimix.tools.common import _maybe_export_output_async
 
-def _dir_size(p: Path) -> int:
+
+def _dir_size(p: Path, cache: dict[Path, int]) -> int:
+    if p in cache:
+        return cache[p]
     total = 0
     try:
         if p.is_dir() and not p.is_symlink():
-            for entry in p.iterdir():
-                if entry.is_symlink():
-                    continue
-                if entry.is_dir():
-                    total += _dir_size(entry)
-                else:
-                    try:
-                        total += entry.stat().st_size
-                    except OSError:
-                        pass
+            with os.scandir(p) as it:
+                for entry in it:
+                    if entry.is_symlink():
+                        continue
+                    if entry.is_dir(follow_symlinks=False):
+                        total += _dir_size(Path(entry.path), cache)
+                    else:
+                        try:
+                            total += entry.stat(follow_symlinks=False).st_size
+                        except OSError:
+                            pass
         else:
             try:
                 total += p.stat().st_size
@@ -28,7 +32,9 @@ def _dir_size(p: Path) -> int:
                 pass
     except PermissionError:
         pass
+    cache[p] = total
     return total
+
 
 class Du(CallableTool2[Params]):
     name: str = "Du"
@@ -74,8 +80,8 @@ class Du(CallableTool2[Params]):
             cwd = params.cwd or os.getcwd()
             results = []
 
-            def _du(p: Path, depth: int):
-                size = _dir_size(p)
+            def _du(p: Path, depth: int, cache: dict[Path, int]):
+                size = _dir_size(p, cache)
                 if summarize:
                     results.append(f"{_fmt(size)}\t{p}")
                 elif max_depth is not None and depth >= max_depth:
@@ -85,12 +91,12 @@ class Du(CallableTool2[Params]):
                         results.append(f"{_fmt(size)}\t{p}")
                         if not summarize:
                             try:
-                                for entry in sorted(p.iterdir(), key=lambda e: e.name):
-                                    if entry.is_dir() and not entry.is_symlink():
-                                        _du(entry, depth + 1)
+                                for entry in sorted(os.scandir(p), key=lambda e: e.name):
+                                    if entry.is_dir(follow_symlinks=False) and not entry.is_symlink():
+                                        _du(Path(entry.path), depth + 1, cache)
                                     else:
-                                        esize = _dir_size(entry)
-                                        results.append(f"{_fmt(esize)}\t{entry}")
+                                        esize = _dir_size(Path(entry.path), cache)
+                                        results.append(f"{_fmt(esize)}\t{entry.path}")
                             except PermissionError:
                                 pass
                     else:
@@ -98,7 +104,7 @@ class Du(CallableTool2[Params]):
 
             for p in paths:
                 target = Path(cwd) / p if not Path(p).is_absolute() else Path(p)
-                _du(target, 0)
+                _du(target, 0, {})
 
             output = "\n".join(results)
             if params.output_path:

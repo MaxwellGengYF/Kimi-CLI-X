@@ -20,14 +20,12 @@ class Touch(CallableTool2[Params]):
                 return ToolError(message="touch: missing file operand", output="", brief="missing operand")
 
             cwd = params.cwd or os.getcwd()
+            cwd_path = Path(cwd)
             errors = []
             for p in paths:
-                target = Path(cwd) / p if not Path(p).is_absolute() else Path(p)
+                target = cwd_path / p if not os.path.isabs(p) else Path(p)
                 try:
-                    if target.exists():
-                        os.utime(target, None)
-                    else:
-                        target.touch()
+                    target.touch(exist_ok=True)
                 except OSError as e:
                     errors.append(f"touch: cannot touch '{p}': {e}")
 

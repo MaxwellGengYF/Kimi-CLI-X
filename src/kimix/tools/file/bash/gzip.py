@@ -1,12 +1,14 @@
 """gzip tool - compress files."""
 import gzip
 import os
+import shutil
 from pathlib import Path
 
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from .params import Params
 
 from kimix.tools.common import _maybe_export_output_async
+
 
 class Gzip(CallableTool2[Params]):
     name: str = "Gzip"
@@ -37,18 +39,14 @@ class Gzip(CallableTool2[Params]):
                     if decompress:
                         # gunzip mode
                         out_path = target.with_suffix("") if target.suffix == ".gz" else target.parent / (target.name + ".decompressed")
-                        with gzip.open(target, "rb") as src:
-                            data = src.read()
-                        with open(out_path, "wb") as dst:
-                            dst.write(data)
+                        with gzip.open(target, "rb") as src, open(out_path, "wb") as dst:
+                            shutil.copyfileobj(src, dst)
                         if not keep:
                             target.unlink()
                     else:
                         out_path = target.parent / (target.name + ".gz")
-                        with open(target, "rb") as src:
-                            data = src.read()
-                        with gzip.open(out_path, "wb") as dst:
-                            dst.write(data)
+                        with open(target, "rb") as src, gzip.open(out_path, "wb") as dst:
+                            shutil.copyfileobj(src, dst)
                         if not keep:
                             target.unlink()
                 except FileNotFoundError:

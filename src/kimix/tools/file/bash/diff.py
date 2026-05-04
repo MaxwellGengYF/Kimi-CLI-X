@@ -1,4 +1,5 @@
 """diff tool - compare files line by line."""
+import filecmp
 import os
 from pathlib import Path
 
@@ -7,10 +8,11 @@ from .params import Params
 
 from kimix.tools.common import _maybe_export_output_async
 
+
 def _diff_lines(a: list[str], b: list[str]) -> list[str]:
-    # Simple unified diff approximation using difflib
     import difflib
     return list(difflib.unified_diff(a, b, lineterm=""))
+
 
 class Diff(CallableTool2[Params]):
     name: str = "Diff"
@@ -28,40 +30,42 @@ class Diff(CallableTool2[Params]):
             right = Path(cwd) / paths[1] if not Path(paths[1]).is_absolute() else Path(paths[1])
 
             if left.is_dir() and right.is_dir():
-                # Compare directory contents
-                left_files = sorted(left.iterdir())
-                right_files = sorted(right.iterdir())
+                # Compare directory contents using os.scandir for speed
+                left_entries = {e.name: e for e in os.scandir(left)}
+                right_entries = {e.name: e for e in os.scandir(right)}
+                all_names = sorted(set(left_entries) | set(right_entries))
                 results = []
-                for f in left_files:
-                    rf = right / f.name
-                    if not rf.exists():
-                        results.append(f"Only in {left}: {f.name}")
-                    elif f.is_file() and rf.is_file():
-                        with open(f, "r", encoding="utf-8", errors="replace") as fh:
-                            flines = fh.read().splitlines()
-                        with open(rf, "r", encoding="utf-8", errors="replace") as fh:
-                            rlines = fh.read().splitlines()
-                        if flines != rlines:
+                for name in all_names:
+                    le = left_entries.get(name)
+                    re = right_entries.get(name)
+                    if le is None:
+                        results.append(f"Only in {right}: {name}")
+                    elif re is None:
+                        results.append(f"Only in {left}: {name}")
+                    elif le.is_file() and re.is_file():
+                        if not filecmp.cmp(le.path, re.path, shallow=False):
+                            with open(le.path, "r", encoding="utf-8", errors="replace") as fh:
+                                flines = fh.read().splitlines()
+                            with open(re.path, "r", encoding="utf-8", errors="replace") as fh:
+                                rlines = fh.read().splitlines()
                             results.extend(_diff_lines(flines, rlines))
-                for f in right_files:
-                    lf = left / f.name
-                    if not lf.exists():
-                        results.append(f"Only in {right}: {f.name}")
                 output = "\n".join(results)
             else:
-                try:
-                    with open(left, "r", encoding="utf-8", errors="replace") as f:
-                        left_lines = f.read().splitlines()
-                except FileNotFoundError:
+                if not left.exists():
                     return ToolError(message=f"diff: {paths[0]}: No such file or directory", output="", brief="file not found")
-                try:
-                    with open(right, "r", encoding="utf-8", errors="replace") as f:
-                        right_lines = f.read().splitlines()
-                except FileNotFoundError:
+                if not right.exists():
                     return ToolError(message=f"diff: {paths[1]}: No such file or directory", output="", brief="file not found")
 
-                results = _diff_lines(left_lines, right_lines)
-                output = "\n".join(results)
+                # Fast path: identical files
+                if filecmp.cmp(left, right, shallow=False):
+                    output = ""
+                else:
+                    with open(left, "r", encoding="utf-8", errors="replace") as f:
+                        left_lines = f.read().splitlines()
+                    with open(right, "r", encoding="utf-8", errors="replace") as f:
+                        right_lines = f.read().splitlines()
+                    results = _diff_lines(left_lines, right_lines)
+                    output = "\n".join(results)
 
             if params.output_path:
                 with open(params.output_path, "w", encoding="utf-8") as f:

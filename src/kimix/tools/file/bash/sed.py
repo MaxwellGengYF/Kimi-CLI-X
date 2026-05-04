@@ -8,6 +8,7 @@ from .params import Params
 
 from kimix.tools.common import _maybe_export_output_async
 
+
 class Sed(CallableTool2[Params]):
     name: str = "Sed"
     description: str = "Stream editor for filtering and transforming text."
@@ -74,34 +75,74 @@ class Sed(CallableTool2[Params]):
                 return ToolError(message="sed: unsupported script", output="", brief="unsupported script")
 
             cwd = params.cwd or os.getcwd()
-            results = []
+            cwd_path = Path(cwd)
 
             if not paths:
                 return ToolError(message="sed: missing file operand", output="", brief="missing operand")
 
-            for p in paths:
-                target = Path(cwd) / p if not Path(p).is_absolute() else Path(p)
-                try:
-                    with open(target, "r", encoding="utf-8", errors="replace") as f:
-                        for lineno, line in enumerate(f, 1):
-                            line = line.rstrip("\n\r")
-                            if script.startswith("d"):
-                                res = _apply(line, lineno)
-                            else:
-                                res = _apply(line)
-                            if res is not None:
-                                results.append(res)
-                except FileNotFoundError:
-                    results.append(f"sed: can't read {p}: No such file or directory")
-                except OSError as e:
-                    results.append(f"sed: {p}: {e}")
+            is_delete = script.startswith("d")
+            output_path = params.output_path
 
-            output = "\n".join(results)
-            if params.output_path:
-                with open(params.output_path, "w", encoding="utf-8") as f:
-                    f.write(output)
-                output = f"saved to file `{params.output_path}`"
+            if output_path:
+                # Stream directly to output file to avoid building a large list in memory.
+                with open(output_path, "w", encoding="utf-8") as out:
+                    first_write = True
+                    sep = ""
+                    for p in paths:
+                        p_path = Path(p)
+                        target = p_path if p_path.is_absolute() else cwd_path / p
+                        try:
+                            with open(target, "r", encoding="utf-8", errors="replace") as f:
+                                if is_delete:
+                                    for lineno, line in enumerate(f, 1):
+                                        line = line.rstrip("\n\r")
+                                        res = _apply(line, lineno)
+                                        if res is not None:
+                                            out.write(sep)
+                                            out.write(res)
+                                            sep = "\n"
+                                else:
+                                    for line in f:
+                                        line = line.rstrip("\n\r")
+                                        res = _apply(line)
+                                        if res is not None:
+                                            out.write(sep)
+                                            out.write(res)
+                                            sep = "\n"
+                        except FileNotFoundError:
+                            out.write(sep)
+                            out.write(f"sed: can't read {p}: No such file or directory")
+                            sep = "\n"
+                        except OSError as e:
+                            out.write(sep)
+                            out.write(f"sed: {p}: {e}")
+                            sep = "\n"
+                output = f"saved to file `{output_path}`"
             else:
+                results = []
+                for p in paths:
+                    p_path = Path(p)
+                    target = p_path if p_path.is_absolute() else cwd_path / p
+                    try:
+                        with open(target, "r", encoding="utf-8", errors="replace") as f:
+                            if is_delete:
+                                for lineno, line in enumerate(f, 1):
+                                    line = line.rstrip("\n\r")
+                                    res = _apply(line, lineno)
+                                    if res is not None:
+                                        results.append(res)
+                            else:
+                                for line in f:
+                                    line = line.rstrip("\n\r")
+                                    res = _apply(line)
+                                    if res is not None:
+                                        results.append(res)
+                    except FileNotFoundError:
+                        results.append(f"sed: can't read {p}: No such file or directory")
+                    except OSError as e:
+                        results.append(f"sed: {p}: {e}")
+
+                output = "\n".join(results)
                 output = await _maybe_export_output_async(output)
             return ToolOk(output=output)
         except Exception as e:

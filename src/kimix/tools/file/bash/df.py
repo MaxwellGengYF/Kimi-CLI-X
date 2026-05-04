@@ -31,6 +31,33 @@ def _get_disk_usage(path: str):
         used = (st.f_blocks - st.f_bfree) * st.f_frsize
         return total, used, free
 
+
+def _find_mount_point(path: str) -> str:
+    if platform.system() == "Windows":
+        import ctypes
+        buf = ctypes.create_unicode_buffer(260)
+        if ctypes.windll.kernel32.GetVolumePathNameW(path, buf, 260):
+            return buf.value
+        # Fallback for edge cases (e.g. invalid drive)
+        mount = Path(path).resolve()
+        while not mount.is_mount() and mount.parent != mount:
+            mount = mount.parent
+        return str(mount)
+    # Unix: walk up until st_dev changes — faster than ismount()
+    dev = os.stat(path).st_dev
+    while True:
+        parent = os.path.dirname(path)
+        if parent == path:
+            break
+        try:
+            parent_dev = os.stat(parent).st_dev
+        except OSError:
+            break
+        if parent_dev != dev:
+            break
+        path = parent
+    return path
+
 class Df(CallableTool2[Params]):
     name: str = "Df"
     description: str = "Report file system disk space usage."
@@ -57,22 +84,19 @@ class Df(CallableTool2[Params]):
                 return f"{size:.1f}E"
 
             results = ["Filesystem     1K-blocks     Used Available Use% Mounted on"]
-            seen = set()
+            seen_devs = set()
             for p in paths:
-                target = Path(p).resolve()
                 try:
-                    # Find mount point
-                    mount = target
-                    while not mount.is_mount() and mount.parent != mount:
-                        mount = mount.parent
-                    if mount in seen:
+                    target = os.path.realpath(p)
+                    dev = os.stat(target).st_dev
+                    if dev in seen_devs:
                         continue
-                    seen.add(mount)
-                    total, used, free = _get_disk_usage(str(mount))
+                    seen_devs.add(dev)
+                    mount = _find_mount_point(target)
+                    total, used, free = _get_disk_usage(mount)
                     percent = f"{int(used / total * 100)}%" if total else "0%"
-                    fs = str(mount)
                     results.append(
-                        f"{fs:15} {_fmt(total):>10} {_fmt(used):>10} {_fmt(free):>10} {percent:>4} {fs}"
+                        f"{mount:15} {_fmt(total):>10} {_fmt(used):>10} {_fmt(free):>10} {percent:>4} {mount}"
                     )
                 except OSError as e:
                     results.append(f"df: {p}: {e}")

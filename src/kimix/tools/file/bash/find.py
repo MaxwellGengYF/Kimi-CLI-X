@@ -1,12 +1,14 @@
 """find tool - search for files in a directory hierarchy."""
 import fnmatch
 import os
+import re
 from pathlib import Path
 
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from .params import Params
 
 from kimix.tools.common import _maybe_export_output_async
+
 
 class Find(CallableTool2[Params]):
     name: str = "Find"
@@ -43,24 +45,31 @@ class Find(CallableTool2[Params]):
                 paths = ["."]
 
             results = []
+            name_re = None
+            if name_pattern is not None:
+                name_re = re.compile(fnmatch.translate(name_pattern))
 
-            def _walk(p: Path, depth: int):
+            def _match(entry_name: str, is_dir: bool, is_file: bool, is_symlink: bool) -> bool:
+                if name_re is not None and not name_re.match(entry_name):
+                    return False
+                if ftype == "d" and not is_dir:
+                    return False
+                if ftype == "f" and not is_file:
+                    return False
+                if ftype == "l" and not is_symlink:
+                    return False
+                return True
+
+            def _walk(base_path: str, depth: int):
                 try:
-                    for entry in p.iterdir():
-                        matched = True
-                        if name_pattern is not None:
-                            matched = fnmatch.fnmatch(entry.name, name_pattern)
-                        if matched and ftype is not None:
-                            if ftype == "d" and not entry.is_dir():
-                                matched = False
-                            elif ftype == "f" and not entry.is_file():
-                                matched = False
-                            elif ftype == "l" and not entry.is_symlink():
-                                matched = False
-                        if matched:
-                            results.append(str(entry))
-                        if entry.is_dir() and (maxdepth is None or depth < maxdepth):
-                            _walk(entry, depth + 1)
+                    for entry in os.scandir(base_path):
+                        is_dir = entry.is_dir()
+                        is_file = entry.is_file()
+                        is_symlink = entry.is_symlink()
+                        if _match(entry.name, is_dir, is_file, is_symlink):
+                            results.append(entry.path)
+                        if is_dir and (maxdepth is None or depth < maxdepth):
+                            _walk(entry.path, depth + 1)
                 except PermissionError:
                     pass
                 except OSError:
@@ -68,24 +77,17 @@ class Find(CallableTool2[Params]):
 
             for p in paths:
                 target = Path(cwd) / p if not Path(p).is_absolute() else Path(p)
+                target_str = str(target)
                 if target.exists():
-                    if target.is_dir():
-                        results.append(str(target))
-                        _walk(target, 1)
+                    is_dir = target.is_dir()
+                    is_file = target.is_file()
+                    is_symlink = target.is_symlink()
+                    if is_dir:
+                        results.append(target_str)
+                        _walk(target_str, 1)
                     else:
-                        # Check if file itself matches
-                        matched = True
-                        if name_pattern is not None:
-                            matched = fnmatch.fnmatch(target.name, name_pattern)
-                        if matched and ftype is not None:
-                            if ftype == "d" and not target.is_dir():
-                                matched = False
-                            elif ftype == "f" and not target.is_file():
-                                matched = False
-                            elif ftype == "l" and not target.is_symlink():
-                                matched = False
-                        if matched:
-                            results.append(str(target))
+                        if _match(target.name, is_dir, is_file, is_symlink):
+                            results.append(target_str)
                 else:
                     results.append(f"find: '{p}': No such file or directory")
 

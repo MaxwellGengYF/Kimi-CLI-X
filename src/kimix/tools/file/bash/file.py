@@ -9,24 +9,28 @@ from .params import Params
 from kimix.tools.common import _maybe_export_output_async
 
 def _guess_type(p: Path) -> str:
-    if p.is_symlink():
+    try:
+        st = os.lstat(p)
+    except OSError:
+        return "cannot open (No such file or directory)"
+
+    mode = st.st_mode
+    if stat.S_ISLNK(mode):
         try:
             target = p.readlink()
             return f"symbolic link to {target}"
         except OSError:
             return "broken symbolic link"
-    if p.is_dir():
+    if stat.S_ISDIR(mode):
         return "directory"
-    if p.is_fifo():
+    if stat.S_ISFIFO(mode):
         return "fifo (named pipe)"
-    if p.is_socket():
+    if stat.S_ISSOCK(mode):
         return "socket"
-    if p.is_block_device():
+    if stat.S_ISBLK(mode):
         return "block special"
-    if p.is_char_device():
+    if stat.S_ISCHR(mode):
         return "character special"
-    if not p.exists():
-        return "cannot open (No such file or directory)"
 
     # Try to detect text vs binary
     try:

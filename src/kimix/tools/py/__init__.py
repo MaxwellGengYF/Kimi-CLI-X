@@ -7,6 +7,7 @@ from kimix.tools.common import _maybe_export_output_async, _export_to_temp_file_
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 from kimi_cli.session import Session
+from kimix.base import colorful_text, Color
 
 
 class Params(BaseModel):
@@ -87,7 +88,8 @@ class Python(CallableTool2[Params]):
                 brief="Python execution error"
             )
 
-        return ToolOk(output=output)
+        colored_code = colorful_text(params.code, fg=Color.BLACK)
+        return ToolOk(output=f"{colored_code}\n\n{output}")
 
     async def _run_in_background(self, params: Params) -> ToolReturnValue:
         """Run Python code in the background and register it as a background task.

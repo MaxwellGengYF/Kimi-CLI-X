@@ -36,18 +36,22 @@ class Xz(CallableTool2[Params]):
                 try:
                     if decompress:
                         out_path = target.with_suffix("") if target.suffix == ".xz" else target.parent / (target.name + ".decompressed")
-                        with lzma.open(target, "rb") as src:
-                            data = src.read()
-                        with open(out_path, "wb") as dst:
-                            dst.write(data)
+                        with lzma.open(target, "rb") as src, open(out_path, "wb") as dst:
+                            while True:
+                                chunk = src.read(1024 * 1024)
+                                if not chunk:
+                                    break
+                                dst.write(chunk)
                         if not keep:
                             target.unlink()
                     else:
                         out_path = target.parent / (target.name + ".xz")
-                        with open(target, "rb") as src:
-                            data = src.read()
-                        with lzma.open(out_path, "wb") as dst:
-                            dst.write(data)
+                        with open(target, "rb") as src, lzma.open(out_path, "wb") as dst:
+                            while True:
+                                chunk = src.read(1024 * 1024)
+                                if not chunk:
+                                    break
+                                dst.write(chunk)
                         if not keep:
                             target.unlink()
                 except FileNotFoundError:

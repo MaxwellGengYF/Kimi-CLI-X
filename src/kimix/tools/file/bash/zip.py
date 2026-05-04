@@ -27,16 +27,19 @@ class Zip(CallableTool2[Params]):
                 return ToolError(message="zip: missing operand", output="", brief="missing operand")
 
             cwd = params.cwd or os.getcwd()
-            archive = Path(cwd) / paths[0] if not Path(paths[0]).is_absolute() else Path(paths[0])
+            cwd_path = Path(cwd)
+            archive_raw = paths[0]
+            archive = cwd_path / archive_raw if not Path(archive_raw).is_absolute() else Path(archive_raw)
             sources = paths[1:]
 
-            with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as zf:
+            with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED, compresslevel=1) as zf:
                 for p in sources:
-                    target = Path(cwd) / p if not Path(p).is_absolute() else Path(p)
+                    p_path = Path(p)
+                    target = cwd_path / p if not p_path.is_absolute() else p_path
                     if target.is_dir() and recursive:
+                        parent = target.parent
                         for f in target.rglob("*"):
-                            arcname = f.relative_to(target.parent)
-                            zf.write(f, arcname)
+                            zf.write(f, f.relative_to(parent))
                     else:
                         zf.write(target, arcname=target.name)
 

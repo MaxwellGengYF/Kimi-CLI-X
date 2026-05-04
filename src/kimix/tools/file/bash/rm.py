@@ -8,6 +8,11 @@ from .params import Params
 
 from kimix.tools.common import _maybe_export_output_async
 
+_RECURSIVE_FLAGS = frozenset({"-r", "-R", "--recursive"})
+_FORCE_FLAGS = frozenset({"-f", "--force"})
+_BOTH_FLAGS = frozenset({"-rf", "-fr"})
+
+
 class Rm(CallableTool2[Params]):
     name: str = "Rm"
     description: str = "Remove files or directories."
@@ -19,11 +24,11 @@ class Rm(CallableTool2[Params]):
             force = False
             paths = []
             for arg in params.args:
-                if arg == "-r" or arg == "-R" or arg == "--recursive":
+                if arg in _RECURSIVE_FLAGS:
                     recursive = True
-                elif arg == "-f" or arg == "--force":
+                elif arg in _FORCE_FLAGS:
                     force = True
-                elif arg == "-rf" or arg == "-fr":
+                elif arg in _BOTH_FLAGS:
                     recursive = True
                     force = True
                 elif not arg.startswith("-"):
@@ -35,16 +40,15 @@ class Rm(CallableTool2[Params]):
             cwd = params.cwd or os.getcwd()
             errors = []
             for p in paths:
-                target = Path(cwd) / p if not Path(p).is_absolute() else Path(p)
+                target = os.path.join(cwd, p) if not os.path.isabs(p) else p
                 try:
-                    if target.is_dir():
+                    if os.path.isdir(target):
                         if recursive:
                             shutil.rmtree(target)
-                        else:
-                            if not force:
-                                errors.append(f"rm: cannot remove '{p}': Is a directory")
+                        elif not force:
+                            errors.append(f"rm: cannot remove '{p}': Is a directory")
                     else:
-                        target.unlink()
+                        os.remove(target)
                 except FileNotFoundError:
                     if not force:
                         errors.append(f"rm: cannot remove '{p}': No such file or directory")

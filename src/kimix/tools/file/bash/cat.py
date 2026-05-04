@@ -18,8 +18,10 @@ class Cat(CallableTool2[Params]):
             cwd = params.cwd or os.getcwd()
             errors = []
             contents = []
+            cwd_path = Path(cwd)
             for p in paths:
-                target = Path(cwd) / p if not Path(p).is_absolute() else Path(p)
+                pp = Path(p)
+                target = pp if pp.is_absolute() else cwd_path / p
                 try:
                     with open(target, "r", encoding="utf-8", errors="replace") as f:
                         contents.append(f.read())

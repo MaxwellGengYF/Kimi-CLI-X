@@ -7,20 +7,19 @@ from .params import Params
 
 from kimix.tools.common import _maybe_export_output_async
 
-def _parse_fields(spec: str) -> list[int]:
+
+def _parse_fields(spec: str) -> list[tuple[int, int | None]]:
     fields = []
     for part in spec.split(","):
         if "-" in part:
             a, b = part.split("-", 1)
             start = int(a) if a else 1
             end = int(b) if b else None
-            if end is None:
-                fields.append((start, None))
-            else:
-                fields.append((start, end))
+            fields.append((start, end))
         else:
             fields.append((int(part), int(part)))
     return fields
+
 
 class Cut(CallableTool2[Params]):
     name: str = "Cut"
@@ -79,31 +78,52 @@ class Cut(CallableTool2[Params]):
                             line = line.rstrip("\n\r")
                             if field_spec is not None:
                                 parts = line.split(delimiter)
-                                out = []
-                                for start, end in field_spec:
+                                if len(field_spec) == 1:
+                                    start, end = field_spec[0]
                                     if end is None:
-                                        out.extend(parts[start - 1 :])
+                                        results.append(delimiter.join(parts[start - 1:]))
                                     else:
-                                        out.extend(parts[start - 1 : end])
-                                results.append(delimiter.join(out))
+                                        results.append(delimiter.join(parts[start - 1:end]))
+                                else:
+                                    out = []
+                                    for start, end in field_spec:
+                                        if end is None:
+                                            out.extend(parts[start - 1:])
+                                        else:
+                                            out.extend(parts[start - 1:end])
+                                    results.append(delimiter.join(out))
                             elif byte_spec is not None:
-                                encoded = line.encode("utf-8")
-                                out = []
-                                for start, end in byte_spec:
+                                if len(byte_spec) == 1:
+                                    start, end = byte_spec[0]
+                                    encoded = line.encode("utf-8")
                                     if end is None:
-                                        out.append(encoded[start - 1 :])
+                                        results.append(encoded[start - 1:].decode("utf-8", errors="replace"))
                                     else:
-                                        out.append(encoded[start - 1 : end])
-                                results.append(b"".join(out).decode("utf-8", errors="replace"))
+                                        results.append(encoded[start - 1:end].decode("utf-8", errors="replace"))
+                                else:
+                                    encoded = line.encode("utf-8")
+                                    out = []
+                                    for start, end in byte_spec:
+                                        if end is None:
+                                            out.append(encoded[start - 1:])
+                                        else:
+                                            out.append(encoded[start - 1:end])
+                                    results.append(b"".join(out).decode("utf-8", errors="replace"))
                             elif char_spec is not None:
-                                chars = list(line)
-                                out = []
-                                for start, end in char_spec:
+                                if len(char_spec) == 1:
+                                    start, end = char_spec[0]
                                     if end is None:
-                                        out.extend(chars[start - 1 :])
+                                        results.append(line[start - 1:])
                                     else:
-                                        out.extend(chars[start - 1 : end])
-                                results.append("".join(out))
+                                        results.append(line[start - 1:end])
+                                else:
+                                    out = []
+                                    for start, end in char_spec:
+                                        if end is None:
+                                            out.append(line[start - 1:])
+                                        else:
+                                            out.append(line[start - 1:end])
+                                    results.append("".join(out))
                             else:
                                 results.append(line)
                 except FileNotFoundError:

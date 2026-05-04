@@ -1,6 +1,7 @@
 """gunzip tool - decompress files."""
 import gzip
 import os
+import shutil
 from pathlib import Path
 
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
@@ -32,10 +33,8 @@ class Gunzip(CallableTool2[Params]):
                 target = Path(cwd) / p if not Path(p).is_absolute() else Path(p)
                 try:
                     out_path = target.with_suffix("") if target.suffix == ".gz" else target.parent / (target.name + ".decompressed")
-                    with gzip.open(target, "rb") as src:
-                        data = src.read()
-                    with open(out_path, "wb") as dst:
-                        dst.write(data)
+                    with gzip.open(target, "rb") as src, open(out_path, "wb") as dst:
+                        shutil.copyfileobj(src, dst)
                     if not keep:
                         target.unlink()
                 except FileNotFoundError:

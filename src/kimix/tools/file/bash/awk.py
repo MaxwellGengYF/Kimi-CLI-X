@@ -7,6 +7,7 @@ from .params import Params
 
 from kimix.tools.common import _maybe_export_output_async
 
+
 class Awk(CallableTool2[Params]):
     name: str = "Awk"
     description: str = "Pattern scanning and processing language."
@@ -52,35 +53,60 @@ class Awk(CallableTool2[Params]):
             cwd = params.cwd or os.getcwd()
             results = []
 
+            # Pre-parse action to avoid re-parsing per line
+            action_starts_with_print = action.startswith("print")
+            if action_starts_with_print:
+                rest = action[5:].strip()
+                if not rest:
+                    # {print} or {print } -> print whole line
+                    print_mode = "line"
+                    print_tokens = None
+                else:
+                    print_mode = "tokens"
+                    print_tokens = []
+                    for token in rest.split(","):
+                        token = token.strip()
+                        if token == "$0":
+                            print_tokens.append(("line",))
+                        elif token.startswith("$"):
+                            try:
+                                idx = int(token[1:]) - 1
+                                print_tokens.append(("field", idx))
+                            except ValueError:
+                                print_tokens.append(("literal", token))
+                        else:
+                            print_tokens.append(("literal", token))
+            else:
+                print_mode = "none"
+                print_tokens = None
+
             for p in paths:
                 target = Path(cwd) / p if not Path(p).is_absolute() else Path(p)
                 try:
                     with open(target, "r", encoding="utf-8", errors="replace") as f:
-                        for line in f:
-                            line = line.rstrip("\n\r")
-                            fields = line.split(delimiter)
-                            if action.startswith("print"):
-                                rest = action[5:].strip()
-                                if not rest:
-                                    results.append(line)
-                                else:
-                                    # Parse comma separated fields like $1, $2
-                                    parts = []
-                                    for token in rest.split(","):
-                                        token = token.strip()
-                                        if token == "$0":
-                                            parts.append(line)
-                                        elif token.startswith("$"):
-                                            idx = int(token[1:]) - 1
-                                            if 0 <= idx < len(fields):
-                                                parts.append(fields[idx])
-                                            else:
-                                                parts.append("")
+                        if print_mode == "line":
+                            for line in f:
+                                results.append(line.rstrip("\n\r"))
+                        elif print_mode == "tokens":
+                            for line in f:
+                                line = line.rstrip("\n\r")
+                                fields = line.split(delimiter)
+                                parts = []
+                                for token in print_tokens:
+                                    if token[0] == "line":
+                                        parts.append(line)
+                                    elif token[0] == "field":
+                                        idx = token[1]
+                                        if 0 <= idx < len(fields):
+                                            parts.append(fields[idx])
                                         else:
-                                            parts.append(token)
-                                    results.append(" ".join(parts))
-                            else:
-                                results.append(line)
+                                            parts.append("")
+                                    else:
+                                        parts.append(token[1])
+                                results.append(" ".join(parts))
+                        else:
+                            for line in f:
+                                results.append(line.rstrip("\n\r"))
                 except FileNotFoundError:
                     results.append(f"awk: cannot open {p}: No such file or directory")
                 except OSError as e:

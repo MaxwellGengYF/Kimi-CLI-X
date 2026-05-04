@@ -8,6 +8,7 @@ from .params import Params
 
 from kimix.tools.common import _maybe_export_output_async
 
+
 class Grep(CallableTool2[Params]):
     name: str = "Grep"
     description: str = "Print lines that match patterns."
@@ -56,18 +57,26 @@ class Grep(CallableTool2[Params]):
             if not paths:
                 return ToolError(message="grep: missing file operand", output="", brief="missing operand")
 
-            flags = 0
-            if ignore_case:
-                flags |= re.IGNORECASE
-
-            if fixed_strings:
-                regex = re.compile(re.escape(pattern), flags)
+            # Fast path for fixed strings: use substring search instead of regex.
+            if fixed_strings and not ignore_case:
+                def _match(line: str) -> bool:
+                    return pattern in line
+            elif fixed_strings and ignore_case:
+                _pat_lower = pattern.lower()
+                def _match(line: str) -> bool:
+                    return _pat_lower in line.lower()
             else:
+                flags = 0
+                if ignore_case:
+                    flags |= re.IGNORECASE
                 regex = re.compile(pattern, flags)
+                def _match(line: str) -> bool:
+                    return bool(regex.search(line))
 
             cwd = params.cwd or os.getcwd()
             results = []
             total_matches = 0
+            multi_file = len(paths) > 1 or recursive
 
             def _grep_file(fpath: Path, label: str = ""):
                 nonlocal total_matches
@@ -75,22 +84,23 @@ class Grep(CallableTool2[Params]):
                     with open(fpath, "r", encoding="utf-8", errors="replace") as f:
                         count = 0
                         for lineno, line in enumerate(f, 1):
-                            line = line.rstrip("\n\r")
-                            match = bool(regex.search(line))
+                            if not count_only:
+                                line = line.rstrip("\n\r")
+                            match = _match(line)
                             if invert:
                                 match = not match
                             if match:
                                 count += 1
                                 if not count_only:
                                     prefix = ""
-                                    if len(paths) > 1 or recursive:
+                                    if multi_file:
                                         prefix = f"{label}:"
                                     if line_number:
                                         prefix += f"{lineno}:"
                                     results.append(prefix + line)
                         if count_only:
                             prefix = ""
-                            if len(paths) > 1 or recursive:
+                            if multi_file:
                                 prefix = f"{label}:"
                             results.append(f"{prefix}{count}")
                         total_matches += count
