@@ -3,7 +3,7 @@ from pathlib import Path
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 from typing import override
-from my_tools.skill.searching.file_builder import FileBuilder, formatted_print
+from kimix.tools.skill.searching.file_builder import FileBuilder, formatted_print
 
 
 class IndexerParams(BaseModel):

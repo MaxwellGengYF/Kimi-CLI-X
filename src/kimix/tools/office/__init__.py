@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 import re
 import os
 from pathlib import Path
-from my_tools.common import _maybe_export_output
+from kimix.tools.common import _maybe_export_output
 from kimi_cli.tools import SkipThisTool
 
 class Params(BaseModel):

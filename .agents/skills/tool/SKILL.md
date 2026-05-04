@@ -228,13 +228,13 @@ import threading
 ## File Naming
 
 Place your tool in the appropriate module:
-- `my_tools/py/__init__.py` - Python execution tools
-- `my_tools/file/run.py` - File/process tools
-- `my_tools/<category>/<tool_name>.py` - Organize by category
+- `kimix.tools/py/__init__.py` - Python execution tools
+- `kimix.tools/file/run.py` - File/process tools
+- `kimix.tools/<category>/<tool_name>.py` - Organize by category
 
 ## Background Task Tools Reference
 
-The `my_tools/background/` module provides tools for managing background tasks:
+The `kimix.tools/background/` module provides tools for managing background tasks:
 
 ### Tool Classes
 
@@ -263,7 +263,7 @@ A wrapper for background thread execution with a thread-safe queue:
 ### Usage Example
 
 ```python
-from my_tools.background.utils import (
+from kimix.tools.background.utils import (
     generate_task_id, add_task, BackgroundStream
 )
 

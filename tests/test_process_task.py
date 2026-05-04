@@ -9,8 +9,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from my_tools.common import ProcessTask
-from my_tools.background.utils import _pop_task_data
+from kimix.tools.common import ProcessTask
+from kimix.tools.background.utils import _pop_task_data
 
 
 @pytest.fixture

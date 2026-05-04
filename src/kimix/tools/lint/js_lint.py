@@ -6,7 +6,7 @@ from pathlib import Path
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 
-from my_tools.common import _maybe_export_output_async
+from kimix.tools.common import _maybe_export_output_async
 
 # Eagerly import tree-sitter languages once at module load to avoid repeated
 # import overhead on every tool invocation.

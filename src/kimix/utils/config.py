@@ -11,7 +11,7 @@ from . import _globals
 def _ensure_text_search() -> tuple[Any, Any]:
     """Lazy import of TextSearchIndex and SearchResult."""
     if _globals.TextSearchIndex is None:
-        from my_tools.skill.faiss.text_search import TextSearchIndex as _TSI, SearchResult as _SR
+        from kimix.tools.skill.faiss.text_search import TextSearchIndex as _TSI, SearchResult as _SR
         _globals.TextSearchIndex = _TSI
         _globals.SearchResult = _SR
     return _globals.TextSearchIndex, _globals.SearchResult

@@ -10,7 +10,7 @@ from kimix.utils.system_prompt import SystemPromptType
 from kimix.base import print_debug, print_warning, print_error, print_agent_json, print_info
 from . import _globals
 from .session import close_session_async, _create_default_session, _print_usage, clear_default_context, create_session, close_session
-from my_tools.common import _export_to_temp_file
+from kimix.tools.common import _export_to_temp_file
 from kimi_cli.safety_check import sanitize_for_tokenizer
 
 
@@ -198,7 +198,7 @@ def _make_new_plan_file() -> Path:
 
 def execute_plan(prompt_str: str, ask_if_use_cache: Callable[[str], bool] | None = None, ask_if_execute_plan: Callable[[list[str], int], bool] | None = None, plan_loader: PlanLoader | None = None) -> None:
     import os
-    from my_tools.note import read_file
+    from kimix.tools.note import read_file
     use_cache = False
     if plan_loader is not None:
         use_cache = True

@@ -20,7 +20,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from kimi_agent_sdk import ToolOk, ToolError
-from my_tools.background.utils import (
+from kimix.tools.background.utils import (
     BackgroundStream,
     add_task,
     discard_all_tasks,
@@ -28,11 +28,11 @@ from my_tools.background.utils import (
     get_all_tasks,
     remove_task_id,
 )
-from my_tools.background import TaskList, TaskOutput, TaskListParams, TaskOutputParams
-from my_tools.file.run import Run, RunParams
-from my_tools.py import Python, Params as PyParams
-from my_tools.file.input import Input, InputParams
-from my_tools.common import ProcessTask
+from kimix.tools.background import TaskList, TaskOutput, TaskListParams, TaskOutputParams
+from kimix.tools.file.run import Run, RunParams
+from kimix.tools.py import Python, Params as PyParams
+from kimix.tools.file.input import Input, InputParams
+from kimix.tools.common import ProcessTask
 
 
 @pytest.fixture
@@ -523,12 +523,12 @@ class TestAgentToolAsync:
     """Verify Agent tool async patterns with mocks."""
 
     async def test_background_agent_starts_stream(self, mock_session: MagicMock) -> None:
-        from my_tools.agent import Agent, SubAgentParams
+        from kimix.tools.agent import Agent, SubAgentParams
 
         agent = Agent(session=mock_session)
         params = SubAgentParams(prompt="test prompt", run_in_background=True)
 
-        with patch("my_tools.agent.add_task") as mock_add_task, \
+        with patch("kimix.tools.agent.add_task") as mock_add_task, \
              patch.object(BackgroundStream, "start", return_value=None) as mock_start:
             result = await agent(params)
 
@@ -538,7 +538,7 @@ class TestAgentToolAsync:
         mock_add_task.assert_called_once()
 
     async def test_nested_subagent_rejected_in_background(self, mock_session: MagicMock) -> None:
-        from my_tools.agent import Agent, SubAgentParams
+        from kimix.tools.agent import Agent, SubAgentParams
 
         agent = Agent(session=mock_session)
         params = SubAgentParams(prompt="nested", run_in_background=True)
@@ -719,6 +719,6 @@ class TestAsyncErrorHandling:
 
     async def test_task_output_handles_exception_gracefully(self, mock_session: MagicMock) -> None:
         tool = TaskOutput(session=mock_session)
-        with patch("my_tools.background.get_all_tasks", side_effect=RuntimeError("boom")):
+        with patch("kimix.tools.background.get_all_tasks", side_effect=RuntimeError("boom")):
             result = await tool(TaskOutputParams(task_id="any", block=False, timeout=3))
         assert isinstance(result, ToolError)

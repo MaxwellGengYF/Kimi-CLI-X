@@ -5,8 +5,8 @@ from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 from kimi_cli.session import Session
 from kimix.utils import prompt, close_session_async, _create_session_async
-from my_tools.common import _maybe_export_output_async
-from my_tools.background.utils import BackgroundStream, generate_task_id, add_task
+from kimix.tools.common import _maybe_export_output_async
+from kimix.tools.background.utils import BackgroundStream, generate_task_id, add_task
 
 SUB_AGENT_ACTIVE_KEY = "sub_agent_active"
 

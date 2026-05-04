@@ -1,6 +1,6 @@
 import re
 from typing import Optional
-import my_tools.shell.to_powershell_cmd as to_powershell_cmd
+import kimix.tools.shell.to_powershell_cmd as to_powershell_cmd
 
 class BashToPowerShellConverter:
     """Converts bash commands to platform-appropriate syntax (PowerShell on Unix-like, cmd.exe on Windows)."""

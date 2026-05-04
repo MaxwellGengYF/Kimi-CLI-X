@@ -1,7 +1,7 @@
 
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
-from my_tools.common import _maybe_export_output
+from kimix.tools.common import _maybe_export_output
 
 
 class FindStrParams(BaseModel):

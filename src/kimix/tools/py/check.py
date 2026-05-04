@@ -1,7 +1,7 @@
 import asyncio
 import subprocess
 import sys
-from my_tools.common import _maybe_export_output
+from kimix.tools.common import _maybe_export_output
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 from pathlib import Path

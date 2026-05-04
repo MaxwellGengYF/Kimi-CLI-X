@@ -13,7 +13,7 @@ import anyio
 import pytest
 
 from kimi_agent_sdk import ToolOk, ToolError
-from my_tools.background.utils import (
+from kimix.tools.background.utils import (
     BackgroundStream,
     add_task,
     discard_all_tasks,
@@ -21,10 +21,10 @@ from my_tools.background.utils import (
     get_all_tasks,
     remove_task_id,
 )
-from my_tools.background import TaskList, TaskOutput, TaskListParams, TaskOutputParams
-from my_tools.file.run import Run, RunParams
-from my_tools.py import Python, Params as PyParams
-from my_tools.file.input import Input, InputParams
+from kimix.tools.background import TaskList, TaskOutput, TaskListParams, TaskOutputParams
+from kimix.tools.file.run import Run, RunParams
+from kimix.tools.py import Python, Params as PyParams
+from kimix.tools.file.input import Input, InputParams
 
 
 @pytest.fixture
@@ -45,12 +45,12 @@ async def cleanup_task_data(mock_session: MagicMock) -> Any:
 # ---------------------------------------------------------------------------
 class TestAgentBackground:
     async def test_run_in_background_starts_and_registers(self, mock_session: MagicMock) -> None:
-        from my_tools.agent import Agent, SubAgentParams
+        from kimix.tools.agent import Agent, SubAgentParams
 
         agent = Agent(session=mock_session)
         params = SubAgentParams(prompt="test prompt", run_in_background=True)
 
-        with patch("my_tools.agent.add_task") as mock_add_task, \
+        with patch("kimix.tools.agent.add_task") as mock_add_task, \
              patch.object(BackgroundStream, "start", return_value=None) as mock_start:
             result = await agent(params)
 
@@ -60,7 +60,7 @@ class TestAgentBackground:
         mock_add_task.assert_called_once()
 
     async def test_nested_subagent_rejected(self, mock_session: MagicMock) -> None:
-        from my_tools.agent import Agent, SubAgentParams
+        from kimix.tools.agent import Agent, SubAgentParams
 
         agent = Agent(session=mock_session)
         params = SubAgentParams(prompt="nested", run_in_background=True)
@@ -266,7 +266,7 @@ class TestInput:
         assert "not found" in str(result.message).lower()
 
     async def test_send_input_to_running_process(self, mock_session: MagicMock) -> None:
-        from my_tools.common import ProcessTask
+        from kimix.tools.common import ProcessTask
 
         task = ProcessTask(
             sys.executable,
@@ -285,7 +285,7 @@ class TestInput:
         remove_task_id(mock_session, tid)
 
     async def test_input_fails_when_no_stdin(self, mock_session: MagicMock) -> None:
-        from my_tools.common import ProcessTask
+        from kimix.tools.common import ProcessTask
 
         # process that exits quickly
         task = ProcessTask(sys.executable, ["-c", "print('done')"])
@@ -315,7 +315,7 @@ class TestAsyncIntegration:
         assert await stream.get_queue() is None
 
     async def test_process_task_all_async_methods_awaited(self, mock_session: MagicMock) -> None:
-        from my_tools.common import ProcessTask
+        from kimix.tools.common import ProcessTask
 
         task = ProcessTask(sys.executable, ["-c", "print('await_test')"])
         tid = await task.start(mock_session, kind="run", name="await")

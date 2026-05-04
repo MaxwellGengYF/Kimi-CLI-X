@@ -6,8 +6,8 @@ from pathlib import Path
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 
-from my_tools.common import _maybe_export_output_async
-from my_tools.lint.cpp_lint import Cpplint
+from kimix.tools.common import _maybe_export_output_async
+from kimix.tools.lint.cpp_lint import Cpplint
 # from .js_lint import func
 from .py_lint import MypyCheck
 

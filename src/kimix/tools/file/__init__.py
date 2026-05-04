@@ -2,7 +2,7 @@
 import anyio
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
-from my_tools.common import _maybe_export_output_async
+from kimix.tools.common import _maybe_export_output_async
 
 class MkdirParams(BaseModel):
     path: str = Field(

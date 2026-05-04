@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from kimi_cli.session import Session
 
 from .utils import generate_task_id, remove_task_id, add_task, get_all_tasks, BackgroundStream, discard_all_tasks
-from my_tools.common import _maybe_export_output_async, _export_to_temp_file_async
+from kimix.tools.common import _maybe_export_output_async, _export_to_temp_file_async
 
 
 class TaskListParams(BaseModel):

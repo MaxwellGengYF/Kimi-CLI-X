@@ -5,8 +5,8 @@ from pathlib import Path
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 
-from my_tools.common import _maybe_export_output
-from my_tools.web.web_fetcher import fetch_to_markdown
+from kimix.tools.common import _maybe_export_output
+from kimix.tools.web.web_fetcher import fetch_to_markdown
 
 
 class Params(BaseModel):

@@ -4,7 +4,7 @@ import asyncio
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 from kimi_cli.session import Session
-from my_tools.background.utils import get_all_tasks
+from kimix.tools.background.utils import get_all_tasks
 
 class InputParams(BaseModel):
     task_id: str = Field(

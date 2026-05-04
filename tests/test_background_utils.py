@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from my_tools.background.utils import (
+from kimix.tools.background.utils import (
     BackgroundStream,
     TaskData,
     _get_or_add_task_data,

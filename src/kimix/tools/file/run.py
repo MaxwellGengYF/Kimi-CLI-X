@@ -6,7 +6,7 @@ from pathlib import Path
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 from kimi_cli.session import Session
-from my_tools.common import _maybe_export_output_async, _export_to_temp_file_async, ProcessTask
+from kimix.tools.common import _maybe_export_output_async, _export_to_temp_file_async, ProcessTask
 
 
 class RunParams(BaseModel):
@@ -71,7 +71,7 @@ class Run(CallableTool2[RunParams]):
                 brief="Timeout"
             )
         # Clean up foreground task registration
-        from my_tools.background.utils import remove_task_id
+        from kimix.tools.background.utils import remove_task_id
         remove_task_id(self._session, task_id)
 
         # Get output

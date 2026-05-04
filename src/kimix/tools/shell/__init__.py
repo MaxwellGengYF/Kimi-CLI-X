@@ -15,7 +15,7 @@ from kimi_cli.tools.utils import ToolRejectedError, ToolResultBuilder, load_desc
 from kimi_cli.utils.environment import Environment
 from kimi_cli.utils.subprocess_env import get_clean_env
 import sys
-from my_tools.common import _maybe_export_output
+from kimix.tools.common import _maybe_export_output
 
 MIN_TIMEOUT = 10 * 60
 MAX_TIMEOUT = 15 * 60

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from kimi_cli.session import Session
 
 if TYPE_CHECKING:
-    from my_tools.background.utils import BackgroundStream
+    from kimix.tools.background.utils import BackgroundStream
 OUTPUT_TOKEN_LIMIT = 1024
 _temp_folder = Path.home() / '.kimi' / 'sessions'
 _temp_idx = 0
@@ -339,7 +339,7 @@ class ProcessTask:
         Returns:
             The generated task ID.
         """
-        from my_tools.background.utils import BackgroundStream, generate_task_id, add_task
+        from kimix.tools.background.utils import BackgroundStream, generate_task_id, add_task
         self._stream = BackgroundStream()
         # Generate a task ID based on the executable name
         self._task_id = generate_task_id(session, kind, name or Path(self.path).stem)

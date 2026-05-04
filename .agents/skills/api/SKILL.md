@@ -395,7 +395,7 @@ kaos_path = make_kaos_dir("./my_folder")
 ```python
 from kimix.utils import TextSearchIndex, SearchResult, _ensure_text_search
 
-# Lazy-load search classes (from my_tools.skill.faiss.text_search)
+# Lazy-load search classes (from kimix.tools.skill.faiss.text_search)
 TextSearchIndex, SearchResult = _ensure_text_search()
 
 # Or use directly if already loaded

@@ -12,7 +12,7 @@ from kimi_cli.session import Session
 from kimix.dag import DAG, TaskNode
 from kimix.dag.utils import DAGValidationError
 
-from my_tools.swarm import AddNode, AddEdge, AddNodeParams, AddEdgeParams
+from kimix.tools.swarm import AddNode, AddEdge, AddNodeParams, AddEdgeParams
 
 
 @pytest.fixture

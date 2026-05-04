@@ -8,7 +8,7 @@ async def summarize(temp_file: str | None = None, session: Session | None = None
     from pathlib import Path
     from kimix.utils import prompt_async, get_default_session
     from kimix.base import percentage_str, print_success
-    from my_tools.common import _create_temp_file_name
+    from kimix.tools.common import _create_temp_file_name
     if session is None:
         session = get_default_session()
     if not session or session.status.context_usage <= 1e-5:
@@ -56,7 +56,7 @@ def summarize_mistake(result_file: str, session = None) -> None:
         print_warning('No errors.')
         return
     from kimix.utils import prompt
-    from my_tools.common import _maybe_export_output
+    from kimix.tools.common import _maybe_export_output
     prompt(_maybe_export_output(summarize_mistakes_prompt.substitute(
         errors='\n'.join(str(e) for e in errors),
         result_file=result_file
