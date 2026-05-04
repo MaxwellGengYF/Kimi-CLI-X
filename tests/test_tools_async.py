@@ -249,7 +249,7 @@ class TestPython:
     async def test_dest_export(self, mock_session: MagicMock, tmp_path: Path) -> None:
         tool = Python(session=mock_session)
         dest = tmp_path / "py_out.txt"
-        params = PyParams(code="print('dest_out')", timeout=10, dest=str(dest))
+        params = PyParams(code="print('dest_out')", timeout=10, output_path=str(dest))
         result = await tool(params)
         assert dest.exists()
         assert "dest_out" in dest.read_text(encoding="utf-8")
