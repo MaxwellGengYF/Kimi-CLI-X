@@ -25,39 +25,11 @@
         "GOOGLE_GENAI_USE_VERTEXAI": "true"
     },
     "contents": [],
-    "generation_config": {
-        "temperature": 0.7,
-        "top_p": 0.9,
-        "top_k": 50,
-        "max_output_tokens": 65536,
-        "thinking_config": {
-            "include_thoughts": true,
-            "thinking_budget": 32000
-        }
-    },
-    "thinking_effort": "HIGH",
-    "safety_settings": [
-        {
-            "category": "HARM_CATEGORY_HARASSMENT",
-            "threshold": "BLOCK_ONLY_HIGH"
-        },
-        {
-            "category": "HARM_CATEGORY_HATE_SPEECH",
-            "threshold": "BLOCK_ONLY_HIGH"
-        },
-        {
-            "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-            "threshold": "BLOCK_ONLY_HIGH"
-        },
-        {
-            "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-            "threshold": "BLOCK_ONLY_HIGH"
-        },
-        {
-            "category": "HARM_CATEGORY_CIVIC_INTEGRITY",
-            "threshold": "BLOCK_ONLY_HIGH"
-        }
-    ],
+    "temperature": 0.7,
+    "top_p": 0.9,
+    "top_k": 50,
+    "max_tokens": 65536,
+    "thinking_effort": "high",
     "notifications": {
         "enabled": true,
         "sound": true,

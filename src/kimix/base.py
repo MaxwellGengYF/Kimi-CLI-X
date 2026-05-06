@@ -165,45 +165,43 @@ def _process_lru() -> None:
 
 PRINT_STREAM = threading.local()
 
+from kimi_cli.wire.types import (
+    ApprovalRequest,
+    StepBegin,
+    StepInterrupted,
+    TextPart,
+    ThinkPart,
+    ToolCall,
+    ToolCallPart,
+    ToolResult,
+)
 
+_TOOL_TYPES = (ToolCall, ToolCallPart, ToolResult)
 def print_agent_json(wire_msg: Any, output_function: Callable[[str, bool], Any] | None = None) -> None:
-    # Lazy imports of wire message types
-    from kimi_cli.wire.types import (
-        ApprovalRequest,
-        StepBegin,
-        StepInterrupted,
-        TextPart,
-        ThinkPart,
-        ToolCall,
-        ToolCallPart,
-        ToolResult,
-    )
+    flag = getattr(PRINT_STREAM, 'flag', None)
 
-    think = getattr(PRINT_STREAM, 'think', False)
+    def _switch(new_flag: str | None) -> None:
+        nonlocal flag
+        if flag != new_flag:
+            if flag is not None and flag != 'tool':
+                print(flag)
+            flag = new_flag
+            PRINT_STREAM.flag = new_flag
 
     if isinstance(wire_msg, ApprovalRequest):
         wire_msg.resolve("approve")
         return
 
-    if isinstance(wire_msg, StepBegin):
-        print()
-        think = False
-        PRINT_STREAM.think = False
-        return
-
-    if isinstance(wire_msg, StepInterrupted):
-        print()
-        think = False
-        PRINT_STREAM.think = False
+    if isinstance(wire_msg, (StepBegin, StepInterrupted)):
+        _switch(None)
         return
 
     if isinstance(wire_msg, ThinkPart):
         think_content = wire_msg.think
-        if think_content and not _quiet:
-            if not think:
+        if think_content.strip() and not _quiet:
+            if flag != 'think':
                 think_content = f"[Think] {think_content}"
-                think = True
-                PRINT_STREAM.think = True
+                _switch('think')
             if output_function:
                 output_function(think_content, True)
             colorful_print(think_content, fg=Color.BRIGHT_CYAN, end='')
@@ -211,23 +209,20 @@ def print_agent_json(wire_msg: Any, output_function: Callable[[str, bool], Any] 
 
     if isinstance(wire_msg, TextPart):
         chunk = wire_msg.text
-        if chunk:
-            if think:
-                print()
-                think = False
-                PRINT_STREAM.think = False
-            if not ("<choice>" in chunk and "</choice>" in chunk):
-                if output_function:
-                    output_function(chunk, False)
-                if _print_func:
-                    _print_func(f"\n{chunk}", '')
-                else:
-                    print(chunk, end='')
+        if chunk.strip():
+            _switch('text')
+            if output_function:
+                output_function(chunk, False)
+            if _print_func:
+                _print_func(f"\n{chunk}", '')
+            else:
+                print(chunk, end='')
         return
 
-    # ToolCall, ToolCallPart, ToolResult - ignore for console printing
-    if isinstance(wire_msg, (ToolCall, ToolCallPart, ToolResult)):
+    if isinstance(wire_msg, _TOOL_TYPES):
+        _switch('tool')
         return
+
 
 
 def run_thread(function: Callable[..., Any], args: tuple[Any, ...] | None = None) -> threading.Thread:

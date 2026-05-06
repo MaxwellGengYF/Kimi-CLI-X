@@ -92,6 +92,7 @@ class Run(CallableTool2[RunParams]):
         os.environ['PYTHONIOENCODING'] = 'utf-8'
         super().__init__()
         self._session = session
+        self._semaphore = asyncio.Semaphore(8)
 
     async def _run_bash_tool(self, params: RunParams, bash_tool: CallableTool2) -> ToolReturnValue:
         import queue
@@ -142,61 +143,62 @@ class Run(CallableTool2[RunParams]):
         return ToolOk(output=output)
 
     async def __call__(self, params: RunParams) -> ToolReturnValue:
-        import sys
+        async with self._semaphore:
+            import sys
 
-        bash_tool = _BASH_COMMANDS.get(params.path)
-        if bash_tool:
-            return await self._run_bash_tool(params, bash_tool)
+            bash_tool = _BASH_COMMANDS.get(params.path)
+            if bash_tool:
+                return await self._run_bash_tool(params, bash_tool)
 
-        # check if using python
-        if params.path == 'python':
-            params.path = sys.executable
-        # Handle background execution
-        if params.run_in_background:
-            return await self._run_in_background(params)
+            # check if using python
+            if params.path == 'python':
+                params.path = sys.executable
+            # Handle background execution
+            if params.run_in_background:
+                return await self._run_in_background(params)
 
-        task = ProcessTask(params.path, params.args, params.cwd)
-        task_id = await task.start(self._session, "run", Path(params.path).stem)
+            task = ProcessTask(params.path, params.args, params.cwd)
+            task_id = await task.start(self._session, "run", Path(params.path).stem)
 
-        # Wait for completion with timeout (allow a small buffer for cleanup)
-        wait_timeout = params.timeout
-        await task.wait(wait_timeout)
-        
-        if await task.thread_is_alive():
-            return ToolError(
-                output=f'Running in background. task_id: `{task_id}`. use `TaskOutput` or `TaskList` tool',
-                message="Process timeout",
-                brief="Timeout"
-            )
-        # Clean up foreground task registration
-        from kimix.tools.background.utils import remove_task_id
-        remove_task_id(self._session, task_id)
+            # Wait for completion with timeout (allow a small buffer for cleanup)
+            wait_timeout = params.timeout
+            await task.wait(wait_timeout)
+            
+            if await task.thread_is_alive():
+                return ToolError(
+                    output=f'Running in background. task_id: `{task_id}`. use `TaskOutput` or `TaskList` tool',
+                    message="Process timeout",
+                    brief="Timeout"
+                )
+            # Clean up foreground task registration
+            from kimix.tools.background.utils import remove_task_id
+            remove_task_id(self._session, task_id)
 
-        # Get output
-        output = await task.stream.pop_output() if task.stream else ""
+            # Get output
+            output = await task.stream.pop_output() if task.stream else ""
 
-        # Handle output export if needed
-        if params.output_path:
-            async with await anyio.open_file(params.output_path, 'w', encoding='utf-8', errors='replace') as f:
-                await f.write(output)
-            output = f'saved to file `{params.output_path}`'
-        
-        # Check success
-        success = await task.stream.success() if task.stream else False
+            # Handle output export if needed
+            if params.output_path:
+                async with await anyio.open_file(params.output_path, 'w', encoding='utf-8', errors='replace') as f:
+                    await f.write(output)
+                output = f'saved to file `{params.output_path}`'
+            
+            # Check success
+            success = await task.stream.success() if task.stream else False
 
 
-        if not success:
-            if output and not params.output_path:
-                temp_path, _ = await _export_to_temp_file_async(key=None, content=output, ext='.txt')
-                output = f'saved to file `{temp_path}`'
-            return ToolError(
-                output=output,
-                message="Command execution failed",
-                brief="Command execution failed"
-            )
+            if not success:
+                if output and not params.output_path:
+                    temp_path, _ = await _export_to_temp_file_async(key=None, content=output, ext='.txt')
+                    output = f'saved to file `{temp_path}`'
+                return ToolError(
+                    output=output,
+                    message="Command execution failed",
+                    brief="Command execution failed"
+                )
 
-        output = await _maybe_export_output_async(output)
-        return ToolOk(output=output)
+            output = await _maybe_export_output_async(output)
+            return ToolOk(output=output)
 
     async def _run_in_background(self, params: RunParams) -> ToolReturnValue:
         """Run a process in the background and register it as a background task.

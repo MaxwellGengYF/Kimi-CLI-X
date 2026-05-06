@@ -23,7 +23,7 @@
         "GOOGLE_API_KEY": "sk-xxx"
     },
     "max_tokens": 65536,
-    "thinking_effort": "HIGH",
+    "thinking_effort": "high",
     "show_thinking_stream": true,
     "temperature": 0.7,
     "top_p": 0.9,

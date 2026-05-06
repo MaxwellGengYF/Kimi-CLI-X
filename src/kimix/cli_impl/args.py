@@ -2,7 +2,7 @@ import kimix.base as base
 from kaos.path import KaosPath
 from pathlib import Path
 from . import constants
-from kimix.base import print_debug, print_warning
+from kimix.base import print_debug, print_warning, print_error
 from . import utils
 
 import argparse
@@ -77,26 +77,44 @@ def set_arg() -> tuple[bool, argparse.Namespace]:
     if args.config:
         import json
         config_path = Path(args.config)
-        if not config_path.is_absolute():
-            abs_path = constants.curr_dir / config_path
-            if not (abs_path.exists() and abs_path.is_file()):
-                config_path = Path(__file__).parent.parent / config_path
-            else:
-                config_path = abs_path
-        config_path = config_path.resolve()
+        found = False
         if config_path.exists() and config_path.is_file():
-            try:
-                with open(config_path, 'r', encoding='utf-8') as f:
-                    base.set_default_provider(json.load(f))
-                print_debug(f'{str(config_path)} loaded')
-            except json.JSONDecodeError as e:
-                print_warning(
-                    f'Invalid JSON in config file: {str(config_path)} ({e})')
-            except Exception as e:
-                print_warning(
-                    f'Failed to load config file: {str(config_path)} ({e})')
+            found = True
         else:
-            print_warning(f'Config file not found: {str(config_path)}')
+            # Search in parent directories of __file__ recursively
+            file_dir = Path(__file__).resolve().parent
+            for parent in [file_dir, *file_dir.parents]:
+                candidate = parent / config_path.name
+                if candidate.exists() and candidate.is_file():
+                    config_path = candidate
+                    found = True
+                    break
+        if not found:
+            # Check if config_path is inside environment var PATH
+            import os
+            for path_dir in os.environ.get('PATH', '').split(os.pathsep):
+                path_dir = path_dir.strip()
+                if not path_dir:
+                    continue
+                candidate = Path(path_dir) / config_path.name
+                if candidate.exists() and candidate.is_file():
+                    config_path = candidate
+                    found = True
+                    break
+        if not found:
+            print_error(f'Config file not found: {str(config_path)}')
+            sys.exit(1)
+        config_path = config_path.resolve()
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                base.set_default_provider(json.load(f))
+            print_debug(f'{str(config_path)} loaded')
+        except json.JSONDecodeError as e:
+            print_warning(
+                f'Invalid JSON in config file: {str(config_path)} ({e})')
+        except Exception as e:
+            print_warning(
+                f'Failed to load config file: {str(config_path)} ({e})')
 
     # Handle --skill-dir argument
     if args.skill_dir:

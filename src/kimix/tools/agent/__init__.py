@@ -8,16 +8,11 @@ from kimix.utils import prompt, close_session_async, _create_session_async
 from kimix.tools.common import _maybe_export_output_async
 from kimix.tools.background.utils import BackgroundStream, generate_task_id, add_task
 
-SUB_AGENT_ACTIVE_KEY = "sub_agent_active"
 
 
 class SubAgentParams(BaseModel):
     prompt: str = Field(
         description="Task instructions for the sub-agent."
-    )
-    thinking: bool = Field(
-        default=False,
-        description="Enable deep-thinking mode for complex tasks."
     )
     run_in_background: bool = Field(
         default=False,
@@ -33,75 +28,49 @@ class Agent(CallableTool2):
     def __init__(self, session: Session):
         super().__init__()
         self._session = session
+        self._semaphore = asyncio.Semaphore(8)
 
     async def __call__(self, params: SubAgentParams) -> ToolReturnValue:
-        # Handle background execution
-        if params.run_in_background:
-            return await self._run_in_background(params)
+        async with self._semaphore:
+            # Handle background execution
+            if params.run_in_background:
+                return await self._run_in_background(params)
+            try:
+                output_strs = []
 
-        # Check if already inside a SubAgentScope
-        if self._session.custom_data.get(SUB_AGENT_ACTIVE_KEY, False):
-            return ToolError(
-                output="",
-                message="You are a sub-agent, SubAgent cannot be called within this scope.",
-                brief="Nested SubAgent call detected",
-            )
+                def output_function(fn: str, is_thinking: bool) -> None:
+                    # Main agent no need to get thinking-output
+                    if fn and not is_thinking:
+                        output_strs.append(fn)
 
-        try:
-            output_strs = []
+                async def prompt_async(cancel_callable=None):
+                    session = None
+                    try:
+                        import kimix.base as base
+                        session = await _create_session_async(
+                            agent_file=base._default_agent_file_dir / 'agent_subagent.yaml', is_sub_agent=True)
+                        import kimix.utils as utils
+                        await utils.prompt_async(prompt_str=params.prompt, session=session, output_function=output_function, cancel_callable=cancel_callable)
+                    except Exception as e:
+                        return str(e)
+                    finally:
+                        if session:
+                            await close_session_async(session)
+                    return None
 
-            def output_function(fn: str, is_thinking: bool) -> None:
-                # Main agent no need to get thinking-output
-                if fn and not is_thinking:
-                    output_strs.append(fn)
-
-            async def prompt_async(cancel_callable=None):
-                session = None
-                try:
-                    import kimix.base as base
-                    self._session.custom_data[SUB_AGENT_ACTIVE_KEY] = True
-                    session = await _create_session_async(
-                        thinking=params.thinking,
-                        plan_mode=False,
-                        agent_file=base._default_agent_file_dir / 'agent_subagent.yaml', is_sub_agent=True)
-                    import kimix.utils as utils
-                    await utils.prompt_async(prompt_str=params.prompt, session=session, output_function=output_function, cancel_callable=cancel_callable)
-                except Exception as e:
-                    return str(e)
-                finally:
-                    if session:
-                        await close_session_async(session)
-                    self._session.custom_data[SUB_AGENT_ACTIVE_KEY] = False
-                return None
-
-            err_msg = await prompt_async()
-            output = await _maybe_export_output_async('\n'.join(output_strs))
-            if err_msg:
-                return ToolError(output=output, message=err_msg, brief='')
-            return ToolOk(output=output)
-        except Exception as exc:
-            return ToolError(
-                output="",
-                message=str(exc),
-                brief="Failed to create session",
-            )
+                err_msg = await prompt_async()
+                output = await _maybe_export_output_async('\n'.join(output_strs))
+                if err_msg:
+                    return ToolError(output=output, message=err_msg, brief='')
+                return ToolOk(output=output)
+            except Exception as exc:
+                return ToolError(
+                    output="",
+                    message=str(exc),
+                    brief="Failed to create session",
+                )
 
     async def _run_in_background(self, params: SubAgentParams) -> ToolReturnValue:
-        """Run the sub-agent in the background and register it as a background task.
-
-        Args:
-            params: The sub-agent parameters.
-
-        Returns:
-            ToolOk with task_id on success, ToolError on failure.
-        """
-        # Check if already inside a SubAgentScope
-        if self._session.custom_data.get(SUB_AGENT_ACTIVE_KEY, False):
-            return ToolError(
-                output="",
-                message="You are a sub-agent, SubAgent cannot be called within this scope.",
-                brief="Nested SubAgent call detected",
-            )
 
         # Shared state for stopping the task
         _stop_event = threading.Event()
@@ -122,10 +91,7 @@ class Agent(CallableTool2):
                     session = None
                     try:
                         import kimix.base as base
-                        self._session.custom_data[SUB_AGENT_ACTIVE_KEY] = True
                         session = await _create_session_async(
-                            thinking=params.thinking,
-                            plan_mode=False,
                             agent_file=base._default_agent_file_dir / 'agent_subagent.yaml')
                         import kimix.utils as utils
                         await utils.prompt_async(prompt_str=params.prompt, session=session,
@@ -135,7 +101,6 @@ class Agent(CallableTool2):
                     finally:
                         if session:
                             await close_session_async(session)
-                        self._session.custom_data[SUB_AGENT_ACTIVE_KEY] = False
                     return None
 
                 err_msg = asyncio.run(prompt_async(_stop_event.is_set))

@@ -63,9 +63,6 @@ def _create_config(provider_dict: dict[str, Any] | None = None) -> tuple[Config,
             print_warning(
                 'api_key not found. May config in JSON, or set to env `KIMI_API_KEY` or `KIMIX_API_KEY`')
             api_key = ''
-        elif not api_key.startswith('sk'):
-            print_warning('api_key is invalid, must start with `sk`')
-            api_key = ''
         oath_dict = provider_dict.get('oauth')
         oath : OAuthRef | None = None
         if isinstance(oath_dict, dict):

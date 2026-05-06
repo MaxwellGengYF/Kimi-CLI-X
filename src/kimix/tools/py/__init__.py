@@ -1,3 +1,4 @@
+import asyncio
 import sys
 import os
 from pathlib import Path
@@ -40,56 +41,58 @@ class Python(CallableTool2[Params]):
     def __init__(self, session: Session):
         super().__init__()
         self._session = session
+        self._semaphore = asyncio.Semaphore(8)
 
     async def __call__(self, params: Params) -> ToolReturnValue:
-        # Handle background execution
-        if params.run_in_background:
-            return await self._run_in_background(params)
+        async with self._semaphore:
+            # Handle background execution
+            if params.run_in_background:
+                return await self._run_in_background(params)
 
-        task = ProcessTask(sys.executable, ['-u', '-c', params.code], None)
-        task_id = await task.start(self._session, "python", "python")
+            task = ProcessTask(sys.executable, ['-u', '-c', params.code], None)
+            task_id = await task.start(self._session, "python", "python")
 
-        # Wait for completion with timeout (allow a small buffer for cleanup)
-        wait_timeout = params.timeout
-        await task.wait(wait_timeout)
+            # Wait for completion with timeout (allow a small buffer for cleanup)
+            wait_timeout = params.timeout
+            await task.wait(wait_timeout)
 
-        if await task.thread_is_alive():
-            return ToolError(
-                output=f'Running in background. task_id: `{task_id}`. use `TaskOutput`',
-                message="Python execution timeout",
-                brief="Timeout"
-            )
-        # Clean up foreground task registration
-        from kimix.tools.background.utils import remove_task_id
-        remove_task_id(self._session, task_id)
-        # Get output
-        output = await task.stream.pop_output() if task.stream else ""
+            if await task.thread_is_alive():
+                return ToolError(
+                    output=f'Running in background. task_id: `{task_id}`. use `TaskOutput`',
+                    message="Python execution timeout",
+                    brief="Timeout"
+                )
+            # Clean up foreground task registration
+            from kimix.tools.background.utils import remove_task_id
+            remove_task_id(self._session, task_id)
+            # Get output
+            output = await task.stream.pop_output() if task.stream else ""
 
-        # Handle output_path parameter if provided
-        if params.output_path:
-            async with await anyio.open_file(params.output_path, 'w', encoding='utf-8', errors='replace') as f:
-                await f.write(output)
-            output = f'output exported to: {params.output_path}'
-        else:
-            output = await _maybe_export_output_async(output)
+            # Handle output_path parameter if provided
+            if params.output_path:
+                async with await anyio.open_file(params.output_path, 'w', encoding='utf-8', errors='replace') as f:
+                    await f.write(output)
+                output = f'output exported to: {params.output_path}'
+            else:
+                output = await _maybe_export_output_async(output)
 
-        # Check success
-        success = await task.stream.success() if task.stream else False
+            # Check success
+            success = await task.stream.success() if task.stream else False
 
 
 
-        if not success:
-            if output and not params.output_path:
-                temp_path, _ = await _export_to_temp_file_async(key=None, content=output, ext='.txt')
-                output = f'saved to file `{temp_path}`'
-            return ToolError(
-                output=output,
-                message="Python execution failed",
-                brief="Python execution error"
-            )
+            if not success:
+                if output and not params.output_path:
+                    temp_path, _ = await _export_to_temp_file_async(key=None, content=output, ext='.txt')
+                    output = f'saved to file `{temp_path}`'
+                return ToolError(
+                    output=output,
+                    message="Python execution failed",
+                    brief="Python execution error"
+                )
 
-        colored_code = colorful_text(params.code, fg=Color.BLACK)
-        return ToolOk(output=f"{colored_code}\n\n{output}")
+            colored_code = colorful_text(params.code, fg=Color.BLACK)
+            return ToolOk(output=f"{colored_code}\n\n{output}")
 
     async def _run_in_background(self, params: Params) -> ToolReturnValue:
         """Run Python code in the background and register it as a background task.
