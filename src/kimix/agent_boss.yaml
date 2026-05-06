@@ -9,4 +9,5 @@ agent:
     - "kimix.tools.skill:SkillSearch"
     - "kimix.tools.note:Note"
     - "kimix.memory.tools:Remember"
+    - "kimix.memory.tools:Reflect"
     - "kimix.memory.tools:Recall"

@@ -10,4 +10,5 @@ agent:
     - "kimix.tools.web.fetch_url:FetchURL"
     - "kimix.tools.skill:SkillSearch"
     - "kimix.memory.tools:Remember"
+    - "kimix.memory.tools:Reflect"
     - "kimix.memory.tools:Recall"

@@ -88,7 +88,7 @@ No multiple steps at once.
                 start_index = 1
 
 
-        items.append('Use `Remember`, `Recall` tools to manage knowledge and memory.')
+        items.append('Use `Remember`, `Recall`, `Reflect` tools to manage knowledge and memory.')
         if agent_md.is_file():
             agent_md_content = agent_md.read_text(encoding='utf-8', errors='replace')
             agent_md_doc = f'AGENTS.md:\n```\n{agent_md_content}\n```\n'

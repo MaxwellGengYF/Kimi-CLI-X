@@ -10,4 +10,5 @@ agent:
     - "kimix.tools.skill:SkillSearch"
     - "kimix.tools.swarm:AddEdge"
     - "kimix.memory.tools:Remember"
+    - "kimix.memory.tools:Reflect"
     - "kimix.memory.tools:Recall"

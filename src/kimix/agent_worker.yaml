@@ -18,6 +18,7 @@ agent:
     - "kimix.tools.agent:Agent"
     - "kimix.memory.tools:Remember"
     - "kimix.memory.tools:Recall"
+    - "kimix.memory.tools:Reflect"
     # - "kimix.tools.lint:SyntaxLint"
     # - "kimix.memory.tools:GetContext"
     # - "kimix.tools.office:Docx2md"
