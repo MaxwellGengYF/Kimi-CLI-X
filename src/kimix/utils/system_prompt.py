@@ -14,7 +14,8 @@ _SYSTEM_PROMP = (
 class SystemPromptType(Enum):
     Worker = 0
     TodoMaker = 1
-    SwarmCoordinator = 1
+    SwarmCoordinator = 3
+    Thinker = 2
     
 
 def get_system_prompt(
@@ -32,61 +33,57 @@ def get_system_prompt(
         items: list[str] = []
         agent_md_doc = ''
         skill_doc = ''
-
+        first_rule = ', minimal explanation, concisely, shortly'
+        def worker_logic():
+            nonlocal role_doc
+            role_doc = 'You are a terse ' + ('sub-agent' if is_sub_agent else 'coder') + first_rule
+            items.append(
+                'For interactive tasks, use `Run`/`Python` with short timeout, then `TaskOutput`/`Input`.'
+            )
+            items.append(
+                'For complex or multi-step tasks, use `SetTodoList` to track progress.'
+            )
+            if not is_sub_agent:
+                items.append(
+                    'Use `Agent` for: "parallelizable independent subtasks", '
+                    '"large-context analysis or tasks needing different expertise", '
+                    '"permission-graded operations like read-only analysis or sandboxed execution".'
+                )
+            if args.KIMI_OS != 'Windows':
+                items.append(f'Bash Shell: {args.KIMI_SHELL}. use `Run`.')
+            else:
+                items.append('No Shell, use `Run`.')
+            if yolo:
+                items.append(
+                    'Yolo mode: act without asking. Stay in workdir. No system changes unless asked.'
+                )
         match agent_role:
             case SystemPromptType.Worker:
-                items.append(
-                    'Direct output only. No chain-of-thought. No analysis. '
-                    'No step-by-step. No reasoning blocks. No thinking-effort. zero preamble. '
-                    'No postamble. Minimal explanation. Concisely. Shortly.'
-                )
-                role_doc = 'You are a terse ' + ('sub-agent' if is_sub_agent else 'coder')
-                items.append(
-                    'For interactive tasks, use `Run`/`Python` with timeout < 10, then `TaskOutput`/`Input`.'
-                )
-                items.append(
-                    'For complex or multi-step tasks, use `SetTodoList` to track progress.'
-                )
-                if not is_sub_agent:
-                    items.append(
-                        'Use `Agent` for: "parallelizable independent subtasks", '
-                        '"large-context analysis or tasks needing different expertise", '
-                        '"permission-graded operations like read-only analysis or sandboxed execution".'
-                    )
-                if args.KIMI_OS != 'Windows':
-                    items.append(f'Bash Shell: {args.KIMI_SHELL}. use `Run`')
-                else:
-                    items.append('No Shell, use `Run`')
-                if yolo:
-                    items.append(
-                        'Yolo mode: act without asking. Stay in workdir. No system changes unless asked.'
-                    )
-                start_index = 1
+                worker_logic()
             case SystemPromptType.TodoMaker:
-                role_doc = '''You are a plan maker. Only make plan, never implement.
-Record all steps using `Note` tool.
-No multiple steps at once.
-'''
-                items.append(
-                    'Direct output only. No chain-of-thought. No analysis. '
-                    'No reasoning blocks. No thinking-effort. zero preamble. '
-                    'No postamble. Minimal explanation. Concisely. Shortly.'
-                )
-                start_index = 1
+                role_doc = 'You are a plan maker' + first_rule
+                items.append('Only make plan, never implement.')
+                items.append('Record all steps using `Note` tool.')
+                items.append('No multiple steps at once.')
             case SystemPromptType.SwarmCoordinator:
-                role_doc = (
-                    'You are a swarm coordinator. Build a dependency DAG via `AddNode` and `AddEdge`.\n'
-                    '- AddNode: sub-task with a clear, actionable prompt\n'
-                    '- AddEdge: execution order (upstream -> downstream)\n'
-                    'Keep graph acyclic. Minimize edges to maximize parallelism.\n'
-                    'Report all nodes and edges when done.\n\n'
-                )
-                items.append(
-                    'Direct output only. No chain-of-thought. No analysis. '
-                    'No reasoning blocks. No thinking-effort. zero preamble. '
-                    'No postamble. Minimal explanation. Concisely. Shortly.'
-                )
-                start_index = 1
+                role_doc = 'You are a swarm coordinator' + first_rule
+                items.append('Build a dependency DAG via `AddNode` and `AddEdge`')
+                items.append('AddNode: sub-task with a clear, actionable prompt')
+                items.append('AddEdge: execution order (upstream -> downstream)')
+                items.append('Keep graph acyclic. Minimize edges to maximize parallelism.')
+                items.append('Report all nodes and edges when done.')
+            case SystemPromptType.Thinker:
+                worker_logic()
+                for i, item in enumerate(items):
+                    items[i] = (
+                        'Explicit chain-of-thought required.'
+                        'Write reasoning in <thinking>...</thinking>.'
+                        'Write final answer in <answer>...</answer>.'
+                        'If prior thinking is provided, continue from it, verify, refine, then answer.'
+                        'Keep reasoning concise. No preamble outside tags.'
+                    )
+                    break
+                items.append('Self-verify: catch errors, omissions, bad assumptions before final answer.')
 
 
         items.append('Use `Remember`, `Recall`, `Reflect` whenever memory is needed: long tasks, heavy context, multi-turn work, or anything worth saving.')
@@ -99,7 +96,7 @@ No multiple steps at once.
         numbered_block = ''
         if items:
             numbered_block = 'Rules:\n' + ''.join(
-                f'{i + start_index}. {item}\n' for i, item in enumerate(items)
+                f'{i + 1}. {item}\n' for i, item in enumerate(items)
             )
 
         return _SYSTEM_PROMP.format(
