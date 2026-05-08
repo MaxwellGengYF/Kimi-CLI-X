@@ -74,15 +74,12 @@ def get_system_prompt(
                 items.append('Report all nodes and edges when done.')
             case SystemPromptType.Thinker:
                 worker_logic()
-                for i, item in enumerate(items):
-                    items[i] = (
-                        'Explicit chain-of-thought required.'
-                        'Write reasoning in <thinking>...</thinking>.'
-                        'Write final answer in <answer>...</answer>.'
-                        'If prior thinking is provided, continue from it, verify, refine, then answer.'
-                        'Keep reasoning concise. No preamble outside tags.'
-                    )
-                    break
+                items.append(
+                    "Think step by step. "
+                    "Put your reasoning in <thinking>...</thinking>. "
+                    "When finished, write <quit/>. "
+                    "Be concise. No text outside tags."
+                )
                 items.append('Self-verify: catch errors, omissions, bad assumptions before final answer.')
 
 

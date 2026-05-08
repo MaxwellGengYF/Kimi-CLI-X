@@ -93,7 +93,7 @@ async def prompt_async(
     info_print: bool = True,
     cancel_callable: Callable[[], bool] | None = None,
     close_session_after_prompt: bool = False,
-    merge_wire_messages: bool = False
+    merge_wire_messages: bool | None = None
 ) -> None:
     if session is None:
         session = _create_default_session()
@@ -135,9 +135,9 @@ async def prompt_async(
                 import time
                 start_time = time.time()
                 base.PRINT_STREAM_flag = None
-                if output_function is not None:
+                if merge_wire_messages is None and output_function is not None:
                     merge_wire_messages = True
-                async for message in session.prompt(prompt_str, merge_wire_messages=merge_wire_messages):
+                async for message in session.prompt(prompt_str, merge_wire_messages=merge_wire_messages if merge_wire_messages is not None else False):
                     if cancel_callable is not None and cancel_callable():
                         session.cancel()
                         break
@@ -182,7 +182,7 @@ def prompt(
     info_print: bool = True,
     cancel_callable: Callable[[], bool] | None = None,
     close_session_after_prompt: bool = False,
-    merge_wire_messages: bool = False
+    merge_wire_messages: bool | None = None
 ) -> None:
     asyncio.run(
         prompt_async(

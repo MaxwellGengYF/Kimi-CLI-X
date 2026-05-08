@@ -12,14 +12,6 @@ from kimix.utils import (
 )
 from kimix.cot import cot_prompt
 exec_ctx: dict[str, Any] = {}
-def llm_prompt(prompt_str: str) -> str:
-    lst = []
-    def output_func(s, thinking):
-        if not thinking:
-            lst.append(s)
-    prompt(prompt_str, output_function=output_func)
-    return '\n'.join(lst)
-# cot_prompt(prompt_str, llm_prompt)
 
 def _client_cli() -> None:
     global exec_ctx
@@ -95,7 +87,7 @@ def _client_cli() -> None:
                     try:
                         if base._default_manually_cot:
                             print_info('Manually CoT mode enabled: may use multiple sessions and extra tokens.')
-                            cot_prompt(input_str, llm_prompt)
+                            cot_prompt(input_str)
                         else:
                             prompt(prompt_str=input_str,
                                    session=get_default_session())

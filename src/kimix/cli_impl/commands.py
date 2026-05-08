@@ -299,6 +299,7 @@ def _cmd_cot(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
 def _cmd_init(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     init()
     _globals._default_session = None
+    _globals._default_role = None
     _create_default_session()
     print_success('Initialized.')
     return None, False

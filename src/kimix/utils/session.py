@@ -215,6 +215,7 @@ def _create_default_session(resume: bool = True) -> Session:
     if _globals._default_session:
         return _globals._default_session
     _globals._default_session = create_session("default", resume=resume)
+    _globals._default_role = SystemPromptType.Worker
     return _globals._default_session
 
 

@@ -7,6 +7,7 @@ TextSearchIndex: Any = None
 SearchResult: Any = None
 
 _default_session: Session | None = None
+_default_role: Any = None
 _session_idx = 0
 
 _should_print_usage = threading.local()

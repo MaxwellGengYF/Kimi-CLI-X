@@ -7,10 +7,20 @@ self-verification and continuation from prior reasoning.
 
 from __future__ import annotations
 
-import asyncio
 import re
 from dataclasses import dataclass
-from typing import Awaitable, Callable, Optional
+from typing import Optional
+
+from kimi_agent_sdk import Session
+from kimix.utils import (
+    _create_session_async,
+    create_session,
+    get_default_session,
+    prompt,
+    prompt_async,
+)
+from kimix.utils import _globals
+from kimix.utils.system_prompt import SystemPromptType
 
 
 @dataclass
@@ -20,14 +30,6 @@ class CoTResult:
     thinking: str
     quit: bool = False
 
-
-_COT_SYSTEM = (
-    "Think step by step. "
-    "Put your reasoning in <thinking>...</thinking>. "
-    "If you need more steps, output only <thinking>...</thinking>; the system will prompt again. "
-    "When finished, write <quit/>. "
-    "Be concise. No text outside tags."
-)
 
 _VERIFY_SUFFIX = (
     "\n\nReview your reasoning for errors or bad assumptions, correct them, then finalize."
@@ -47,12 +49,11 @@ def _build_prompt(
     parts: list[str] = []
     if existing_thinking is not None:
         parts.append(_CONTINUE_PREFIX.format(thinking=existing_thinking.strip()))
-    parts.append(_COT_SYSTEM)
     parts.append(user_prompt.strip())
-    prompt = "\n\n".join(parts)
+    prompt_str = "\n\n".join(parts)
     if self_verify:
-        prompt += _VERIFY_SUFFIX
-    return prompt
+        prompt_str += _VERIFY_SUFFIX
+    return prompt_str
 
 
 _THINKING_RE = re.compile(r"<thinking>(.*?)</thinking>", re.DOTALL | re.IGNORECASE)
@@ -66,24 +67,59 @@ def _parse_response(text: str) -> CoTResult:
     return CoTResult(thinking=thinking, quit=bool(quit_match))
 
 
+def _ensure_cot_session() -> Session:
+    default = get_default_session()
+    if default is not None and _globals._default_role != SystemPromptType.Thinker:
+        session = create_session(agent_type=SystemPromptType.Thinker)
+        _globals._default_session = session
+        _globals._default_role = SystemPromptType.Thinker
+    return session
+
+
+async def _ensure_cot_session_async() -> Session:
+    default = get_default_session()
+    if default is not None and _globals._default_role != SystemPromptType.Thinker:
+        session = await _create_session_async(agent_type=SystemPromptType.Thinker)
+        _globals._default_session = session
+        _globals._default_role = SystemPromptType.Thinker
+    return session
+
+
+def _prompt_to_text(prompt_str: str, session: Session) -> str:
+    lst: list[str] = []
+    def output_func(s: str, thinking: bool) -> None:
+        if not thinking:
+            lst.append(s)
+    prompt(prompt_str, session=session, output_function=output_func, merge_wire_messages=False)
+    return "\n".join(lst)
+
+
+async def _prompt_to_text_async(prompt_str: str, session: Session) -> str:
+    lst: list[str] = []
+    def output_func(s: str, thinking: bool) -> None:
+        if not thinking:
+            lst.append(s)
+    await prompt_async(prompt_str, session=session, output_function=output_func, merge_wire_messages=False)
+    return "".join(lst)
+
+
 async def cot_prompt_async(
     prompt_str: str,
-    llm_callback: Callable[[str], Awaitable[str]],
     self_verify: bool = True,
     existing_thinking: Optional[str] = None,
     max_iterations: int = 10,
 ) -> CoTResult:
-    """Run manual CoT with an async LLM callback.
+    """Run manual CoT with a Thinker session.
 
-    The callback is invoked in a loop until the model emits ``<quit/>``
+    The session is created with ``SystemPromptType.Thinker`` role.
+    If a default session already exists, its role is recorded and it is left open.
+    The model is prompted in a loop until it emits ``<quit/>``
     or ``max_iterations`` is reached.
 
     Parameters
     ----------
     prompt_str:
         The user prompt.
-    llm_callback:
-        Async callable that takes a prompt string and returns the raw LLM response.
     self_verify:
         If True, append a self-verification instruction to each prompt.
     existing_thinking:
@@ -91,11 +127,12 @@ async def cot_prompt_async(
     max_iterations:
         Maximum number of LLM calls before forcing a return.
     """
+    session = await _ensure_cot_session_async()
     last_thinking = existing_thinking.strip() if existing_thinking is not None else None
 
     for _ in range(max_iterations):
-        prompt = _build_prompt(prompt_str, last_thinking, self_verify)
-        raw = await llm_callback(prompt)
+        user_prompt = _build_prompt(prompt_str, last_thinking, self_verify)
+        raw = await _prompt_to_text_async(user_prompt, session)
         result = _parse_response(raw)
 
         if result.thinking:
@@ -112,7 +149,6 @@ async def cot_prompt_async(
 
 def cot_prompt(
     prompt_str: str,
-    llm_callback: Callable[[str], str],
     self_verify: bool = True,
     existing_thinking: Optional[str] = None,
     max_iterations: int = 10,
@@ -123,8 +159,6 @@ def cot_prompt(
     ----------
     prompt_str:
         The user prompt.
-    llm_callback:
-        Sync callable that takes a prompt string and returns the raw LLM response.
     self_verify:
         If True, append a self-verification instruction to each prompt.
     existing_thinking:
@@ -132,11 +166,12 @@ def cot_prompt(
     max_iterations:
         Maximum number of LLM calls before forcing a return.
     """
+    session = _ensure_cot_session()
     last_thinking = existing_thinking.strip() if existing_thinking is not None else None
 
     for _ in range(max_iterations):
-        prompt = _build_prompt(prompt_str, last_thinking, self_verify)
-        raw = llm_callback(prompt)
+        user_prompt = _build_prompt(prompt_str, last_thinking, self_verify)
+        raw = _prompt_to_text(user_prompt, session)
         result = _parse_response(raw)
 
         if result.thinking:
@@ -153,7 +188,6 @@ def cot_prompt(
 
 async def cot_prompt_with_verification_async(
     prompt_str: str,
-    llm_callback: Callable[[str], Awaitable[str]],
     existing_thinking: Optional[str] = None,
 ) -> CoTResult:
     """Two-pass CoT: generate reasoning, then verify and refine.
@@ -163,7 +197,6 @@ async def cot_prompt_with_verification_async(
     """
     first = await cot_prompt_async(
         prompt_str,
-        llm_callback,
         self_verify=False,
         existing_thinking=existing_thinking,
     )
@@ -171,7 +204,6 @@ async def cot_prompt_with_verification_async(
         return first
     second = await cot_prompt_async(
         prompt_str,
-        llm_callback,
         self_verify=True,
         existing_thinking=first.thinking,
     )
@@ -180,13 +212,11 @@ async def cot_prompt_with_verification_async(
 
 def cot_prompt_with_verification(
     prompt_str: str,
-    llm_callback: Callable[[str], str],
     existing_thinking: Optional[str] = None,
 ) -> CoTResult:
     """Synchronous two-pass CoT with verification."""
     first = cot_prompt(
         prompt_str,
-        llm_callback,
         self_verify=False,
         existing_thinking=existing_thinking,
     )
@@ -194,7 +224,6 @@ def cot_prompt_with_verification(
         return first
     second = cot_prompt(
         prompt_str,
-        llm_callback,
         self_verify=True,
         existing_thinking=first.thinking,
     )
