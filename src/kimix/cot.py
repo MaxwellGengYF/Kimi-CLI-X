@@ -18,7 +18,7 @@ class CoTResult:
     """Result of a manual CoT prompt."""
 
     thinking: str
-    answer: str
+    answer: bool
     quit: bool = False
 
 
@@ -59,21 +59,14 @@ def _build_prompt(
 
 
 _THINKING_RE = re.compile(r"<thinking>(.*?)</thinking>", re.DOTALL | re.IGNORECASE)
-_ANSWER_RE = re.compile(r"<answer>(.*?)</answer>", re.DOTALL | re.IGNORECASE)
 _QUIT_RE = re.compile(r"<quit\s*/?>", re.IGNORECASE)
 
 
 def _parse_response(text: str) -> CoTResult:
     thinking_match = _THINKING_RE.search(text)
-    answer_match = _ANSWER_RE.search(text)
     quit_match = _QUIT_RE.search(text)
     thinking = thinking_match.group(1).strip() if thinking_match else ""
-    if answer_match:
-        answer = answer_match.group(1).strip()
-    elif thinking_match:
-        answer = ""
-    else:
-        answer = text.strip()
+    answer = text.find('<answer>') >= 0 and text.find('</answer>') >= 0
     return CoTResult(thinking=thinking, answer=answer, quit=bool(quit_match))
 
 
@@ -173,7 +166,7 @@ def cot_prompt(
                 quit=result.quit,
             )
 
-    return CoTResult(thinking="\n\n".join(accumulated), answer="", quit=False)
+    return CoTResult(thinking="\n\n".join(accumulated), answer=False, quit=False)
 
 
 async def cot_prompt_with_verification_async(

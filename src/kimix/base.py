@@ -1,15 +1,30 @@
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any, Callable, Optional
-import os
-from enum import Enum
-import json
-import threading
-import sys
 import asyncio
+import json
+import os
+import subprocess
+import sys
+import threading
+import time
+from enum import Enum
+from pathlib import Path
+from typing import Any, Callable
 
-_threads: list[threading.Thread] = list()
+from kimi_cli.wire.types import (
+    ApprovalRequest,
+    CompactionBegin,
+    CompactionEnd,
+    StepBegin,
+    StepInterrupted,
+    TextPart,
+    ThinkPart,
+    ToolCall,
+    ToolCallPart,
+    ToolResult,
+)
+
+_threads: list[threading.Thread] = []
 
 
 class Color(Enum):
@@ -66,24 +81,22 @@ class Style(Enum):
 
 
 _colorful_print = True
-_print_func: Callable[[str, str], Any] | None = None
+_print_func: Callable = print
 
 
 def colorful_text(
     text: str,
-    fg: Optional[Color] = None,
-    bg: Optional[BgColor] = None,
-    styles: Optional[list[Style]] = None,
-):
+    fg: Color | None = None,
+    bg: BgColor | None = None,
+    styles: list[Style] | None = None,
+) -> str:
     codes: list[int] = []
-
     if styles:
         codes.extend(style.value for style in styles)
     if fg:
         codes.append(fg.value)
     if bg:
         codes.append(bg.value)
-
     if codes:
         text = f"\033[{';'.join(map(str, codes))}m{text}\033[0m"
     return text
@@ -91,22 +104,16 @@ def colorful_text(
 
 def colorful_print(
     text: str,
-    fg: Optional[Color] = None,
-    bg: Optional[BgColor] = None,
-    styles: Optional[list[Style]] = None,
-    end: str = "\n"
+    fg: Color | None = None,
+    bg: BgColor | None = None,
+    styles: list[Style] | None = None,
+    end: str = "\n",
 ) -> None:
     if not _colorful_print:
-        if _print_func:
-            _print_func(text, end)
-        else:
-            print(text, end=end)
+        _print_func(text, end=end)
         return
     text = colorful_text(text, fg, bg, styles)
-    if _print_func:
-        _print_func(text, end)
-    else:
-        print(text, end=end)
+    _print_func(text, end=end)
 
 
 _quiet = False
@@ -118,10 +125,7 @@ def print_success(text: str, end: str = "\n") -> None:
 
 
 def print_string(text: str, end: str = "\n") -> None:
-    if _print_func:
-        _print_func(text, end)
-    else:
-        print(text, end=end)
+    _print_func(text, end=end)
 
 
 def print_error(text: str, end: str = "\n") -> None:
@@ -147,51 +151,59 @@ def print_debug(text: str, end: str = "\n") -> None:
 
 
 def _process_lru() -> None:
-    import time
-    """Limit the number of processes to 32 by waiting and removing completed ones."""
+    """Limit the number of threads to 8 by waiting and removing completed ones."""
     global _threads
     MAX_PROCESSES = 8
 
-    # Remove already completed processes first
     _threads = [p for p in _threads if p.is_alive()]
 
-    # If still over limit, wait for processes to complete
     while len(_threads) >= MAX_PROCESSES:
-        # Wait for the first process to complete with a timeout
         time.sleep(0.1)
-        # Remove completed processes
         _threads = [p for p in _threads if p.is_alive()]
 
 
-PRINT_STREAM = threading.local()
+PRINT_STREAM_last_ended_with_newline = False
+PRINT_STREAM_flag: str | None = None
 
-from kimi_cli.wire.types import (
-    ApprovalRequest,
-    StepBegin,
-    StepInterrupted,
-    TextPart,
-    ThinkPart,
-    ToolCall,
-    ToolCallPart,
-    ToolResult,
-)
+
+def print_tool(s: str) -> None:
+    global PRINT_STREAM_flag, PRINT_STREAM_last_ended_with_newline
+    if (
+        PRINT_STREAM_flag is not None
+        and PRINT_STREAM_flag != "tool"
+        and not PRINT_STREAM_last_ended_with_newline
+    ):
+        if not s.startswith("\n"):
+            s = "\n" + s
+        PRINT_STREAM_flag = "tool"
+        PRINT_STREAM_last_ended_with_newline = True
+    _print_func(s)
+
+
+import kimi_cli.soul.toolset as toolset
+
+toolset.print_tool_func = print_tool
 
 _TOOL_TYPES = (ToolCall, ToolCallPart, ToolResult)
 
-def print_agent_json(wire_msg: Any, output_function: Callable[[str, bool], Any] | None = None) -> None:
-    def _set_last_ended_with_newline(ended: bool) -> None:
-        PRINT_STREAM.last_ended_with_newline = ended
 
-    flag = getattr(PRINT_STREAM, 'flag', None)
-    _last_ended_with_newline = getattr(PRINT_STREAM, 'last_ended_with_newline', False)
+def print_agent_json(
+    wire_msg: Any, output_function: Callable[[str, bool], Any] | None = None
+) -> None:
+    def _set_last_ended_with_newline(ended: bool) -> None:
+        global PRINT_STREAM_last_ended_with_newline
+        PRINT_STREAM_last_ended_with_newline = ended
 
     def _switch(new_flag: str | None) -> bool:
-        nonlocal flag
-        if flag != new_flag:
-            if flag is not None and flag != 'tool' and not _last_ended_with_newline:
-                print()
-            flag = new_flag
-            PRINT_STREAM.flag = new_flag
+        global PRINT_STREAM_flag
+        if PRINT_STREAM_flag != new_flag:
+            if (
+                PRINT_STREAM_flag is not None
+                and PRINT_STREAM_flag != "tool"
+                and not PRINT_STREAM_last_ended_with_newline
+            ):
+                _print_func('')
+            PRINT_STREAM_flag = new_flag
             return True
         return False
 
@@ -199,61 +211,62 @@ def print_agent_json(wire_msg: Any, output_function: Callable[[str, bool], Any] 
         wire_msg.resolve("approve")
         return
 
-    if isinstance(wire_msg, (StepBegin, StepInterrupted)):
+    if isinstance(wire_msg, (StepBegin, StepInterrupted, CompactionEnd)):
         _switch(None)
+        return
+
+    if isinstance(wire_msg, CompactionBegin):
+        _switch(None)
+        print_info("Compacting...")
         return
 
     if isinstance(wire_msg, ThinkPart):
         think_content = wire_msg.think
         if think_content.strip() and not _quiet:
-            if _switch('think'):
+            if _switch("think"):
                 think_content = f"[Think] {think_content}"
             if output_function:
                 output_function(think_content, True)
-            colorful_print(think_content, fg=Color.BRIGHT_CYAN, end='')
-            _set_last_ended_with_newline(think_content.endswith('\n'))
+            colorful_print(think_content, fg=Color.BRIGHT_CYAN, end="")
+            _set_last_ended_with_newline(think_content.endswith("\n"))
         return
 
     if isinstance(wire_msg, TextPart):
         chunk = wire_msg.text
         if chunk.strip():
-            _switch('text')
+            _switch("text")
             if output_function:
                 output_function(chunk, False)
-            if _print_func:
-                _print_func(f"\n{chunk}", '')
-            else:
-                print(chunk, end='')
-                _set_last_ended_with_newline(chunk.endswith('\n'))
+            _print_func(chunk, end="")
+            _set_last_ended_with_newline(chunk.endswith("\n"))
         return
 
     if isinstance(wire_msg, _TOOL_TYPES):
-        _switch('tool')
+        _switch("tool")
         return
 
 
-
-def run_thread(function: Callable[..., Any], args: tuple[Any, ...] | None = None) -> threading.Thread:
+def run_thread(
+    function: Callable[..., Any], args: tuple[Any, ...] | None = None
+) -> threading.Thread:
     assert callable(function)
     global _threads
-    # Enforce process limit before creating new one
     _process_lru()
 
     if args is None:
-        args = tuple()
+        args = ()
     elif type(args) is not tuple:
         args = (args, )
     thd = threading.Thread(target=function, args=args)
     thd.start()
-
     _threads.append(thd)
     return thd
 
 
 def run_script(path: str | Path) -> Any:
-    import subprocess
     return subprocess.Popen(
-        [sys.executable, str(path)], creationflags=subprocess.CREATE_NEW_CONSOLE)
+        [sys.executable, str(path)], creationflags=subprocess.CREATE_NEW_CONSOLE
+    )
 
 
 def sync_all() -> None:
@@ -264,73 +277,58 @@ def sync_all() -> None:
 
 
 def _run_process_with_log(command: str) -> tuple[str, int]:
-    import subprocess
-    print_info(f'Shell: {command}')
-    result = subprocess.run(command, shell=True,
-                            capture_output=True, text=False)
-    # Decode stdout with UTF-8, handle decode errors
-    if result.stdout:
-        output = result.stdout.decode('utf-8', errors='replace')
-    else:
-        output = ""
-    # Decode stderr with UTF-8, handle decode errors
+    print_info(f"Shell: {command}")
+    result = subprocess.run(command, shell=True, capture_output=True)
+    output = result.stdout.decode("utf-8", errors="replace") if result.stdout else ""
     if result.stderr:
-        stderr = result.stderr.decode('utf-8', errors='replace')
-        output += "\n" + stderr
+        output += "\n" + result.stderr.decode("utf-8", errors="replace")
     return output, result.returncode
 
 
 async def _run_process_with_log_async(command: str) -> tuple[str, int]:
-    print_info(f'Shell: {command}')
+    print_info(f"Shell: {command}")
     proc = await asyncio.create_subprocess_shell(
-        command,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
+        command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
     )
     stdout, stderr = await proc.communicate()
-    # Decode stdout with UTF-8, handle decode errors
-    if stdout:
-        output = stdout.decode('utf-8', errors='replace')
-    else:
-        output = ""
-    # Decode stderr with UTF-8, handle decode errors
+    output = stdout.decode("utf-8", errors="replace") if stdout else ""
     if stderr:
-        output += "\n" + stderr.decode('utf-8', errors='replace')
+        output += "\n" + stderr.decode("utf-8", errors="replace")
     return output, proc.returncode
 
 
-def run_process_with_error(command: str, keycode: tuple[str, ...] | None, skip_success: bool = True) -> str | None:
+def _filter_error_output(
+    result: str, code: int, keycode: tuple[str, ...] | None, skip_success: bool
+) -> str | None:
+    if skip_success and code == 0:
+        return None
+    if not keycode:
+        return result
+    lines = result.splitlines()
+    for idx, line in enumerate(lines):
+        lower_line = line.lower()
+        for c in keycode:
+            if c in lower_line:
+                return "\n".join(lines[idx:])
+    return result
+
+
+def run_process_with_error(
+    command: str,
+    keycode: tuple[str, ...] | None,
+    skip_success: bool = True,
+) -> str | None:
     result, code = _run_process_with_log(command)
-    if skip_success and code == 0:
-        return None
-    lines = result.splitlines()
-    if keycode is None or len(keycode) == 0:
-        return result
-    for idx in range(len(lines)):
-        line = lines[idx]
-        lower_line = line.lower()
-        for c in keycode:
-            if c in lower_line:
-                return '\n'.join(lines[idx:])
-
-    return result
+    return _filter_error_output(result, code, keycode, skip_success)
 
 
-async def run_process_with_error_async(command: str, keycode: tuple[str, ...] | None, skip_success: bool = True) -> str | None:
+async def run_process_with_error_async(
+    command: str,
+    keycode: tuple[str, ...] | None,
+    skip_success: bool = True,
+) -> str | None:
     result, code = await _run_process_with_log_async(command)
-    if skip_success and code == 0:
-        return None
-    lines = result.splitlines()
-    if keycode is None or len(keycode) == 0:
-        return result
-    for idx in range(len(lines)):
-        line = lines[idx]
-        lower_line = line.lower()
-        for c in keycode:
-            if c in lower_line:
-                return '\n'.join(lines[idx:])
-
-    return result
+    return _filter_error_output(result, code, keycode, skip_success)
 
 
 def percentage_str(num: float) -> str:
@@ -340,16 +338,18 @@ def percentage_str(num: float) -> str:
 _default_thinking: bool = True
 _default_yolo: bool = True
 _default_agent_file_dir: Path = Path(__file__).parent
-_default_agent_file: Path = _default_agent_file_dir / 'agent_worker.yaml'
+_default_agent_file: Path = _default_agent_file_dir / "agent_worker.yaml"
 _default_skill_dirs: list[Any] = []
 _default_provider: dict[str, Any] | None = None
+_default_manually_cot: bool = False
+_default_ralph: int | None = None
 
 # Common skill directory paths (relative to current working directory)
 COMMON_SKILL_DIRS: list[str] = [
     ".agents/skills",
     ".config/.agents/skills",
     ".opencode/skills",
-    "skills"
+    "skills",
 ]
 
 
@@ -390,38 +390,31 @@ def set_default_provider(value: dict[str, Any] | None) -> None:
 
 # The failed-list for tool call that
 # tuple: function-name, arguments, output, message
-_tool_call_failed_lists: dict[str, list[tuple[str, str, str, str]]] = dict()
+_tool_call_failed_lists: dict[str, list[tuple[str, str, str, str]]] = {}
 
 
 def get_skill_dirs(use_kaos_path: bool = True) -> list[Any]:
     from kaos.path import KaosPath
+
     global _default_skill_dirs
     if _default_skill_dirs:
         if use_kaos_path:
             return [KaosPath(str(i)) for i in _default_skill_dirs]
         return _default_skill_dirs
 
-    def _gen() -> list[Path]:
-        from concurrent.futures import ThreadPoolExecutor
-        paths = [Path(os.curdir) / rel for rel in COMMON_SKILL_DIRS]
-        with ThreadPoolExecutor() as executor:
-            futures = [(p, executor.submit(p.exists)) for p in paths]
-            return [p for p, fut in futures if fut.result()]
-    _default_skill_dirs = _gen()
+    _default_skill_dirs = [
+        p for rel in COMMON_SKILL_DIRS if (p := Path(os.curdir) / rel).exists()
+    ]
     if _default_skill_dirs:
         for d in _default_skill_dirs:
-            print_debug(f'skill dir: {str(d)}')
+            print_debug(f"skill dir: {str(d)}")
         if use_kaos_path:
-            return [
-                KaosPath(str(d))
-                for d in _default_skill_dirs
-            ]
+            return [KaosPath(str(d)) for d in _default_skill_dirs]
         return _default_skill_dirs
     return []
 
-_default_manually_cot: bool = False
-_default_ralph: int | None = None
-generate_memory = '''Summarize the session for a coding agent. Output directly; no preamble.
+
+generate_memory = """Summarize the session for a coding agent. Output directly; no preamble.
 1. **Project Overview**: Purpose, scope, tech stack.
 2. **Key Decisions**: Critical choices, rationale, rejected alternatives.
 3. **Current State**: What works, what's merged/verified, active branch, test results.
@@ -430,4 +423,4 @@ generate_memory = '''Summarize the session for a coding agent. Output directly; 
 6. **Dependencies**: Added, removed, upgraded packages or services.
 7. **TODOs / Blockers**: Remaining tasks, known issues, external dependencies.
 8. **Risks / Rollback**: Breaking changes, migration steps, revert strategy.
-9. **Technical Notes**: Patterns, constraints, APIs, env setup, performance or security considerations.'''
+9. **Technical Notes**: Patterns, constraints, APIs, env setup, performance or security considerations."""

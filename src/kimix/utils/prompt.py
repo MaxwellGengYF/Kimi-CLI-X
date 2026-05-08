@@ -134,7 +134,7 @@ async def prompt_async(
             try:
                 import time
                 start_time = time.time()
-                base.PRINT_STREAM.flag = None
+                base.PRINT_STREAM_flag = None
                 if output_function is not None:
                     merge_wire_messages = True
                 async for message in session.prompt(prompt_str, merge_wire_messages=merge_wire_messages):
