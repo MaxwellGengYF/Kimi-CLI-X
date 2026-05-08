@@ -6,7 +6,7 @@ from typing import Any
 
 import orjson
 
-from kimix.base import print_error, print_info, print_success, print_warning
+from kimix.base import print_info, print_success, print_warning
 default_config = '''
 {
     "model_name": "kimi-for-coding",
@@ -136,29 +136,32 @@ def init(initialize: bool = True) -> None:
         v = input('default config not found, initialize? you can use /init any time. (y/n)').strip().lower() 
         initialize = v == 'y' or not v
     config = _load_default_config()
-    if initialize:
-        model = _ask_model_name(config.get("model", "kimi-for-coding"))
-        config["model"] = model
+    try:
+        if initialize:
+            model = _ask_model_name(config.get("model", "kimi-for-coding"))
+            config["model"] = model
 
-        model_type = _ask_model_type(config.get("type", "kimi"))
-        config["type"] = model_type
+            model_type = _ask_model_type(config.get("type", "kimi"))
+            config["type"] = model_type
 
-        api_key = _ask_api_key()
-        if api_key:
-            config["api_key"] = api_key
+            api_key = _ask_api_key()
+            if api_key:
+                config["api_key"] = api_key
 
-        context_size = _ask_context_size()
-        config["max_context_size"] = context_size
+            context_size = _ask_context_size()
+            config["max_context_size"] = context_size
 
-        reserved = config.get("loop_control", {}).get("reserved_context_size", 50000)
-        config["max_tokens"] = context_size - reserved
+            reserved = config.get("loop_control", {}).get("reserved_context_size", 50000)
+            config["max_tokens"] = context_size - reserved
 
-        thinking = _ask_thinking_effort(config.get("thinking_effort", "low"))
-        config["thinking_effort"] = thinking
+            thinking = _ask_thinking_effort(config.get("thinking_effort", "low"))
+            config["thinking_effort"] = thinking
 
-        url = _ask_url(config.get("url", "https://api.kimi.com/coding/v1"))
-        config["url"] = url
-
+            url = _ask_url(config.get("url", "https://api.kimi.com/coding/v1"))
+            config["url"] = url
+    except KeyboardInterrupt:
+        print_warning('keyboard interruped.')
+        return
     _save_config(config)
     if initialize:
         print_success(f"Configuration saved successfully to {_DEFAULT_CONFIG_PATH}!")

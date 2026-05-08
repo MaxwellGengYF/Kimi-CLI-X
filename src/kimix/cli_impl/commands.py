@@ -8,8 +8,11 @@ from .utils import _input, _split_text
 from kimix.base import print_success, print_error, print_warning, print_debug, colorful_text, Color
 from kimix.utils import (
     clear_default_context, get_default_session, fix_error, compact_default_context,
-    print_usage, execute_plan, check_plan_cache, set_ralph_loop
+    print_usage, execute_plan, check_plan_cache, set_ralph_loop,
+    _create_default_session
 )
+import kimix.utils._globals as _globals
+from .init import init
 from kimix.dag.agent_swarm import create_swarm_session
 from kimix.dag import Executor
 import asyncio
@@ -293,6 +296,14 @@ def _cmd_cot(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     return None, False
 
 
+def _cmd_init(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
+    init()
+    _globals._default_session = None
+    _create_default_session()
+    print_success('Initialized.')
+    return None, False
+
+
 def _cmd_unknown(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     print_warning('Unrecognized command.')
     return None, False
@@ -315,5 +326,6 @@ _command_map = {
     'export': _cmd_export,
     'swarm': _cmd_swarm,
     'ralph': _cmd_ralph,
-    'cot': _cmd_cot
+    'cot': _cmd_cot,
+    'init': _cmd_init
 }
