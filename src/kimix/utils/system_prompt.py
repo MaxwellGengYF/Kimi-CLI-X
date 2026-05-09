@@ -36,7 +36,7 @@ def get_system_prompt(
         agent_md_doc = ''
         skill_doc = ''
         if agent_role != SystemPromptType.Thinker:
-            items.append('NO write pseudocode. NO flowcharts. No reasoning. Direct. NO step-by-step. No thinking. No planning. No explanations. No filler. No restating. No reconsider. No self-correction. First thought is final. No backtracking.')
+            items.append('NO write pseudocode. NO flowcharts. No reasoning. Direct. NO step-by-step. No thinking. No planning. No explanations. No filler. No restating. No reconsider. No self-correction. No backtracking.')
         def worker_logic():
             nonlocal role_doc
             role_doc = 'You are a terse ' + ('sub-agent' if is_sub_agent else 'coder')
