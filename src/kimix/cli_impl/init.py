@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -13,7 +15,7 @@ default_config = '''
     "name": "moonshot",
     "model": "kimi-for-coding",
     "max_context_size": 262144,
-    "capabilities": ["always_thinking"],
+    "capabilities": ["thinking"],
     "url": "https://api.kimi.com/coding/v1",
     "type": "kimi",
     "loop_control": {
@@ -26,6 +28,7 @@ default_config = '''
     "max_tokens": 128000,
     "show_thinking_stream": true,
     "thinking_effort": "low",
+    "temperature": 1.0,
     "background": {
         "max_running_tasks": 4,
         "read_max_bytes": 30000,
@@ -134,6 +137,22 @@ def _ask_url(default: str = "https://api.kimi.com/coding/v1") -> str:
     return _ask("Enter model URL", default)
 
 
+def _ask_temperature(default: float = 1.0) -> float:
+    while True:
+        value = _ask("Enter temperature", str(default)).strip()
+        if not value:
+            return default
+        try:
+            num = float(value)
+        except ValueError:
+            print_warning(f"Invalid number '{value}', using default {default}")
+            return default
+        if num < 0.0 or num > 2.0:
+            print_warning(f"Value {num} out of range [0.0, 2.0], using default {default}")
+            return default
+        return num
+
+
 def _ask_max_token(context_size: int, reserved: int, default: int) -> int:
     max_allowed = context_size - reserved
     prompt = f"Enter max tokens (max {max_allowed})"
@@ -180,9 +199,18 @@ def init(initialize: bool = True) -> None:
 
             url = _ask_url(config.get("url", "https://api.kimi.com/coding/v1"))
             config["url"] = url
+
+            temperature = _ask_temperature(config.get("temperature", 1.0))
+            config["temperature"] = temperature
     except KeyboardInterrupt:
         print_warning('keyboard interruped.')
         return
     _save_config(config)
     if initialize:
         print_success(f"Configuration saved successfully to {_DEFAULT_CONFIG_PATH}!")
+    if sys.platform == "win32":
+        os.startfile(str(_DEFAULT_CONFIG_PATH))
+    elif sys.platform == "darwin":
+        subprocess.run(["open", str(_DEFAULT_CONFIG_PATH)])
+    else:
+        subprocess.run(["xdg-open", str(_DEFAULT_CONFIG_PATH)])

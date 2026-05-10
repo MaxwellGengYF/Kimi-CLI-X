@@ -106,6 +106,12 @@ async def _create_session_async(
             chat_provider=chat_provider,
             vfs_path=vfs_path,
         )
+    custom_data = session.get_custom_data()
+    # save config
+    if provider_dict:
+        custom_data['provider_dict'] = provider_dict
+    if chat_provider:
+        custom_data['chat_provider'] = chat_provider
     return session
 
 

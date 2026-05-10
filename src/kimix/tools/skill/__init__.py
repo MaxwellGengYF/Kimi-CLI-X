@@ -68,10 +68,20 @@ class SkillSearch(CallableTool2[IndexerParams]):
             async def run_sub_agent(cancel_callable=None):
                 session = None
                 try:
+                    custom_data = self._session.get_custom_data()
+                    provider_dict = custom_data.get("provider_dict")
+                    if provider_dict is None:
+                        provider_dict = dict(base._default_provider) if base._default_provider is not None else {}
+                    origin_temp = provider_dict.get("temperature", 1.0)
+                    provider_dict["temperature"] = origin_temp * 0.3
+                    provider_dict["thinking_effort"] = 'off'
+                    chat_provider = custom_data.get("chat_provider")
                     session = await _create_session_async(
                         agent_file=base._default_agent_file_dir / "agent_skill_searcher.yaml",
                         is_sub_agent=True,
                         agent_type=SystemPromptType.SkillSearcher,
+                        provider_dict=provider_dict,
+                        chat_provider=chat_provider,
                     )
                     session.get_custom_data()['is_sub_agent'] = True
                     agent_prompt = (
