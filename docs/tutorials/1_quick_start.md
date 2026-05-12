@@ -102,7 +102,7 @@ uv run kimix
 
 ## 四、环境变量配置
 
-在运行 Kimix 之前，需要配置以下环境变量（代码逻辑参考 `src\kimix\kimi_utils.py`）：
+在运行 Kimix 之前，需要配置以下环境变量（代码逻辑参考 `src/kimix/kimi_utils.py`）：
 
 ### 必需变量
 
@@ -137,11 +137,36 @@ $env:KIMI_MODEL_NAME="kimi-for-coding"
 
 ## 五、CLI 基本用法
 
-Kimix 的命令行接口分为「启动参数」和「交互命令」两部分，以下内容整理自 `src\kimix\cli.py`。
+Kimix 的命令行接口分为「子命令」「启动参数」和「交互命令」三部分，以下内容整理自 `src/kimix/cli_impl/`。
 
-### 4.1 初始化 LLM 配置
+### 5.1 子命令
 
-Kimix 通过 JSON 配置文件初始化 LLM Provider。若启动时未通过 `--config` 指定自定义配置，将自动使用项目内置的默认配置（`src\kimix\default_config.json`）：
+除默认的交互式客户端外，`kimix` 还支持以下子命令：
+
+| 子命令 | 说明 | 常用选项 |
+|--------|------|----------|
+| `serve` | 启动 Kimix HTTP 服务器（OpenCode 风格） | `--host`（默认 `127.0.0.1`）、`--port`（默认 `4096`） |
+| `ssecli` | 启动 SSE CLI 调试器，连接 `kimix serve` 进行交互式测试。内部支持 `/new`、`/abort`、`/status`、`/sessions`、`/messages`、`/clear`、`/compact`、`/export` 等命令 | `--host`、`--port`、`--debug`（打印并保存 SSE 原始事件到日志） |
+
+**示例：**
+
+```bash
+# 启动 HTTP 服务
+uv run kimix serve --port 4096
+
+# 使用 SSE CLI 调试
+uv run kimix ssecli --host 127.0.0.1 --port 4096 --debug
+```
+
+### 5.2 初始化 LLM 配置
+
+Kimix 通过 JSON 配置文件初始化 LLM Provider。若启动时未通过 `--config` 指定自定义配置，将自动使用项目内置的默认配置（`src/kimix/default_config.json`）。
+
+如果默认配置文件不存在，首次启动时会自动提示是否进行初始化；你也可以在交互终端中随时执行 `/init`，按提示逐项填写模型名称、类型、API Key、上下文长度、最大 token 数、思考力度（thinking effort）、URL、温度等参数，配置将自动保存至 `src/kimix/default_config.json`：
+
+```
+/init
+```
 
 ```json
 {
@@ -151,7 +176,31 @@ Kimix 通过 JSON 配置文件初始化 LLM Provider。若启动时未通过 `--
     "max_context_size": 262144,
     "capabilities": ["thinking"],
     "url": "https://api.kimi.com/coding/v1",
-    "type": "kimi"
+    "type": "kimi",
+    "loop_control": {
+        "max_steps_per_turn": 5000,
+        "max_retries_per_step": 3,
+        "max_ralph_iterations": 0,
+        "reserved_context_size": 50000,
+        "compaction_trigger_ratio": 0.85
+    },
+    "max_tokens": 128000,
+    "show_thinking_stream": true,
+    "thinking_effort": "max",
+    "temperature": 1.0,
+    "background": {
+        "max_running_tasks": 4,
+        "read_max_bytes": 30000,
+        "notification_tail_lines": 20,
+        "notification_tail_chars": 3000,
+        "wait_poll_interval_ms": 500,
+        "worker_heartbeat_interval_ms": 5000,
+        "worker_stale_after_ms": 15000,
+        "kill_grace_period_ms": 2000,
+        "keep_alive_on_exit": false,
+        "agent_task_timeout_s": 900,
+        "print_wait_ceiling_s": 3600
+    }
 }
 ```
 
@@ -159,18 +208,24 @@ Kimix 通过 JSON 配置文件初始化 LLM Provider。若启动时未通过 `--
 
 | 字段 | 必填 | 说明 |
 |------|------|------|
-| `type` | 是 | Provider 类型，如 `openai`, `kimi`, `anthropic` |
+| `type` | 是 | Provider 类型，可选值：`kimi`、`openai_legacy`、`openai_responses`、`anthropic`、`google_genai`、`gemini`、`vertexai` |
 | `model` | 是 | 实际请求的模型名称 |
 | `url` | 是 | API 基础地址 |
-| `max_context_size` | 是 | 最大上下文长度（token 数） |
+| `max_context_size` | 是 | 最大上下文长度（token 数），可选 `128k`、`200k`、`256k`、`512k`、`1M` |
 | `model_name` | 否 | 模型别名，默认为 `unknown_model` |
 | `name` | 否 | Provider 名称，默认为 `unknown` |
 | `capabilities` | 否 | 模型能力列表，如 `["thinking"]` |
 | `api_key` | 否 | API 密钥。若省略，将依次读取环境变量 `KIMI_API_KEY`、`KIMIX_API_KEY`。必须以 `sk` 开头 |
 | `custom_headers` | 否 | 自定义 HTTP 请求头 |
 | `oauth` | 否 | OAuth 配置，例如 `{"storage": "file", "key": "my-key"}` |
+| `loop_control` | 否 | 循环控制参数，含 `max_steps_per_turn`、`max_retries_per_step`、`max_ralph_iterations`、`reserved_context_size`、`compaction_trigger_ratio` |
+| `max_tokens` | 否 | 单次请求最大生成 token 数 |
+| `show_thinking_stream` | 否 | 是否流式展示思考过程 |
+| `thinking_effort` | 否 | 思考力度，可选 `off`、`low`、`medium`、`high`、`xhigh`、`max` |
+| `temperature` | 否 | 采样温度，范围 `[0.0, 2.0]` |
+| `background` | 否 | 后台任务相关配置 |
 
-**自定义配置示例（`docs\config.json`）：**
+**自定义配置示例（`docs/config.json`）：**
 
 ```json
 {
@@ -190,7 +245,7 @@ Kimix 通过 JSON 配置文件初始化 LLM Provider。若启动时未通过 `--
 }
 ```
 
-### 4.2 启动参数
+### 5.3 启动参数
 
 在启动 `kimix` 时，可附加以下选项来控制行为：
 
@@ -198,26 +253,27 @@ Kimix 通过 JSON 配置文件初始化 LLM Provider。若启动时未通过 `--
 |------|------|
 | `-c`, `--clean` | 退出时自动删除缓存文件 |
 | `--no_think` | 关闭思考模式（thinking mode） |
-| `--plan` | 开启计划模式（plan mode） |
 | `--no_yolo` | 关闭 YOLO 模式 |
+| `--no_color` | 关闭彩色输出 |
+| `--manually-cot` | 开启手动 CoT 模式 |
+| `--ralph` | 开启 Ralph 模式，可指定迭代次数（不传参数则为无限循环） |
 | `-s`, `--skill-dir` | 指定自定义的 skill 目录（可多次使用以指定多个目录） |
-| `--config` | 指定 JSON 格式的配置文件路径，加入自定义的 LLM Provider（格式可参考 `config_example.json`） |
+| `--config` | 指定 JSON 格式的配置文件路径。若直接路径不存在，会依次在脚本父目录、系统 `PATH` 中递归查找文件名（格式可参考 `config_example.json`） |
 
 **示例：**
 
 ```bash
-uv run kimix --plan --clean
+uv run kimix --clean --manually-cot
 ```
 
-### 4.3 交互命令
+### 5.4 交互命令
 
 进入 Kimix 交互式终端后，可通过以下命令与 Agent 交互：
 
 | 命令 | 说明 |
 |------|------|
-| `/file:<path>` | 加载指定文件并逐行执行其内容 |
-| `<path>` | 等价于 `/file:<path>`，直接输入文件路径即可加载 |
-| `<xxx>.py` | 直接输入 Python 脚本文件名，可在提示词框原地执行该脚本 |
+| `<path>` | 直接输入文件路径即可加载。非 `.py` 文件会分段解析为多行提示词；`.py` 文件则会直接执行脚本 |
+| `/file:<path>` | 读取指定文件的全部内容作为单条提示词发送 |
 | `/clear` | 清空当前对话上下文 |
 | `/summarize` | 将对话上下文总结并写入记忆 |
 | `/exit` | 退出程序 |
@@ -225,8 +281,13 @@ uv run kimix --plan --clean
 | `/context` | 打印当前上下文的使用情况 |
 | `/fix:<command>` | 运行一条命令，如果出错则自动尝试修复 |
 | `/txt` | 进入多行文本输入模式（以 `/end` 结束，`/cancel` 取消） |
-| `/plan:on` / `/plan:off` | 开启 / 关闭计划模式 |
-| `/plan` | 使用 Agent 队列，执行长任务 |
+| `/init` | 交互式初始化默认 LLM 配置文件 |
+| `/compact` | 压缩对话上下文 |
+| `/export:<path>` | 导出当前会话消息到指定文件 |
+| `/swarm` | 多 Agent 协作执行 Swarm 任务（以 `/end` 结束，`/cancel` 取消） |
+| `/ralph:on` / `/ralph:off` / `/ralph:<num>` | 设置 Ralph 模式循环次数 |
+| `/cot:on` / `/cot:off` | 开启 / 关闭手动 CoT 模式 |
+| `/plan` | 使用 Agent 队列，执行长任务（支持 `/plan:<file>` 从文件加载任务列表） |
 | `/script` | 编写并执行 Python 脚本（以 `/end` 结束输入） |
 | `/cmd:<command>` | 执行系统命令 |
 | `/cd:<path>` | 切换当前工作目录 |

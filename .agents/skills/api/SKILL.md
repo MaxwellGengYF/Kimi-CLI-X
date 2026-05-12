@@ -29,7 +29,7 @@ session = create_session(
     resume=False,                      # Optional: resume existing session
     provider_dict=None,                # Optional: custom LLM provider config dict
     chat_provider=None,                # Optional: custom ChatProvider instance
-    agent_type=SystemPromptType.Worker, # Optional: Worker, TodoMaker, or SwarmCoordinator
+    agent_type=SystemPromptType.Worker, # Optional: Worker, TodoMaker, Thinker, etc.
     vfs_path=None,                     # Optional: Path for virtual file system
     extra_system_prompt=None           # Optional: additional system prompt text
 )
@@ -126,14 +126,24 @@ path = context_path()  # Returns ~/.kimi/sessions
 delete_session_dir()
 ```
 
+### Ralph Loop Control
+
+```python
+from kimix.utils import set_ralph_loop
+
+# Set max Ralph iterations for a session (and default for future sessions)
+set_ralph_loop(value=4, session=session)  # session=None uses default session
+# Use -1 for unlimited
+```
+
 ### Tool Call Errors
 
 ```python
 from kimix.utils import get_tool_call_errors
 
-# Get and clear failed tool calls for a session
-errors = get_tool_call_errors(session)  # or session_id string
-# Returns formatted string: function, arguments, output, message
+# Get failed tool calls for a session
+errors = get_tool_call_errors(session)
+# Returns list[dict[str, Any]] (currently returns empty list; stub for future use)
 ```
 
 ## System Prompt Types (kimix.utils.system_prompt)
@@ -144,7 +154,11 @@ from kimix.utils.system_prompt import SystemPromptType
 # Available agent types:
 SystemPromptType.Worker           # Standard coding agent (terse, direct output)
 SystemPromptType.TodoMaker        # Plan maker agent (creates implementation plans)
+SystemPromptType.Thinker          # Thinker agent (thinks in <thinking> tags, self-verifies)
 SystemPromptType.SwarmCoordinator # Swarm coordinator (builds dependency DAG)
+SystemPromptType.Recaller         # Memory recaller (read-only, uses Recall/Reflect)
+SystemPromptType.SkillSearcher    # Skill searcher (read-only, searches skills)
+SystemPromptType.TrivialSubAgent  # Read-only sub-agent (rejects write/edit tasks)
 ```
 
 ## Colorful Printing (kimix.base)
@@ -167,6 +181,7 @@ print_error("File not found: config.yaml")
 print_warning("This feature is deprecated.")
 print_info("Processing step 3 of 5...")
 print_debug("Variable x = 42")
+print_string("Plain output")
 ```
 
 ### Advanced Color Printing
@@ -360,6 +375,7 @@ from kimix.base import (
     _default_skill_dirs,     # List of skill directories
     _default_provider,       # Custom provider dict or None
     _default_ralph,          # Max Ralph iterations override or None
+    _default_manually_cot,   # Manual chain-of-thought mode (default: False)
     _quiet,                  # If True, suppresses print_debug
     _colorful_print,         # If False, disables ANSI colors
     _print_func,             # Optional custom print handler (text, end) -> None
@@ -377,6 +393,7 @@ from kimix.base import (
     set_default_agent_file,
     set_default_skill_dirs,
     set_default_provider,
+    set_default_manually_cot,
 )
 
 # Set default configuration values
@@ -386,6 +403,7 @@ set_default_agent_file_dir(Path("./custom_agents"))
 set_default_agent_file(Path("./custom_agent.yaml"))
 set_default_skill_dirs(["./skills", "./more_skills"])
 set_default_provider({"name": "custom", "api_key": "..."})
+set_default_manually_cot(False)
 ```
 
 ### Skill Directories
@@ -418,6 +436,8 @@ kaos_path = make_kaos_dir("./my_folder")
 
 ## Search Utilities (kimix.utils)
 
+### TextSearchIndex
+
 ```python
 from kimix.utils import TextSearchIndex, SearchResult, _ensure_text_search
 
@@ -427,6 +447,56 @@ TextSearchIndex, SearchResult = _ensure_text_search()
 # Or use directly if already loaded
 index = TextSearchIndex(...)
 results: list[SearchResult] = index.search("query")
+```
+
+### FileBuilder
+
+```python
+from kimix.utils import FileBuilder, formatted_print
+from pathlib import Path
+
+# Build a BM25-searchable index over text files
+builder = FileBuilder(
+    paths=[Path("src")],
+    output_path=Path(".kimi/search_index.json"),
+    n=2,       # n-gram size
+    k1=1.2,    # BM25 k1
+    b=0.75,    # BM25 b
+)
+
+# Search the index
+results = builder.search(
+    "authentication logic",
+    top_k=5,
+    diversify=False,
+    use_spelling=True,
+    use_stemming=True,
+)
+
+# Format results as a readable string
+print(formatted_print(results))
+# Output:
+# [1] src/auth.py (line 42)  score=0.8234
+# [2] src/login.py (line 15)  score=0.7512
+
+# Re-scan and rebuild if files changed
+builder.update()
+```
+
+## Prompt String Utilities (kimix.utils.prompt_str)
+
+```python
+from kimix.utils.prompt_str import escape_file_paths
+
+# Sanitize prompt text: detect file paths, wrap in backticks,
+# remove invisible chars, normalize Unicode, dedupe repeats.
+safe_text = escape_file_paths(
+    raw_text,
+    max_chars=0,           # Optional: truncate after N chars (0 = no limit)
+    max_repeat=100,        # Optional: collapse repeated char runs
+    truncate_msg="",       # Optional: suffix when truncating
+    case_mode="",          # Optional: "lower" or "title"
+)
 ```
 
 ## Complete Example
@@ -472,6 +542,8 @@ finally:
 8. **Fix errors automatically** - Use `fix_error()` for iterative debugging
 9. **Skill directories** - Place skills in `.agents/skills/` for auto-discovery
 10. **Cancel long prompts** - Use `cancel_prompt()` to stop running prompts
+11. **Ralph loop** - Use `set_ralph_loop()` to control max agent iterations
+12. **Sanitize prompts** - Use `escape_file_paths()` before sending untrusted text
 
 ## Common Imports
 
@@ -486,19 +558,22 @@ from kimix.utils import (
     context_path, delete_session_dir, make_kaos_dir,
     execute_plan, check_plan_cache,
     TextSearchIndex, SearchResult, _ensure_text_search,
+    set_ralph_loop, FileBuilder, formatted_print,
 )
 from kimix.utils.system_prompt import SystemPromptType
 from kimix.utils.session import _create_session_async
 from kimix.utils.fix_error import fix_error_async
+from kimix.utils.prompt_str import escape_file_paths
 from kimix.base import (
     print_success, print_error, print_warning,
-    print_info, print_debug, colorful_print, colorful_text,
+    print_info, print_debug, print_string, colorful_print, colorful_text,
     Color, BgColor, Style, run_thread, sync_all,
     run_process_with_error, run_process_with_error_async,
     run_script, print_agent_json,
     get_skill_dirs, percentage_str, COMMON_SKILL_DIRS,
     set_default_thinking, set_default_yolo,
-    set_default_agent_file_dir, set_default_agent_file, set_default_skill_dirs, set_default_provider
+    set_default_agent_file_dir, set_default_agent_file, set_default_skill_dirs, set_default_provider,
+    set_default_manually_cot,
 )
 
 # Standard library
