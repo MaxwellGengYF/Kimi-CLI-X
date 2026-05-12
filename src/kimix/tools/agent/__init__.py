@@ -24,6 +24,12 @@ class Agent(CallableTool2):
         self._semaphore = asyncio.Semaphore(8)
 
     async def __call__(self, params: SubAgentParams) -> ToolReturnValue:
+        if self._session is not None and self._session.get_custom_data().get("is_sub_agent"):
+            return ToolError(
+                output='',
+                message='Recursive sub-agent call detected',
+                brief='sub-agent recursively'
+            )
         async with self._semaphore:
             try:
                 output_strs = []

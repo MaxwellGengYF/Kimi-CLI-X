@@ -39,7 +39,7 @@ def get_system_prompt(
         use_skills = False
         if agent_role != SystemPromptType.Thinker:
             items.append('No pseudocode, flowcharts, reasoning, planning, filler, restating, or self-correction. Act directly.')
-        def worker_logic(role: str):
+        def worker_logic(role: str, is_sub_agent: bool = False):
             nonlocal role_doc, use_agent_md, use_skills
             use_agent_md = True
             use_skills = True
@@ -48,15 +48,16 @@ def get_system_prompt(
             items.append('Python: `python -c <code>`.')
             items.append('Multi-step: use `SetTodoList`. Finish all before ending.')
             if args.KIMI_OS != 'Windows':
-                items.append(f'Shell: {args.KIMI_SHELL}. Use `Run`.')
+                items.append(f'Shell: {args.KIMI_SHELL}. prefer Use `Run`.')
             else:
                 items.append('No Shell, use `Run`.')
-            if yolo:
+            if yolo and not is_sub_agent:
                 items.append('Yolo: no asking. Stay in workdir.')
             items.append('`SkillSearch` to find skills.')
-            items.append('Drop context aggressively. `Remember` important/long-running info.')
-            items.append('`Forget` stale or duplicate info.')
-            items.append('`Recall` before any work.')
+            if not is_sub_agent:
+                items.append('Drop context aggressively. `Remember` important/long-running info.')
+                items.append('`Forget` stale or duplicate info.')
+                items.append('`Recall` before any work.')
         match agent_role:
             case SystemPromptType.Worker:
                 worker_logic('terse coder')
@@ -97,12 +98,8 @@ def get_system_prompt(
                 items.append('Multi-step: use `SetTodoList`.')
                 items.append('Search, analyze, report concisely. Read-only.')
             case SystemPromptType.TrivialSubAgent:
-                use_skills = True
-                role_doc = 'You are a read-only sub-agent'
-                items.append('Reject write/edit tasks')
-                items.append('`SkillSearch` to find skills.')
-                items.append('Multi-step: use `SetTodoList`.')
-                items.append('Search, analyze, report concisely. Read-only.')
+                worker_logic('read-only sub-agent', True)
+                items.append('Read only, Reject write/edit tasks.')
 
 
         if use_agent_md and agent_md.is_file():
