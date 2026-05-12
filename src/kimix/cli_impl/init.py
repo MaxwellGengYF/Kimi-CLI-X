@@ -66,6 +66,9 @@ _VALID_TYPES = (
 
 _VALID_THINKING_EFFORTS = ('off', 'low', 'medium', 'high', 'xhigh', 'max')
 
+_VALID_CAPABILITIES = ("thinking", "always_thinking", "image_in", "video_in")
+
+
 
 def _load_default_config() -> dict[str, Any]:
     if _DEFAULT_CONFIG_PATH.exists():
@@ -131,6 +134,24 @@ def _ask_thinking_effort(default: str = "max") -> str:
         if value in _VALID_THINKING_EFFORTS:
             return value
         print_warning(f"Invalid effort '{value}', please choose from: {options_str}")
+
+
+def _ask_capabilities(default: tuple[str, ...] = ("thinking",)) -> list[str]:
+    options_str = ", ".join(_VALID_CAPABILITIES)
+    prompt = f"Enter capabilities ({options_str}), multiple allowed, 'none' for empty"
+    default_str = ", ".join(default)
+    while True:
+        value = _ask(prompt, default_str).strip()
+        if not value:
+            return list(default)
+        if value.lower() == "none":
+            return []
+        parts = [p.strip() for p in value.replace(",", " ").split()]
+        invalid = [p for p in parts if p not in _VALID_CAPABILITIES]
+        if invalid:
+            print_warning(f"Invalid capabilities: {', '.join(invalid)}, please choose from: {options_str}")
+            continue
+        return parts
 
 
 def _ask_url(default: str = "https://api.kimi.com/coding/v1") -> str:
@@ -205,6 +226,14 @@ def init(initialize: bool = True) -> None:
 
             thinking = _ask_thinking_effort(config.get("thinking_effort", "low"))
             config["thinking_effort"] = thinking
+
+            caps = config.get("capabilities", ["thinking"])
+            if isinstance(caps, str):
+                caps = (caps,)
+            capabilities = _ask_capabilities(tuple(caps))
+            if "always_thinking" in capabilities and "thinking" in capabilities:
+                capabilities.remove("thinking")
+            config["capabilities"] = capabilities
 
             url = _ask_url(config.get("url", "https://api.kimi.com/coding/v1"))
             config["url"] = url
