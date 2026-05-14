@@ -45,6 +45,7 @@ default_config = '''
 }
 '''
 _DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "default_config.json"
+_SECOND_CONFIG_PATH = Path(__file__).parent.parent / "second_config.json"
 
 _CONTEXT_SIZE_OPTIONS: dict[str, int] = {
     "128k": 131072,
@@ -79,6 +80,11 @@ def _load_default_config() -> dict[str, Any]:
 
 def _save_config(config: dict[str, Any]) -> None:
     with open(_DEFAULT_CONFIG_PATH, "wb") as f:
+        f.write(orjson.dumps(config, option=orjson.OPT_INDENT_2))
+
+
+def _save_second_config(config: dict[str, Any]) -> None:
+    with open(_SECOND_CONFIG_PATH, "wb") as f:
         f.write(orjson.dumps(config, option=orjson.OPT_INDENT_2))
 
 
@@ -192,6 +198,61 @@ def _ask_max_token(context_size: int, reserved: int, default: int) -> int:
         return num
 
 
+def _ask_sub_provider() -> dict[str, Any] | None:
+    print_info("Configure a sub-agent provider? (y/n)")
+    v = input().strip().lower()
+    if v != 'y':
+        return None
+
+    print_info("--- Sub-provider configuration ---")
+    sub: dict[str, Any] = {}
+
+    model = _ask_model_name("kimi-for-coding")
+    sub["model"] = model
+
+    model_type = _ask_model_type("kimi")
+    sub["type"] = model_type
+
+    url = _ask_url("https://api.kimi.com/coding/v1")
+    sub["url"] = url
+
+    api_key = _ask_api_key()
+    sub["api_key"] = api_key
+
+    temperature = _ask_temperature(1.0)
+    sub["temperature"] = temperature
+
+    context_size = _ask_context_size("256k")
+    sub["max_context_size"] = context_size
+
+    thinking = _ask_thinking_effort("off")
+    sub["thinking_effort"] = thinking
+
+    caps = _ask_capabilities(("thinking",))
+    if "always_thinking" in caps and "thinking" in caps:
+        caps.remove("thinking")
+    sub["capabilities"] = caps
+
+    reserved = 50000
+    max_tokens = _ask_max_token(context_size, reserved, 128000)
+    sub["max_tokens"] = max_tokens
+
+    # Ensure loop_control for sub-provider disables ralph
+    sub["loop_control"] = {
+        "max_steps_per_turn": 5000,
+        "max_retries_per_step": 3,
+        "max_ralph_iterations": 0,
+        "reserved_context_size": 50000,
+        "compaction_trigger_ratio": 0.85,
+    }
+
+    sub["name"] = model_type
+    sub["model_name"] = model
+
+    print_success("Sub-provider configuration complete.")
+    return sub
+
+
 def init(initialize: bool = True) -> None:
     if not initialize:
         v = input('default config not found, initialize? you can use /init any time. (y/n)').strip().lower() 
@@ -240,12 +301,20 @@ def init(initialize: bool = True) -> None:
 
             temperature = _ask_temperature(config.get("temperature", 1.0))
             config["temperature"] = temperature
+
+            sub_provider = _ask_sub_provider()
+            if sub_provider is not None:
+                _save_second_config(sub_provider)
+            elif _SECOND_CONFIG_PATH.exists():
+                _SECOND_CONFIG_PATH.unlink()
     except KeyboardInterrupt:
         print_warning('keyboard interruped.')
         return
     _save_config(config)
     if initialize:
-        print_success(f"Configuration saved successfully to {_DEFAULT_CONFIG_PATH}!")
+        print_success(f"Configuration saved successfully to {_DEFAULT_CONFIG_PATH}.")
+        if _SECOND_CONFIG_PATH.exists():
+            print_success(f"Sub-provider configuration saved to {_SECOND_CONFIG_PATH}.")
     if sys.platform == "win32":
         os.startfile(str(_DEFAULT_CONFIG_PATH))
     elif sys.platform == "darwin":

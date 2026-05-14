@@ -42,7 +42,7 @@ def get_system_prompt(
         skill_doc = ''
         use_agent_md = False
         use_skills = False
-
+        items.append('call tools in parallel.')
         def worker_logic(role: str, is_sub_agent: bool = False):
             nonlocal role_doc, use_agent_md, use_skills
             use_agent_md = True
@@ -59,8 +59,8 @@ def get_system_prompt(
                 items.append('No Shell, use `Run`.')
             if yolo and not is_sub_agent:
                 items.append('Yolo: no asking. Stay in workdir.')
-            items.append('`Retrieve` to retrieve skills, docs.')
             if not is_sub_agent:
+                items.append('`Retrieve` to retrieve skills, docs.')
                 items.append('Drop context aggressively. Write memory to dir `.kimix_cache/` after task.')
         if extra_system_prompt and extra_system_prompt.role_callback:
             extra_system_prompt.role_callback(agent_role, items)
@@ -94,10 +94,8 @@ def get_system_prompt(
                     'Think in <thinking>...</thinking>. End with <quit/>. Concise. No text outside tags.')
                 items.append('Self-verify: catch errors and bad assumptions.')
             case SystemPromptType.SkillSearcher:
-                use_skills = True
                 role_doc = 'You are a searcher'
                 items.append('Search, analyze, report concisely.')
-                items.append('Multi-step: use `SetTodoList`.')
             case SystemPromptType.TrivialSubAgent:
                 worker_logic('read-only sub-agent', True)
                 items.append('Read only, Reject write/edit tasks.')

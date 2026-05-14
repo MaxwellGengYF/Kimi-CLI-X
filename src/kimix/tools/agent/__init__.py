@@ -45,13 +45,13 @@ class Agent(CallableTool2):
                         import kimix.base as base
                         custom_config = self._session.custom_config
                         chat_provider = custom_config.get("chat_provider")
-                        provider_dict = custom_config.get("provider_dict")
-                        if provider_dict is None:
-                            provider_dict = dict(base._default_provider) if base._default_provider is not None else {}
-                        provider_dict["thinking_effort"] = 'off'
+                        default_sub_provider = base._default_sub_provider if base._default_sub_provider is not None else base._default_provider
+                        provider_dict = dict(default_sub_provider) if default_sub_provider is not None else dict(custom_config.get("provider_dict", {}))
+                        provider_dict.setdefault('loop_control', {})['max_ralph_iterations'] = 0
                         session = await _create_session_async(
                             agent_file=base._default_agent_file_dir / 'agent_subagent.yaml', agent_type=SystemPromptType.TrivialSubAgent,
                             provider_dict=provider_dict,
+                            thinking=False,
                             chat_provider=chat_provider)
                         session.get_custom_config()['is_sub_agent'] = True
                         import kimix.utils as utils

@@ -56,33 +56,26 @@ class Retrieve(CallableTool2[IndexerParams]):
                         import kimix.base as base
                         custom_config = self._session.custom_config
                         chat_provider = custom_config.get("chat_provider")
-                        provider_dict = custom_config.get("provider_dict")
-                        if provider_dict is None:
-                            provider_dict = dict(base._default_provider) if base._default_provider is not None else {}
-                        provider_dict["thinking_effort"] = 'off'
-                        extra_system_prompt = SystemPromptCallback()
+                        default_sub_provider = base._default_sub_provider if base._default_sub_provider is not None else base._default_provider
+                        provider_dict = dict(default_sub_provider) if default_sub_provider is not None else dict(custom_config.get("provider_dict", {}))
+                        provider_dict.setdefault('loop_control', {})['max_ralph_iterations'] = 0
                         if params.dest_path is not None:
                             dest_path = params.dest_path
                         else:
                             skill_dirs = [str(d) for d in get_skill_dirs(use_kaos_path=False)]
                             dest_path = skill_dirs + ['.kimix_cache/'] if skill_dirs else ['.kimix_cache/']
                         dest_path_str = ', '.join(dest_path)
-
-                        def role_callback(agent_role: SystemPromptType, items: list[str]):
-                            items.append(f'Retrieve skills, docs from: {dest_path_str}.')
-
-                        extra_system_prompt.role_callback = role_callback
-
                         session = await _create_session_async(
                             agent_file=base._default_agent_file_dir / 'agent_searcher.yaml',
                             agent_type=SystemPromptType.SkillSearcher,
                             provider_dict=provider_dict,
                             chat_provider=chat_provider,
-                            extra_system_prompt=extra_system_prompt,
+                            thinking=False,
                         )
                         session.get_custom_config()['is_sub_agent'] = True
                         import kimix.utils as utils
-                        await utils.prompt_async(prompt_str=params.prompt, session=session, output_function=output_function, info_print=False, cancel_callable=cancel_callable, merge_wire_messages=True)
+                        prompt = f'Retrieve:\n```\n{params.prompt}\n```in `{dest_path_str}`'
+                        await utils.prompt_async(prompt_str=prompt, session=session, output_function=output_function, info_print=False, cancel_callable=cancel_callable, merge_wire_messages=True)
                     except Exception as e:
                         return str(e)
                     finally:

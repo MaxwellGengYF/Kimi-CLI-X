@@ -341,6 +341,7 @@ _default_agent_file_dir: Path = Path(__file__).parent
 _default_agent_file: Path = _default_agent_file_dir / "agent_worker.yaml"
 _default_skill_dirs: list[Any] = []
 _default_provider: dict[str, Any] | None = None
+_default_sub_provider: dict[str, Any] | None = None
 _default_manually_cot: bool = False
 _default_ralph: int | None = None
 
@@ -386,6 +387,11 @@ def set_default_manually_cot(value: bool) -> None:
 def set_default_provider(value: dict[str, Any] | None) -> None:
     global _default_provider
     _default_provider = value
+
+
+def set_default_sub_provider(value: dict[str, Any] | None) -> None:
+    global _default_sub_provider
+    _default_sub_provider = value
 
 
 # The failed-list for tool call that
