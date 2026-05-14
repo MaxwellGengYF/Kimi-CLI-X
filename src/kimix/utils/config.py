@@ -44,7 +44,7 @@ def _create_config(provider_dict: dict[str, Any] | None = None) -> tuple[Config,
         capabilities = set(provider_dict.get('capabilities', set()))
         url = provider_dict.get('url')
         provider_type = provider_dict.get("type")
-        assert provider_type is not None, "`provider_type` must be provided in  config"
+        assert provider_type is not None, "`provider_type` must be provided in config"
         assert max_context_size is not None, "`max_context_size` must be provided in  config"
         assert type(model) == str, "model(str) must be provided in config"
         assert url is not None, "url must be provided in config"

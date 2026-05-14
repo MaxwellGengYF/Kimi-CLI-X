@@ -24,7 +24,7 @@ class Agent(CallableTool2):
         self._semaphore = asyncio.Semaphore(8)
 
     async def __call__(self, params: SubAgentParams) -> ToolReturnValue:
-        if self._session is not None and self._session.get_custom_data().get("is_sub_agent"):
+        if self._session is not None and self._session.custom_config.get("is_sub_agent"):
             return ToolError(
                 output='',
                 message='Recursive sub-agent call detected',
@@ -43,8 +43,9 @@ class Agent(CallableTool2):
                     session = None
                     try:
                         import kimix.base as base
-                        custom_data = self._session.get_custom_data()
-                        chat_provider = custom_data.get("chat_provider")
+                        custom_config = self._session.custom_config
+                        chat_provider = custom_config.get("chat_provider")
+                        provider_dict = custom_config.get("provider_dict")
                         if provider_dict is None:
                             provider_dict = dict(base._default_provider) if base._default_provider is not None else {}
                         provider_dict["thinking_effort"] = 'off'
@@ -52,8 +53,9 @@ class Agent(CallableTool2):
                             agent_file=base._default_agent_file_dir / 'agent_subagent.yaml', agent_type=SystemPromptType.TrivialSubAgent,
                             provider_dict=provider_dict,
                             chat_provider=chat_provider)
+                        session.get_custom_config()['is_sub_agent'] = True
                         import kimix.utils as utils
-                        await utils.prompt_async(prompt_str=params.prompt, session=session, output_function=output_function, cancel_callable=cancel_callable)
+                        await utils.prompt_async(prompt_str=params.prompt, session=session, output_function=output_function, info_print=False, cancel_callable=cancel_callable, merge_wire_messages=True)
                     except Exception as e:
                         return str(e)
                     finally:

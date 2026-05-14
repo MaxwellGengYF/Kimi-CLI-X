@@ -8,23 +8,28 @@ from kimi_cli.soul.agent import BuiltinSystemPromptArgs
 
 # Concise system prompt to reduce LLM overthinking and hallucination
 _SYSTEM_PROMP = (
-    '{AGENT_ROLE}:\n{NUMBERED}\n{AGENTS_MD}\n{SKILLS}\n{EXTRA}'
+    '{AGENT_ROLE}:\n{NUMBERED}\n{AGENTS_MD}\n{SKILLS}'
 )
+
 
 class SystemPromptType(Enum):
     Worker = 0
     TodoMaker = 1
     Thinker = 2
     SwarmCoordinator = 3
-    Recaller = 4
-    SkillSearcher = 5,
-    TrivialSubAgent = 6
-    
+    SkillSearcher = 4,
+    TrivialSubAgent = 5
+
+
+class SystemPromptCallback:
+    # called in role
+    role_callback: Callable[[SystemPromptType, list[str]], None] | None = None
+
 
 def get_system_prompt(
         yolo: bool | None = None,
         work_dir: Optional[KaosPath] = None,
-        extra_system_prompt: str | None = None,
+        extra_system_prompt: SystemPromptCallback | None = None,
         agent_role: SystemPromptType = SystemPromptType.Worker,
 ) -> Callable[[BuiltinSystemPromptArgs], str]:
     agent_md = (Path(str(work_dir)) if work_dir is not None else Path(
@@ -37,27 +42,29 @@ def get_system_prompt(
         skill_doc = ''
         use_agent_md = False
         use_skills = False
-        if agent_role != SystemPromptType.Thinker:
-            items.append('No pseudocode, flowcharts, reasoning, planning, filler, restating, or self-correction. Act directly.')
+
         def worker_logic(role: str, is_sub_agent: bool = False):
             nonlocal role_doc, use_agent_md, use_skills
             use_agent_md = True
             use_skills = True
             role_doc = f'You are a {role}'
-            items.append('Interactive: `Run` short timeout, then `TaskOutput`/`Input`.')
+            items.append(
+                'Interactive: `Run` short timeout, then `TaskOutput`/`Input`.')
             items.append('Python: `python -c <code>`.')
-            items.append('Multi-step: use `SetTodoList`. Finish all before ending.')
+            items.append(
+                'Multi-step: use `SetTodoList`. Finish all before ending.')
             if args.KIMI_OS != 'Windows':
                 items.append(f'Shell: {args.KIMI_SHELL}. prefer Use `Run`.')
             else:
                 items.append('No Shell, use `Run`.')
             if yolo and not is_sub_agent:
                 items.append('Yolo: no asking. Stay in workdir.')
-            items.append('`SkillSearch` to find skills.')
+            items.append('`Retrieve` to retrieve skills, docs.')
             if not is_sub_agent:
-                items.append('Drop context aggressively. `Remember` important/long-running info.')
-                items.append('`Forget` stale or duplicate info.')
-                items.append('`Recall` before any work.')
+                items.append('Drop context aggressively. Write memory to dir `.kimix_cache/` after task.')
+        if extra_system_prompt and extra_system_prompt.role_callback:
+            extra_system_prompt.role_callback(agent_role, items)
+
         match agent_role:
             case SystemPromptType.Worker:
                 worker_logic('terse coder')
@@ -68,7 +75,8 @@ def get_system_prompt(
                 items.append('Plan only. Do not implement.')
                 items.append('Record steps with `Note`.')
                 items.append('No multiple steps at once.')
-                items.append('Use `Agent` to enable sub-agent, for research, analyze, find, retrieval.')
+                items.append(
+                    'Use `Agent` to enable sub-agent, for research, analyze, find, retrieval.')
             case SystemPromptType.SwarmCoordinator:
                 use_agent_md = True
                 use_skills = True
@@ -76,34 +84,27 @@ def get_system_prompt(
                 items.append('Build DAG with `AddNode` and `AddEdge`.')
                 items.append('AddNode: clear, actionable sub-task prompt')
                 items.append('AddEdge: upstream → downstream')
-                items.append('Keep acyclic. Minimize edges, maximize parallelism.')
+                items.append(
+                    'Keep acyclic. Minimize edges, maximize parallelism.')
                 items.append('Report nodes and edges.')
-                items.append('`SkillSearch` for skills.')
+                items.append('`Retrieve` to retrieve docs, skills.')
             case SystemPromptType.Thinker:
                 worker_logic('thinker')
-                items.append('Think in <thinking>...</thinking>. End with <quit/>. Concise. No text outside tags.')
+                items.append(
+                    'Think in <thinking>...</thinking>. End with <quit/>. Concise. No text outside tags.')
                 items.append('Self-verify: catch errors and bad assumptions.')
-            case SystemPromptType.Recaller:
-                role_doc = 'You are a memory recaller'
-                items.append('Reject write/edit tasks')
-                items.append('Use `Recall` and `Reflect`.')
-                items.append('Multi-step: use `SetTodoList`.')
-                items.append('Search, analyze, report concisely. Read-only.')
-                items.append('`SkillSearch` for skills.')
             case SystemPromptType.SkillSearcher:
                 use_skills = True
-                role_doc = 'You are a skill searcher'
-                items.append('Reject write/edit tasks')
-                items.append('`SkillSearch` to find skills.')
+                role_doc = 'You are a searcher'
+                items.append('Search, analyze, report concisely.')
                 items.append('Multi-step: use `SetTodoList`.')
-                items.append('Search, analyze, report concisely. Read-only.')
             case SystemPromptType.TrivialSubAgent:
                 worker_logic('read-only sub-agent', True)
                 items.append('Read only, Reject write/edit tasks.')
 
-
         if use_agent_md and agent_md.is_file():
-            agent_md_content = agent_md.read_text(encoding='utf-8', errors='replace')
+            agent_md_content = agent_md.read_text(
+                encoding='utf-8', errors='replace')
             agent_md_doc = f'AGENTS.md:\n```\n{agent_md_content}\n```\n'
         if use_skills and args.KIMI_SKILLS:
             skill_doc = f'Skills:\n{args.KIMI_SKILLS}\n'
@@ -118,6 +119,5 @@ def get_system_prompt(
             NUMBERED=numbered_block,
             AGENTS_MD=agent_md_doc,
             SKILLS=skill_doc,
-            EXTRA=extra_system_prompt if extra_system_prompt is not None else ''
         ).strip()
     return system_prompt_func

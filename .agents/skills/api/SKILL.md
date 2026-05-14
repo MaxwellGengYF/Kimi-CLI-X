@@ -86,12 +86,18 @@ prompt(
     info_print=True,                   # Optional: print context usage after completion
     cancel_callable=None,              # Optional: callable that returns True to cancel
     close_session_after_prompt=False,  # Optional: close session after prompt completes
-    merge_wire_messages=False          # Optional: merge wire messages for output_function
+    merge_wire_messages=None           # Optional: merge wire messages for output_function (defaults to True when output_function is set)
 )
 
 # Async version (coroutine)
 await prompt_async("Analyze this code", session=session)
 ```
+
+**Automatic behaviors:**
+- File paths in the prompt are automatically detected and wrapped in backticks via `escape_file_paths()`.
+- Prompts longer than 65536 characters are automatically exported to a temp file and replaced with a `read and execute: <file>` instruction.
+- When `output_function` is provided, `merge_wire_messages` defaults to `True`.
+- Retries with exponential backoff (up to 60s) are performed on HTTP errors (429, 400, 500, 502, 503).
 
 ### Cancel Prompt
 
@@ -149,16 +155,27 @@ errors = get_tool_call_errors(session)
 ## System Prompt Types (kimix.utils.system_prompt)
 
 ```python
-from kimix.utils.system_prompt import SystemPromptType
+from kimix.utils.system_prompt import SystemPromptType, SystemPromptCallback, get_system_prompt
 
 # Available agent types:
 SystemPromptType.Worker           # Standard coding agent (terse, direct output)
 SystemPromptType.TodoMaker        # Plan maker agent (creates implementation plans)
 SystemPromptType.Thinker          # Thinker agent (thinks in <thinking> tags, self-verifies)
 SystemPromptType.SwarmCoordinator # Swarm coordinator (builds dependency DAG)
-SystemPromptType.Recaller         # Memory recaller (read-only, uses Recall/Reflect)
 SystemPromptType.SkillSearcher    # Skill searcher (read-only, searches skills)
 SystemPromptType.TrivialSubAgent  # Read-only sub-agent (rejects write/edit tasks)
+
+# Build a custom system prompt callback
+class MyCallback(SystemPromptCallback):
+    role_callback = lambda role, items: items.append("Custom rule here")
+
+# Get the system prompt function for Session.create
+system_prompts = get_system_prompt(
+    yolo=True,
+    work_dir=KaosPath("."),
+    extra_system_prompt=MyCallback(),
+    agent_role=SystemPromptType.Worker,
+)
 ```
 
 ## Colorful Printing (kimix.base)
@@ -288,12 +305,12 @@ from pathlib import Path
 # Prompt with file content
 prompt_path(Path("instructions.txt"))
 
-# Prompt with split content and optional coroutine callback
+# Prompt with split content and optional iterator callback
 prompt_path(
     Path("tasks.txt"),
     split_word="---",
     session=session,
-    after_prompt_coro=generator_func  # Optional: callable returning a generator, next() called after each chunk
+    after_prompt_coro=generator_func  # Optional: callable returning a generator/iterator; next() is called after each chunk
 )
 ```
 
@@ -449,44 +466,10 @@ index = TextSearchIndex(...)
 results: list[SearchResult] = index.search("query")
 ```
 
-### FileBuilder
-
-```python
-from kimix.utils import FileBuilder, formatted_print
-from pathlib import Path
-
-# Build a BM25-searchable index over text files
-builder = FileBuilder(
-    paths=[Path("src")],
-    output_path=Path(".kimi/search_index.json"),
-    n=2,       # n-gram size
-    k1=1.2,    # BM25 k1
-    b=0.75,    # BM25 b
-)
-
-# Search the index
-results = builder.search(
-    "authentication logic",
-    top_k=5,
-    diversify=False,
-    use_spelling=True,
-    use_stemming=True,
-)
-
-# Format results as a readable string
-print(formatted_print(results))
-# Output:
-# [1] src/auth.py (line 42)  score=0.8234
-# [2] src/login.py (line 15)  score=0.7512
-
-# Re-scan and rebuild if files changed
-builder.update()
-```
-
 ## Prompt String Utilities (kimix.utils.prompt_str)
 
 ```python
-from kimix.utils.prompt_str import escape_file_paths
+from kimix.utils.prompt_str import escape_file_paths, clean_text
 
 # Sanitize prompt text: detect file paths, wrap in backticks,
 # remove invisible chars, normalize Unicode, dedupe repeats.
@@ -497,6 +480,10 @@ safe_text = escape_file_paths(
     truncate_msg="",       # Optional: suffix when truncating
     case_mode="",          # Optional: "lower" or "title"
 )
+
+# Clean invisible/hidden characters from text
+# Targets zero-width chars, control chars, soft hyphens, directional marks.
+cleaned = clean_text(text, keep_newlines=True)
 ```
 
 ## Complete Example
@@ -558,12 +545,12 @@ from kimix.utils import (
     context_path, delete_session_dir, make_kaos_dir,
     execute_plan, check_plan_cache,
     TextSearchIndex, SearchResult, _ensure_text_search,
-    set_ralph_loop, FileBuilder, formatted_print,
+    set_ralph_loop,
 )
-from kimix.utils.system_prompt import SystemPromptType
+from kimix.utils.system_prompt import SystemPromptType, SystemPromptCallback, get_system_prompt
 from kimix.utils.session import _create_session_async
 from kimix.utils.fix_error import fix_error_async
-from kimix.utils.prompt_str import escape_file_paths
+from kimix.utils.prompt_str import escape_file_paths, clean_text
 from kimix.base import (
     print_success, print_error, print_warning,
     print_info, print_debug, print_string, colorful_print, colorful_text,

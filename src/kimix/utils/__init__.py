@@ -29,7 +29,6 @@ from .session import (
 )
 from .prompt import prompt_async, prompt, prompt_path, execute_plan, check_plan_cache
 from .fix_error import fix_error, async_prompt, async_fix_error
-from kimix.tools.skill.searching.file_builder import FileBuilder, formatted_print
 
 __all__ = [
     "TextSearchIndex",
@@ -68,6 +67,4 @@ __all__ = [
     "async_fix_error",
     "compact_default_context",
     "set_ralph_loop",
-    "FileBuilder",
-    "formatted_print",
 ]

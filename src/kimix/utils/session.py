@@ -9,9 +9,9 @@ import kimix.base as base
 from kimix.base import print_success, print_debug, percentage_str
 from . import _globals
 from .config import _create_config
-from .system_prompt import get_system_prompt, SystemPromptType
+from .system_prompt import get_system_prompt, SystemPromptType, SystemPromptCallback
 from kimi_cli.soul.agent import BuiltinSystemPromptArgs
-
+from kimi_agent_sdk import Config
 
 def context_path() -> Path:
     user_home = Path.home()
@@ -55,8 +55,14 @@ async def _create_session_async(
     chat_provider: ChatProvider | None = None,
     agent_type: SystemPromptType = SystemPromptType.Worker,
     vfs_path: Path | None = None,
-    extra_system_prompt: str | None = None
+    extra_system_prompt: SystemPromptCallback | None = None,
 ) -> Session:
+    # create cache dir
+    if work_dir:
+        await (work_dir / '.kimix_cache').mkdir(parents=True, exist_ok=True)
+    else:
+        await KaosPath('.kimix_cache').mkdir(parents=True, exist_ok=True)
+
     if session_id is None:
         session_id = str(_globals._session_idx)
         _globals._session_idx += 1
@@ -104,12 +110,11 @@ async def _create_session_async(
             chat_provider=chat_provider,
             vfs_path=vfs_path,
         )
-    custom_data = session.get_custom_data()
     # save config
-    if provider_dict:
-        custom_data['provider_dict'] = provider_dict
+    custom_config = session.get_custom_config()
     if chat_provider:
-        custom_data['chat_provider'] = chat_provider
+        custom_config['chat_provider'] = chat_provider
+    custom_config['provider_dict'] = provider_dict
     return session
 
 
@@ -125,7 +130,7 @@ def create_session(
     chat_provider: ChatProvider | None = None,
     agent_type: SystemPromptType = SystemPromptType.Worker,
     vfs_path: Path | None = None,
-    extra_system_prompt: str | None = None
+    extra_system_prompt: SystemPromptCallback | None = None
 ) -> Session:
     return asyncio.run(_create_session_async(
         session_id=session_id,

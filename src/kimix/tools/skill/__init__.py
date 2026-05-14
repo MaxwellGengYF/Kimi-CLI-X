@@ -1,117 +1,103 @@
-import hashlib
+import asyncio
 
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 from typing import override
-from kimix.tools.skill.searching.file_builder import FileBuilder, formatted_print
-from kimix.tools.common import _maybe_export_output_async
-from kimix.utils import close_session_async, _create_session_async, prompt_async
-from kimix.utils.system_prompt import SystemPromptType
 from kimi_cli.session import Session
+
+from kimix.utils import close_session_async, _create_session_async
+from kimix.base import get_skill_dirs
+from kimix.tools.common import _maybe_export_output_async
+from kimix.utils.system_prompt import SystemPromptType, SystemPromptCallback
 
 
 class IndexerParams(BaseModel):
     """Parameters for the indexer tool."""
-    query: str = Field(
-        description="Search keywords/query."
-    )
-    top_k: int = Field(
-        default=5,
-        ge=1,
-        le=20,
-        description="Number of top results to return."
-    )
-    use_agent: bool = Field(
-        default=False,
-        description="If true, launch a sub-agent; query can be more specific and detailed than a few keywords."
+    prompt: str = Field(
+        description="Search prompt."
     )
     dest_path: list[str] | None = Field(
         default=None,
-        description="If provided, overrides the skill directories to search."
+        description="Destination path."
     )
 
 
-
-class SkillSearch(CallableTool2[IndexerParams]):
+class Retrieve(CallableTool2[IndexerParams]):
     """Indexer tool for semantic search over text files."""
 
-    name: str = "SkillSearch"
+    name: str = "Retrieve"
     description: str = "Search skills by keywords."
     params: type[IndexerParams] = IndexerParams
-    file_builder: dict[str, FileBuilder] = {}
 
     def __init__(self, session: Session):
         super().__init__()
         self._session = session
-        self.file_builder: dict[str, FileBuilder] = {}
+        self._semaphore = asyncio.Semaphore(8)
 
     @override
     async def __call__(self, params: IndexerParams) -> ToolReturnValue:
-        if self._session.get_custom_data().get("is_sub_agent"):
-            params.use_agent = False
-        import kimix.base as base
-        skill_dirs = params.dest_path if params.dest_path is not None else [str(d) for d in base.get_skill_dirs(False)]
-        dirs_hash = hashlib.md5("|".join(sorted(skill_dirs)).encode()).hexdigest()
-        if dirs_hash not in self.file_builder:
-            config_path = f'.kimix_cache/skill_config_{dirs_hash}.json'
-            self.file_builder[dirs_hash] = FileBuilder(skill_dirs, config_path)
-        file_builder = self.file_builder[dirs_hash]
-        try:
-            file_builder.update()
-            results = file_builder.search(
-                params.query, top_k=params.top_k)
-            output = formatted_print(results)
-
-            if not params.use_agent:
-                return ToolOk(output=output)
-
-            output_strs: list[str] = []
-
-            def output_function(fn: str, is_thinking: bool) -> None:
-                if fn and not is_thinking:
-                    output_strs.append(fn)
-
-            async def run_sub_agent(cancel_callable=None):
-                session = None
-                try:
-                    custom_data = self._session.get_custom_data()
-                    provider_dict = custom_data.get("provider_dict")
-                    if provider_dict is None:
-                        provider_dict = dict(base._default_provider) if base._default_provider is not None else {}
-                    provider_dict["thinking_effort"] = 'off'
-                    chat_provider = custom_data.get("chat_provider")
-                    session = await _create_session_async(
-                        agent_file=base._default_agent_file_dir / "agent_skill_searcher.yaml",
-                        agent_type=SystemPromptType.SkillSearcher,
-                        provider_dict=provider_dict,
-                        chat_provider=chat_provider,
-                    )
-                    session.get_custom_data()['is_sub_agent'] = True
-                    agent_prompt = (
-                        f"Query: {params.query}\n\n"
-                        f"Skill search results:\n{output}"
-                    )
-                    await prompt_async(
-                        prompt_str=agent_prompt,
-                        session=session,
-                        output_function=output_function,
-                        cancel_callable=cancel_callable,
-                    )
-                except Exception as e:
-                    return str(e)
-                finally:
-                    if session:
-                        await close_session_async(session)
-                return None
-
-            err_msg = await run_sub_agent()
-            agent_output = await _maybe_export_output_async("".join(output_strs))
-            if err_msg:
-                return ToolError(output=agent_output, message=err_msg, brief="")
-            return ToolOk(output=agent_output)
-        except Exception as e:
+        if self._session is not None and self._session.custom_config.get("is_sub_agent"):
             return ToolError(
-                message=str(e),
-                output="",
-                brief="Search failed"
+                output='',
+                message='Recursive sub-agent call detected',
+                brief='sub-agent recursively'
             )
+        async with self._semaphore:
+            try:
+                output_strs = []
+
+                def output_function(fn: str, is_thinking: bool) -> None:
+                    if fn and not is_thinking:
+                        output_strs.append(fn)
+
+                async def prompt_async(cancel_callable=None):
+                    session = None
+                    try:
+                        import kimix.base as base
+                        custom_config = self._session.custom_config
+                        chat_provider = custom_config.get("chat_provider")
+                        provider_dict = custom_config.get("provider_dict")
+                        if provider_dict is None:
+                            provider_dict = dict(base._default_provider) if base._default_provider is not None else {}
+                        provider_dict["thinking_effort"] = 'off'
+                        extra_system_prompt = SystemPromptCallback()
+                        if params.dest_path is not None:
+                            dest_path = params.dest_path
+                        else:
+                            skill_dirs = [str(d) for d in get_skill_dirs(use_kaos_path=False)]
+                            dest_path = skill_dirs + ['.kimix_cache/'] if skill_dirs else ['.kimix_cache/']
+                        dest_path_str = ', '.join(dest_path)
+
+                        def role_callback(agent_role: SystemPromptType, items: list[str]):
+                            items.append(f'Retrieve skills, docs from: {dest_path_str}.')
+
+                        extra_system_prompt.role_callback = role_callback
+
+                        session = await _create_session_async(
+                            agent_file=base._default_agent_file_dir / 'agent_searcher.yaml',
+                            agent_type=SystemPromptType.SkillSearcher,
+                            provider_dict=provider_dict,
+                            chat_provider=chat_provider,
+                            extra_system_prompt=extra_system_prompt,
+                        )
+                        session.get_custom_config()['is_sub_agent'] = True
+                        import kimix.utils as utils
+                        await utils.prompt_async(prompt_str=params.prompt, session=session, output_function=output_function, info_print=False, cancel_callable=cancel_callable, merge_wire_messages=True)
+                    except Exception as e:
+                        return str(e)
+                    finally:
+                        if session:
+                            await close_session_async(session)
+                    return None
+
+                err_msg = await prompt_async()
+                output = await _maybe_export_output_async('\n'.join(output_strs))
+                if err_msg:
+                    return ToolError(output=output, message=err_msg, brief='')
+                return ToolOk(output=output)
+            except Exception as exc:
+                return ToolError(
+                    output="",
+                    message=str(exc),
+                    brief="Failed to create session",
+                )
