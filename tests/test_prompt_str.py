@@ -251,6 +251,18 @@ class TestEscapeFilePaths:
         result = escape_file_paths(text)
         assert result == "date 2024/01/15 and 01/02/2024"
 
+    def test_chinese_chars_preserved(self):
+        assert escape_file_paths("你好") == "你好"
+        assert escape_file_paths("今天天气很好") == "今天天气很好"
+        assert escape_file_paths("深度学习") == "深度学习"
+
+    def test_chinese_with_emoji(self):
+        # Regression: CJK chars must NOT be swallowed by _EMOJI_RE.
+        text = "你好😀世界"
+        result = escape_file_paths(text)
+        assert "😀" not in result
+        assert result == "你好世界"
+
 
 class TestCleanText:
     def test_remove_zero_width(self):
