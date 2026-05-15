@@ -95,7 +95,7 @@ def _create_config(provider_dict: dict[str, Any] | None = None) -> tuple[Config,
             for key, value in loop_control.items():
                 if hasattr(lc, key):
                     setattr(lc, key, value)
-        if base._default_ralph is not None: # override
+        if base._default_ralph is not None and 'max_ralph_iterations' not in (loop_control or {}): # override
             lc.max_ralph_iterations = base._default_ralph
         cfg.loop_control = lc
         def set_val(name: str, type_var: type) -> None:

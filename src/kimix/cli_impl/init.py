@@ -18,30 +18,10 @@ default_config = '''
     "capabilities": ["thinking"],
     "url": "https://api.kimi.com/coding/v1",
     "type": "kimi",
-    "loop_control": {
-        "max_steps_per_turn": 5000,
-        "max_retries_per_step": 3,
-        "max_ralph_iterations": 0,
-        "reserved_context_size": 50000,
-        "compaction_trigger_ratio": 0.85
-    },
     "max_tokens": 131072,
     "show_thinking_stream": true,
     "thinking_effort": "max",
-    "temperature": 1.0,
-    "background": {
-        "max_running_tasks": 4,
-        "read_max_bytes": 30000,
-        "notification_tail_lines": 20,
-        "notification_tail_chars": 3000,
-        "wait_poll_interval_ms": 500,
-        "worker_heartbeat_interval_ms": 5000,
-        "worker_stale_after_ms": 15000,
-        "kill_grace_period_ms": 2000,
-        "keep_alive_on_exit": false,
-        "agent_task_timeout_s": 900,
-        "print_wait_ceiling_s": 3600
-    }
+    "temperature": 1.0
 }
 '''
 _DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "default_config.json"
