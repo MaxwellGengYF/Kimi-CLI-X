@@ -337,7 +337,7 @@ def percentage_str(num: float) -> str:
 
 def percentage_and_token(session: Any) -> str:
     status = session.status
-    return f"{status.context_usage * 100:.1f}% ({status.context_tokens}/{status.max_context_tokens})"
+    return f"{status.context_usage * 100:.1f}% ({status.context_tokens} tokens)"
 
 
 _default_thinking: bool = True
@@ -356,6 +356,7 @@ COMMON_SKILL_DIRS: list[str] = [
     ".agents/skills",
     ".config/.agents/skills",
     ".opencode/skills",
+    ".skills",
     "skills",
 ]
 
