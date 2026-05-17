@@ -335,6 +335,11 @@ def percentage_str(num: float) -> str:
     return f"{num * 100:.1f}%"
 
 
+def percentage_and_token(session: Any) -> str:
+    status = session.status
+    return f"{status.context_usage * 100:.1f}% ({status.context_tokens}/{status.max_context_tokens})"
+
+
 _default_thinking: bool = True
 _default_yolo: bool = True
 _default_agent_file_dir: Path = Path(__file__).parent

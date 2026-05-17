@@ -6,7 +6,7 @@ from kaos.path import KaosPath
 from kimi_agent_sdk import Session
 from kosong.chat_provider import ChatProvider
 import kimix.base as base
-from kimix.base import print_success, print_debug, percentage_str
+from kimix.base import print_success, print_debug, percentage_str, percentage_and_token
 from . import _globals
 from .config import _create_config
 from .system_prompt import get_system_prompt, SystemPromptType, SystemPromptCallback
@@ -220,7 +220,7 @@ def _create_default_session(resume: bool = True) -> Session:
 def _print_usage(session: Session, time_seconds: float | None = None) -> None:
     if not getattr(_globals._should_print_usage, 'value', False):
         return
-    s = percentage_str(session.status.context_usage)
+    s = percentage_and_token(session)
     if time_seconds is not None:
         hours = int(time_seconds) // 3600
         minutes = (int(time_seconds) % 3600) // 60
@@ -236,7 +236,7 @@ def _print_usage(session: Session, time_seconds: float | None = None) -> None:
 def print_usage(session: Session | None = None) -> None:
     if session is None:
         session = _create_default_session()
-    s = percentage_str(session.status.context_usage)
+    s = percentage_and_token(session)
     print_success(
         f'Context usage: {s}'
     )
@@ -247,11 +247,9 @@ def compact_default_context() -> None:
         print_debug('Start compacting...')
         import time
         start_time = time.time()
-        last_usage = _globals._default_session.status.context_usage
+        old_usage = percentage_and_token(_globals._default_session)
         asyncio.run(_globals._default_session.compact())
-        curr_usage = _globals._default_session.status.context_usage
-        old_usage = percentage_str(last_usage)
-        new_usage = percentage_str(curr_usage)
+        new_usage = percentage_and_token(_globals._default_session)
         end_time = time.time()
         time_seconds = end_time - start_time
         hours = int(time_seconds) // 3600
