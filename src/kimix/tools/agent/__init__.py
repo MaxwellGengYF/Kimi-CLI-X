@@ -72,9 +72,9 @@ class Agent(CallableTool2):
                     return None
 
                 err_msg = await prompt_async()
+                output = await _maybe_export_output_async('\n'.join(output_strs))
                 if sub_session_id is not None:
                     output = f"Session ID: {sub_session_id}\n\n{output}"
-                output = await _maybe_export_output_async('\n'.join(output_strs))
                 if err_msg:
                     return ToolError(output=output, message=err_msg, brief='')
                 return ToolOk(output=output)
@@ -82,5 +82,5 @@ class Agent(CallableTool2):
                 return ToolError(
                     output="",
                     message=str(exc),
-                    brief=f"Failed to create session {str(exc)}",
+                    brief="Failed to create session",
                 )

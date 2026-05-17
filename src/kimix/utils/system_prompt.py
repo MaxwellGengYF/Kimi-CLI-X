@@ -102,9 +102,8 @@ def get_system_prompt(
                 use_agent_md = True
                 use_skills = True
                 role_doc = 'You are a supervisor'
-                items.append('Plan only. Do not implement. use `Agent` instead.')
+                items.append('Plan only. No implement. Delegate tasks to worker agents via the `Agent` tool instead.')
                 items.append('Multi-step: use `SetTodoList`. Finish all before ending.')
-                items.append("Delegate tasks to worker agents via the `Agent` tool.")
                 items.append("Review outputs, maintain oversight, and integrate results.")
                 items.append('`Search` to search, retrieve skills, docs.')
 

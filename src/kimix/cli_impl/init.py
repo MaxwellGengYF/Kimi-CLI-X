@@ -244,7 +244,7 @@ def _ask_sub_provider(defaults: dict[str, Any] | None = None) -> dict[str, Any] 
     context_size = _ask_context_size(defaults)
     sub["max_context_size"] = context_size
 
-    thinking = _ask_thinking_effort("off")
+    thinking = _ask_thinking_effort(_default("thinking_effort", "low"))
     sub["thinking_effort"] = thinking
 
     caps = _default("capabilities", ("thinking",))
