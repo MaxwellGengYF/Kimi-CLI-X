@@ -261,13 +261,10 @@ __all__ = [
 # Bash command dispatch tool
 # ============================================================
 
-import queue
-
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 from kimi_cli.session import Session
 
-from kimix.tools.common import _maybe_export_output_async
 
 # Build the command dispatch map
 BASH_COMMANDS: dict[str, CallableTool2] = {
@@ -485,57 +482,5 @@ class Bash(CallableTool2[BashParams]):
         Returns:
             ToolOk on success, ToolError on failure or timeout.
         """
-        from kimix.tools.background.utils import BackgroundStream, generate_task_id, add_task, remove_task_id
-        if " " in params.cmd:
-            parts = params.cmd.split(" ")
-            params.cmd = parts[0]
-            remaining = parts[1:]
-            if remaining:
-                params.args.insert(0, " ".join(remaining))
-        _, bash_tool = self.resolve_command(params.cmd)
-        if bash_tool is None:
-            return ToolError(
-                output=f"Unknown bash command: '{params.cmd}'",
-                message=f"Command '{params.cmd}' is not a recognized bash builtin.",
-                brief="Unknown command"
-            )
-
-        result_holder: list[ToolReturnValue] = []
-
-        async def wrapper(q: queue.Queue[str]) -> bool:
-            try:
-                result = await bash_tool(params)
-                result_holder.append(result)
-                output_str = result.output if isinstance(result.output, str) else str(result.output)
-                q.put_nowait(output_str)
-                return not result.is_error
-            except Exception as e:
-                q.put_nowait(f"\n[Error: {str(e)}]")
-                return False
-
-        stream = BackgroundStream()
-        task_id = generate_task_id(self._session, "bash", params.cmd)
-        await stream.start(wrapper, lambda: None)
-        add_task(self._session, task_id, stream)
-
-        await stream.wait(params.timeout)
-
-        if await stream.thread_is_alive():
-            output = await stream.get_output()
-            return ToolError(
-                output=output or f'Running in background. task_id: `{task_id}`. use `TaskOutput` or `Input`',
-                message="Process timeout",
-                brief="Timeout"
-            )
-
-        remove_task_id(self._session, task_id)
-
-        if result_holder:
-            return result_holder[0]
-
-        output = await stream.pop_output()
-        success = await stream.success()
-        if not success:
-            return ToolError(output=output, message="Command execution failed", brief="Command execution failed")
-        output = await _maybe_export_output_async(output)
-        return ToolOk(output=output)
+        from kimix.tools.file.bash.run_bash import run_bash
+        return await run_bash(params, self._session)

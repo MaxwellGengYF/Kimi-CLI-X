@@ -53,10 +53,7 @@ def get_system_prompt(
                 'Interactive: `Run` short timeout, then `TaskOutput`/`Input`.')
             items.append('Python: `python -c <code>`.')
             items.append('Multi-step: use `SetTodoList`. Finish all before ending.')
-            if args.KIMI_OS != 'Windows':
-                items.append(f'Shell: {args.KIMI_SHELL}. prefer Use `Run`.')
-            else:
-                items.append('No Shell, use `Run`.')
+            items.append('Shell: use `Bash`')
             if yolo and not is_sub_agent:
                 items.append('Yolo: no asking. Stay in workdir.')
             if not is_sub_agent:

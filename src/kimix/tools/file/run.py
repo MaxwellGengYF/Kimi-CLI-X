@@ -7,7 +7,8 @@ from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 from kimi_cli.session import Session
 from kimix.tools.common import _maybe_export_output_async, _export_to_temp_file_async, ProcessTask
-from kimix.tools.file.bash import Bash, _BASH_COMMANDS, _WINDOWS_ALIASES
+from kimix.tools.file.bash import _BASH_COMMANDS, _WINDOWS_ALIASES
+from kimix.tools.file.bash.run_bash import run_bash
 
 
 class RunParams(BaseModel):
@@ -48,7 +49,7 @@ class Run(CallableTool2[RunParams]):
         super().__init__()
         self._session = session
         self._semaphore = asyncio.Semaphore(8)
-        self._bash_tool = Bash(session)
+
 
     async def __call__(self, params: RunParams) -> ToolReturnValue:
         # params.path may contain arguments, split it with space, then insert to the start of params.args
@@ -91,7 +92,7 @@ class Run(CallableTool2[RunParams]):
             # Not a real process - check if it's a bash built-in command
             bash_name = _WINDOWS_ALIASES.get(params.path, params.path)
             if bash_name in _BASH_COMMANDS:
-                return await self._bash_tool(params)
+                return await run_bash(params, self._session)
 
         async with self._semaphore:
             import sys
