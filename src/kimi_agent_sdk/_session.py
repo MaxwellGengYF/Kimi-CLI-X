@@ -64,6 +64,7 @@ class Session:
         self._cancel_event: asyncio.Event | None = None
         self._closed = False
         self._create_kwargs: dict[str, Any] = {}
+        self._anonymous = False
 
     async def clear(self, **custom_arguments) -> None:
         """Clear the session by removing the context file and re-creating the CLI.
@@ -230,6 +231,7 @@ class Session:
             **custom_arguments
         )
         session = Session(cli)
+        session._anonymous = session_id is None
         session_dir = cli.session.dir
         state_file = session_dir / "state.json"
         if state_file.exists():
@@ -334,6 +336,7 @@ class Session:
             **custom_arguments
         )
         session = Session(cli)
+        session._anonymous = session_id is None
         session._create_kwargs = {
             "config": config,
             "model_name": model,
@@ -496,6 +499,8 @@ class Session:
         Close the Session and release resources.
 
         This cancels any ongoing prompt and cleans up tool resources.
+        For anonymous sessions (created or resumed without a session_id),
+        this also deletes the session's context.jsonl and state.json files.
         """
         if self._closed:
             return
@@ -503,6 +508,19 @@ class Session:
         if self._cancel_event is not None:
             self._cancel_event.set()
         await self._cleanup_tools()
+        if getattr(self, "_anonymous", False):
+            context_file = self._cli.session.context_file
+            if context_file.exists():
+                context_file.unlink()
+            session_dir = self._cli.session.dir
+            state_file = session_dir / "state.json"
+            if state_file.exists():
+                state_file.unlink()
+
+    async def delete(self) -> None:
+        """Delete the session and remove its directory."""
+        await self.close()
+        await self._cli.session.delete()
 
     async def __aenter__(self) -> Session:
         """Async context manager entry."""
@@ -511,3 +529,4 @@ class Session:
     async def __aexit__(self, *args: Any) -> None:
         """Async context manager exit."""
         await self.close()
+        await self._cli.session.delete()

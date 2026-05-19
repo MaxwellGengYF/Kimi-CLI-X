@@ -65,22 +65,27 @@ class TaskOutput(CallableTool2):
         try:
             tasks = get_all_tasks(self._session)
 
-            if params.task_id is None:
-                if not tasks:
-                    return ToolOk(output="No background tasks running.")
-
+            async def _list_started() -> list[str]:
+                """Return list of started task IDs."""
                 lines = []
                 for task_id, stream in tasks.items():
-                    status = await stream.is_started()
-                    if status:
+                    if await stream.is_started():
                         lines.append(task_id)
+                return lines
 
-                return ToolOk(output="\n".join(lines))
+            if params.task_id is None:
+                if not tasks:
+                    return ToolOk(output="No tasks.")
+                started = await _list_started()
+                task_list = ", ".join(started) if started else "(no tasks)"
+                return ToolOk(output=task_list)
 
             stream: BackgroundStream | None = tasks.get(params.task_id.strip())
             if stream is None:
+                started = await _list_started()
+                task_list = ", ".join(started) if started else "(no tasks)"
                 return ToolError(
-                    message=f"Task '{params.task_id}' not found",
+                    message=f"Task '{params.task_id}' not found. Available tasks: [{task_list}]",
                     output="",
                     brief=f"Task '{params.task_id}' not found"
                 )

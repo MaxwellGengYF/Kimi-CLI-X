@@ -1,7 +1,7 @@
 import asyncio
 import sys
 import os
-from pathlib import Path
+import tempfile
 
 import anyio
 from kimix.tools.common import _maybe_export_output_async, _export_to_temp_file_async, ProcessTask
@@ -27,8 +27,6 @@ class Params(BaseModel):
     )
 
 
-# Force UTF-8 encoding for subprocess on Windows
-
 class Python(CallableTool2[Params]):
     name: str = "Python"
     description: str = "Execute Python code."
@@ -41,7 +39,21 @@ class Python(CallableTool2[Params]):
 
     async def __call__(self, params: Params) -> ToolReturnValue:
         async with self._semaphore:
-            task = ProcessTask(sys.executable, ['-u', '-c', params.code], None)
+            # Force UTF-8 encoding for subprocess on Windows and Unix
+            env = {"PYTHONIOENCODING": "utf-8"}
+            script_path: str | None = None
+
+            # Windows CreateProcessW has a ~32767 char command-line limit.
+            # Use a temp file for very long code to avoid truncation/failure.
+            if len(params.code) > 30000:
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as f:
+                    f.write(params.code)
+                    script_path = f.name
+                args = [script_path]
+            else:
+                args = ['-c', params.code]
+
+            task = ProcessTask(sys.executable, args, env=env)
             task_id = await task.start(self._session, "python", "python")
 
             # Wait for completion with timeout (allow a small buffer for cleanup)
@@ -60,6 +72,13 @@ class Python(CallableTool2[Params]):
             remove_task_id(self._session, task_id)
             # Get output
             output = await task.stream.pop_output() if task.stream else ""
+
+            # Clean up temp file since process has finished
+            if script_path is not None:
+                try:
+                    os.remove(script_path)
+                except Exception:
+                    pass
 
             # Handle output_path parameter if provided
             if params.output_path:

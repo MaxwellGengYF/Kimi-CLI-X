@@ -15,7 +15,7 @@ from kimix.tools.file.bash.run_bash import run_bash
 
 class RunParams(BaseModel):
     path: str = Field(
-        description="Executable path or basic bash command (e.g. ls, mkdir, rm)."
+        description="Executable path."
     )
     args: list[str] = Field(
         default_factory=list,
@@ -38,10 +38,6 @@ class RunParams(BaseModel):
     env: list[str] | None = Field(
         default=None,
         description="Environment variables to set for the subprocess, in 'KEY=VALUE' format. If no '=' is present, the value is set to '1'."
-    )
-    force_bash: bool = Field(
-        default=False,
-        description="If true, skip sub-process detection and directly call run_bash."
     )
 
 class Run(CallableTool2[RunParams]):
@@ -84,9 +80,6 @@ class Run(CallableTool2[RunParams]):
                 remaining = parts[1:]
                 if remaining:
                     params.args = remaining + params.args
-        # If force_bash is set, directly call run_bash without process detection.
-        if params.force_bash:
-            return await run_bash(params, self._session)
         # Check if params.path is a valid process name first (executable in PATH or existing file),
         # then fall back to bash built-in commands.
         import shutil
@@ -104,7 +97,10 @@ class Run(CallableTool2[RunParams]):
             is_process = shutil.which(params.path) is not None
 
         if not is_process:
-            # Not a real process - check if it's a bash built-in command
+            # Not a real process - check if it's a bash built-in command.
+            # Check original command name first, then try Windows alias.
+            if params.path in _BASH_COMMANDS:
+                return await run_bash(params, self._session)
             bash_name = _WINDOWS_ALIASES.get(params.path, params.path)
             if bash_name in _BASH_COMMANDS:
                 return await run_bash(params, self._session)

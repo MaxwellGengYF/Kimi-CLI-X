@@ -51,9 +51,8 @@ def get_system_prompt(
             use_skills = True
             role_doc = f'You are a {role}'
             items.append(
-                'Interactive: `Run` short timeout, then `TaskOutput`/`Input`.')
-            items.append('No Shell: use `Run`')
-            items.append('Python: `python -c <code>`.')
+                'Interactive: `Run`/`Python` short timeout, then `TaskOutput`/`Input`.')
+            items.append('No Shell or Bash: use `Run`/`Python` instead.')
             items.append('Multi-step: use `SetTodoList`. Finish all before ending.')
             items.append('Use `Agent` to enable sub-agent, for research, analyze, find, retrieval.')
             if yolo and not is_sub_agent:

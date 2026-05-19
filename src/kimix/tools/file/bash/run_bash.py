@@ -32,9 +32,11 @@ async def run_bash(params: "BashParams | RunParams", session: Session) -> ToolRe
     # Normalize: accept both BashParams.cmd and RunParams.path
     cmd: str = getattr(params, 'cmd', None) or getattr(params, 'path', '')
 
-    # Resolve command - check Windows aliases first, then builtin map
-    bash_name = WINDOWS_ALIASES.get(cmd, cmd)
-    bash_tool: CallableTool2 | None = BASH_COMMANDS.get(bash_name)
+    # Resolve command - check builtin map first, then try Windows alias
+    bash_tool: CallableTool2 | None = BASH_COMMANDS.get(cmd)
+    if bash_tool is None:
+        bash_name = WINDOWS_ALIASES.get(cmd, cmd)
+        bash_tool = BASH_COMMANDS.get(bash_name)
 
     # --- Subprocess fallback: if not a built-in, try running as a real process ---
     if bash_tool is None:
