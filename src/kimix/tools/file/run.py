@@ -104,15 +104,26 @@ class Run(CallableTool2[RunParams]):
             if not is_process:
                 # Not a real process - check if it's a bash built-in command.
                 # Check original command name first, then try Windows alias.
+                warning = " WARNING: This tool does not support shell commands; use `Python` tool."
                 if params.path in _BASH_COMMANDS:
-                    return await run_bash(params, self._session)
+                    result = await run_bash(params, self._session)
+                    return ToolReturnValue(
+                        is_error=result.is_error,
+                        message=result.message + warning, brief=result.brief, output=result.output,
+                        display=result.display
+                    )
                 bash_name = _WINDOWS_ALIASES.get(params.path, params.path)
                 if bash_name in _BASH_COMMANDS:
-                    return await run_bash(params, self._session)
+                    result = await run_bash(params, self._session)
+                    return ToolReturnValue(
+                        is_error=result.is_error,
+                        message=result.message + warning, brief=result.brief, output=result.output,
+                        display=result.display
+                    )
                 else:
                     return ToolError(
                         output="",
-                        message=f"Command not found: '{params.path}' is not a valid executable or bash built-in command.",
+                        message=f"Command not found: '{params.path}' is not a valid executable or bash built-in command." + warning,
                         brief="Command not found"
                     )
 
