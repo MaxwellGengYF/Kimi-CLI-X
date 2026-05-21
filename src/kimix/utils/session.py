@@ -10,8 +10,8 @@ from kimix.base import print_success, print_debug, percentage_str, percentage_an
 from . import _globals
 from .config import _create_config
 from .system_prompt import get_system_prompt, SystemPromptType, SystemPromptCallback
-from kimi_cli.soul.agent import BuiltinSystemPromptArgs
 from kimi_agent_sdk import Config
+from kimi_cli.soul.agent import Runtime
 
 def context_path() -> Path:
     user_home = Path.home()
@@ -77,7 +77,7 @@ async def _create_session_async(
             agent_file = base._default_agent_file_dir / agent_file
     skills_dirs = _ensure_skill_dirs(
         skills_dir) if skills_dir is not None else base.get_skill_dirs()
-    system_prompts: Callable[[BuiltinSystemPromptArgs], str] | None = None
+    system_prompts: Callable[[Runtime], str] | None = None
     if system_prompts is None:
         system_prompts = get_system_prompt(yolo, work_dir, extra_system_prompt, agent_type)
     if resume:

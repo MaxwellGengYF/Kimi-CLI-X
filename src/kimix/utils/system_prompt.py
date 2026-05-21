@@ -1,14 +1,16 @@
 from typing import Optional, Callable
 from pathlib import Path
 import os
+import orjson
 from enum import Enum
 from kaos.path import KaosPath
 import kimix.base as base
 from kimi_cli.soul.agent import BuiltinSystemPromptArgs
+from kimi_cli.soul.agent import Runtime
 
 # Concise system prompt to reduce LLM overthinking and hallucination
 _SYSTEM_PROMP = (
-    '{AGENT_ROLE}:\n{NUMBERED}\n{AGENTS_MD}\n{SKILLS}'
+    '{AGENT_ROLE}:\n{NUMBERED}\n{AGENTS_MD}{SKILLS}{EXTRA}'
 )
 
 
@@ -36,8 +38,8 @@ def get_system_prompt(
     agent_md = (Path(str(work_dir)) if work_dir is not None else Path(
         os.curdir)) / 'AGENTS.md'
     yolo = yolo if yolo is not None else base._default_yolo
-
-    def system_prompt_func(args: BuiltinSystemPromptArgs) -> str:
+    def system_prompt_func(runtime: Runtime) -> str:
+        args = runtime.builtin_args
         items: list[str] = []
         agent_md_doc = ''
         skill_doc = ''
@@ -56,7 +58,7 @@ def get_system_prompt(
             items.append('Multi-step: use `SetTodoList`. Finish all before ending.')
             items.append('Use `Agent` to enable sub-agent, for research, analyze, find, retrieval.')
             if yolo and not is_sub_agent:
-                items.append('Yolo: no asking. Stay in workdir.')
+                items.append('Yolo: no asking. accept all.')
             if not is_sub_agent:
                 items.append('`Search` to search, retrieve skills, docs.')
                 items.append('Drop context aggressively, use `StepMemory` to manage memory.')
@@ -119,11 +121,68 @@ def get_system_prompt(
             numbered_block = ''.join(
                 f'- {item}\n' for item in items
             )
+        def _fmt_field(name: str, value: str) -> str:
+            lines = value.split("\n")
+            if len(lines) == 1:
+                return f"- {name}: {lines[0]}"
+            return f"- {name}:\n" + "\n".join(f"  {line}" for line in lines)
 
+        extra = ''
+        context_dir = runtime.session.dir
+        step_mem_path = context_dir / 'steps' / f'{runtime.session.id}.json'
+        if step_mem_path.is_file():
+            try:
+                steps = orjson.loads(step_mem_path.read_text(encoding='utf-8'))
+                if isinstance(steps, list) and steps:
+                    lines: list[str] = []
+                    for s in steps:
+                        seq = s.get('seq')
+                        time = s.get('time')
+                        brief = s.get('brief')
+                        step = s.get('step')
+                        result = s.get('result')
+                        files = s.get('files', [])
+
+                        header_parts: list[str] = []
+                        if seq is not None:
+                            header_parts.append(f"# {seq}")
+                        if time:
+                            header_parts.append(f"[{time}]")
+                        if brief:
+                            header_parts.append(brief)
+                        header = ' '.join(header_parts)
+
+                        body_lines: list[str] = []
+                        if step:
+                            body_lines.append(_fmt_field("step", str(step)))
+                        if result:
+                            body_lines.append(_fmt_field("result", str(result)))
+                        if files:
+                            if isinstance(files, list):
+                                body_lines.append(_fmt_field("files", ', '.join(files)))
+                            else:
+                                body_lines.append(_fmt_field("files", str(files)))
+
+                        entry = header
+                        if body_lines:
+                            entry += '\n' + '\n'.join(body_lines)
+                        if entry:
+                            lines.append(entry)
+                    if lines:
+                        extra = (
+                            "Previous steps you have taken. "
+                            "Use them to avoid repeating work or to resume context.\n\n"
+                            + "\n\n".join(lines)
+                            + "\n"
+                        )
+            except Exception:
+                pass
+        
         return _SYSTEM_PROMP.format(
             AGENT_ROLE=role_doc.strip(),
             NUMBERED=numbered_block,
             AGENTS_MD=agent_md_doc,
             SKILLS=skill_doc,
+            EXTRA=extra
         ).strip()
     return system_prompt_func
