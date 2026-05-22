@@ -40,6 +40,10 @@ class RunParams(BaseModel):
         default=None,
         description="Environment variables to set for the subprocess, in 'KEY=VALUE' format. If no '=' is present, the value is set to '1'."
     )
+    run_in_background: bool = Field(
+        default=False,
+        description="Run the process in the background and return immediately."
+    )
 
 class Run(CallableTool2[RunParams]):
     name: str = "Run"
@@ -171,6 +175,11 @@ class Run(CallableTool2[RunParams]):
                             env_dict[item] = '1'
                 task = ProcessTask(params.path, params.args, params.cwd, env_dict)
                 task_id = await task.start(self._session, "run", Path(params.path).stem)
+
+                if params.run_in_background:
+                    return ToolOk(
+                        output=f"Running in background. task_id: `{task_id}`. Use `TaskOutput` tool to retrieve output."
+                    )
 
                 # Wait for completion with timeout (allow a small buffer for cleanup)
                 wait_timeout = params.timeout

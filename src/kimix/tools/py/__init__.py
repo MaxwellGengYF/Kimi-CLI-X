@@ -25,6 +25,10 @@ class Params(BaseModel):
         le=180,
         description="Timeout in seconds."
     )
+    run_in_background: bool = Field(
+        default=False,
+        description="Run the Python code in the background and return immediately."
+    )
 
 
 class Python(CallableTool2[Params]):
@@ -55,6 +59,11 @@ class Python(CallableTool2[Params]):
 
             task = ProcessTask(sys.executable, args, env=env)
             task_id = await task.start(self._session, "python", "python")
+
+            if params.run_in_background:
+                return ToolOk(
+                    output=f"Running in background. task_id: `{task_id}`. Use `TaskOutput` tool to retrieve output."
+                )
 
             # Wait for completion with timeout (allow a small buffer for cleanup)
             wait_timeout = params.timeout

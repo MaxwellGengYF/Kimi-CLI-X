@@ -47,6 +47,16 @@ class NgramTokenizer:
             or (0x30A0 <= cp <= 0x30FF)       # Katakana
             or (0x3400 <= cp <= 0x4DBF)       # Extension A
             or (0x20000 <= cp <= 0x2EBEF)     # Extensions B-F
+            or (0xF900 <= cp <= 0xFAFF)       # CJK Compatibility Ideographs
+            or (0x2F800 <= cp <= 0x2FA1F)     # CJK Compatibility Ideographs Supplement
+            or (0x30000 <= cp <= 0x3134F)     # Extension G
+            or (0x31350 <= cp <= 0x323AF)     # Extension H
+            or (0x2EBF0 <= cp <= 0x2EE5F)     # Extension I
+            or (0x1100 <= cp <= 0x11FF)       # Hangul Jamo
+            or (0xA960 <= cp <= 0xA97F)       # Hangul Jamo Extended-A
+            or (0xD7B0 <= cp <= 0xD7FF)       # Hangul Jamo Extended-B
+            or (0x31C0 <= cp <= 0x31EF)       # CJK Strokes
+            or (0x3200 <= cp <= 0x32FF)       # Enclosed CJK Letters and Months
         )
 
     def _detect_n(self, text: str) -> int:
@@ -103,8 +113,9 @@ class InvertedIndex:
         "_sum_doc_lengths",
         "_N",
         "_avgdl",
-        "_posting_docs",
-        "_posting_tfs",
+        "_max_doc_id",
+        "_doc_id_to_idx",
+        "_idx_to_doc_id",
         "_finalized",
         "_terms_by_length",
         "_terms_by_length_prefix",
@@ -123,7 +134,7 @@ class InvertedIndex:
     )
 
     _MAGIC = b"KIMX"
-    _VERSION = 2
+    _VERSION = 3
 
     def __init__(self) -> None:
         self._term_to_id: dict[str, int] = {}
@@ -133,8 +144,9 @@ class InvertedIndex:
         self._sum_doc_lengths: int = 0
         self._N: int = 0
         self._avgdl: float = 0.0
-        self._posting_docs: list[NDArray[np.int32]] = []
-        self._posting_tfs: list[NDArray[np.uint16]] = []
+        self._max_doc_id: int = -1
+        self._doc_id_to_idx: dict[int, int] = {}
+        self._idx_to_doc_id: list[int] = []
         self._finalized: bool = False
         self._terms_by_length: dict[int, tuple[str, ...]] = {}
         self._terms_by_length_prefix: dict[tuple[int, str], tuple[str, ...]] = {}
@@ -172,33 +184,27 @@ class InvertedIndex:
         if self._finalized:
             raise RuntimeError("Cannot add documents after finalize().")
         counter = Counter(tokens)
-        self._doc_lengths.append(len(tokens))
-        self._sum_doc_lengths += len(tokens)
-        self._doc_term_freqs.append(counter)
-        temp_postings = self._temp_postings
-        sequential = doc_id >= self._last_doc_id
-        if sequential:
-            for token, freq in counter.items():
-                try:
-                    pl = temp_postings[token]
-                except KeyError:
-                    pl = _PostingList()
-                    temp_postings[token] = pl
-                pl.doc_ids.append(doc_id)
-                pl.tfs.append(freq)
+        if doc_id in self._doc_id_to_idx:
+            idx = self._doc_id_to_idx[doc_id]
+            old_len = self._doc_lengths[idx]
+            self._sum_doc_lengths += len(tokens) - old_len
+            self._doc_lengths[idx] = len(tokens)
+            self._doc_term_freqs[idx] = counter
         else:
-            for token, freq in counter.items():
-                try:
-                    pl = temp_postings[token]
-                except KeyError:
-                    pl = _PostingList()
-                    temp_postings[token] = pl
-                if pl.doc_ids and pl.doc_ids[-1] > doc_id:
-                    self._postings_sorted = False
-                pl.doc_ids.append(doc_id)
-                pl.tfs.append(freq)
-        if doc_id >= self._N:
-            self._N = doc_id + 1
+            idx = len(self._doc_lengths)
+            self._doc_id_to_idx[doc_id] = idx
+            self._idx_to_doc_id.append(doc_id)
+            self._doc_lengths.append(len(tokens))
+            self._sum_doc_lengths += len(tokens)
+            self._doc_term_freqs.append(counter)
+            self._doc_token_strs.append(set())
+        self._max_doc_id = max(self._max_doc_id, doc_id)
+        self._N = self._max_doc_id + 1
+        temp_postings = self._temp_postings
+        for token, freq in counter.items():
+            pl = temp_postings.setdefault(token, _PostingList())
+            pl.doc_ids.append(doc_id)
+            pl.tfs.append(freq)
         self._last_doc_id = doc_id
         self._term_id_dirty = True
 
@@ -206,7 +212,7 @@ class InvertedIndex:
         """Drop n-grams appearing in >*threshold* fraction of docs or pure punctuation."""
         if not token:
             return True
-        if df > self._N * threshold:
+        if threshold > 0 and df > self._N * threshold:
             return True
         if token.isalpha():
             return False
@@ -264,6 +270,21 @@ class InvertedIndex:
         if self._finalized:
             return
 
+        # Rebuild temp_postings from scratch to handle overwrites and ensure sorted order
+        temp_postings: dict[str, _PostingList] = {}
+        for idx, doc_id in enumerate(self._idx_to_doc_id):
+            counter = self._doc_term_freqs[idx]
+            for token, freq in counter.items():
+                pl = temp_postings.setdefault(token, _PostingList())
+                pl.doc_ids.append(doc_id)
+                pl.tfs.append(freq)
+        for pl in temp_postings.values():
+            if len(pl.doc_ids) > 1:
+                postings = list(zip(pl.doc_ids, pl.tfs))
+                postings.sort(key=operator.itemgetter(0))
+                pl.doc_ids[:], pl.tfs[:] = zip(*postings) if postings else ([], [])
+        self._temp_postings = temp_postings
+
         kept_terms: dict[str, int] = {}
         kept_doc_ids: list[list[int]] = []
         kept_tfs: list[list[int]] = []
@@ -275,10 +296,6 @@ class InvertedIndex:
                 continue
             tid = len(kept_terms)
             kept_terms[token] = tid
-            if not self._postings_sorted and df > 1:
-                postings = list(zip(pl.doc_ids, pl.tfs))
-                postings.sort(key=operator.itemgetter(0))
-                pl.doc_ids[:], pl.tfs[:] = zip(*postings) if postings else ([], [])
             kept_doc_ids.append(pl.doc_ids)
             kept_tfs.append(pl.tfs)
 
@@ -320,7 +337,10 @@ class InvertedIndex:
         self._terms_by_length_prefix = {key: tuple(terms) for key, terms in by_len_prefix.items()}
         if self._doc_lengths:
             self._avgdl = self._sum_doc_lengths / len(self._doc_lengths)
-            self._doc_lengths_arr = np.array(self._doc_lengths, dtype=np.int32)
+            arr = np.zeros(self._N, dtype=np.int32)
+            for idx, doc_id in enumerate(self._idx_to_doc_id):
+                arr[doc_id] = self._doc_lengths[idx]
+            self._doc_lengths_arr = arr
 
         # Filter forward index only if terms were actually pruned
         if len(kept_terms) < len(self._temp_postings):
@@ -346,11 +366,6 @@ class InvertedIndex:
         self._term_id_dirty = False
         self._temp_postings.clear()
         self._finalized = True
-
-    def _ensure_term_to_id(self) -> None:
-        if self._term_id_dirty:
-            self._term_to_id = {token: i for i, token in enumerate(self._temp_postings)}
-            self._term_id_dirty = False
 
     def get_postings(
         self, term: str
@@ -413,7 +428,7 @@ class InvertedIndex:
 
             # Doc lengths
             if num_docs:
-                f.write(memoryview(np.array(self._doc_lengths, dtype=np.int32)))
+                f.write(np.array(self._doc_lengths, dtype='<i4').tobytes())
 
             # Posting lists (in term_id order)
             for i, term in enumerate(terms):
@@ -425,10 +440,11 @@ class InvertedIndex:
                 df = len(docs)
                 f.write(struct.pack("<I", df))
                 if df:
-                    f.write(memoryview(docs))
-                    f.write(memoryview(tfs))
+                    f.write(docs.astype('<i4').tobytes())
+                    f.write(tfs.astype('<u2').tobytes())
 
             # Optional forward-index chunk for fast load
+            f.write(struct.pack("<B", 1 if include_forward_index else 0))
             if include_forward_index:
                 for doc_id in range(num_docs):
                     term_freqs = (
@@ -442,6 +458,21 @@ class InvertedIndex:
                         f.write(struct.pack("<I", tid))
                         f.write(struct.pack("<H", tf))
 
+            # Symmetric delete index (v3)
+            if self._VERSION >= 3:
+                for edit_dist in (1, 2):
+                    sd = self._symmetric_delete_index.get(edit_dist, {})
+                    f.write(struct.pack("<I", len(sd)))
+                    for variant, terms_tuple in sd.items():
+                        v_bytes = variant.encode("utf-8")
+                        f.write(struct.pack("<H", len(v_bytes)))
+                        f.write(v_bytes)
+                        f.write(struct.pack("<I", len(terms_tuple)))
+                        for term in terms_tuple:
+                            t_bytes = term.encode("utf-8")
+                            f.write(struct.pack("<H", len(t_bytes)))
+                            f.write(t_bytes)
+
     def load(self, path: str | Path) -> None:
         """Load a persisted index from disk."""
         path = Path(path)
@@ -450,7 +481,7 @@ class InvertedIndex:
             if magic != self._MAGIC:
                 raise ValueError(f"Invalid file format: expected {self._MAGIC!r}, got {magic!r}")
             version = struct.unpack("<B", f.read(1))[0]
-            if version not in (1, self._VERSION):
+            if version not in (1, 2, self._VERSION):
                 raise ValueError(f"Unsupported version: {version}")
 
             self._N = struct.unpack("<I", f.read(4))[0]
@@ -469,8 +500,10 @@ class InvertedIndex:
             self._term_to_id = term_to_id
 
             if num_docs:
-                dl_buf = np.empty(num_docs, dtype=np.int32)
-                f.readinto(dl_buf)
+                dl_data = f.read(num_docs * 4)
+                if len(dl_data) != num_docs * 4:
+                    raise ValueError("Truncated file: doc lengths")
+                dl_buf = np.frombuffer(dl_data, dtype='<i4').copy()
                 self._doc_lengths = dl_buf.tolist()
             else:
                 self._doc_lengths = []
@@ -484,10 +517,14 @@ class InvertedIndex:
             for _ in range(num_terms):
                 df = struct.unpack("<I", f.read(4))[0]
                 if df:
-                    docs = np.empty(df, dtype=np.int32)
-                    tfs = np.empty(df, dtype=np.uint16)
-                    f.readinto(docs)
-                    f.readinto(tfs)
+                    docs_data = f.read(df * 4)
+                    if len(docs_data) != df * 4:
+                        raise ValueError("Truncated file: posting docs")
+                    docs = np.frombuffer(docs_data, dtype='<i4').copy()
+                    tfs_data = f.read(df * 2)
+                    if len(tfs_data) != df * 2:
+                        raise ValueError("Truncated file: posting tfs")
+                    tfs = np.frombuffer(tfs_data, dtype='<u2').copy()
                 else:
                     docs = np.array([], dtype=np.int32)
                     tfs = np.array([], dtype=np.uint16)
@@ -500,79 +537,129 @@ class InvertedIndex:
             self._posting_docs_ptr = np.array(docs_ptr, dtype=np.int32)
             self._posting_tfs_ptr = np.array(tfs_ptr, dtype=np.int32)
 
-            # Try to read optional forward-index chunk (v2 only)
+            # Try to read optional forward-index chunk (v2+)
             has_forward_chunk = False
             doc_token_strs_chunk: list[set[str]] = []
             doc_term_freqs_chunk: list[dict[str, int]] = []
             if version >= 2:
-                pos = f.tell()
-                f.seek(0, 2)
-                end = f.tell()
-                f.seek(pos)
-                has_forward_chunk = end > pos
+                if version >= 3:
+                    flag_data = f.read(1)
+                    has_forward_chunk = bool(struct.unpack("<B", flag_data)[0]) if len(flag_data) == 1 else False
+                else:
+                    pos = f.tell()
+                    f.seek(0, 2)
+                    end = f.tell()
+                    f.seek(pos)
+                    has_forward_chunk = end > pos
                 if has_forward_chunk:
                     doc_token_strs_chunk = [set() for _ in range(num_docs)]
                     doc_term_freqs_chunk = [dict() for _ in range(num_docs)]
-                    for d in range(num_docs):
-                        num_terms_data = f.read(2)
-                        if len(num_terms_data) < 2:
-                            break
-                        num_terms_doc = struct.unpack("<H", num_terms_data)[0]
-                        for _ in range(num_terms_doc):
-                            tid = struct.unpack("<I", f.read(4))[0]
-                            tf = struct.unpack("<H", f.read(2))[0]
-                            term = terms[tid]
-                            doc_token_strs_chunk[d].add(term)
-                            doc_term_freqs_chunk[d][term] = tf
+                    try:
+                        for d in range(num_docs):
+                            num_terms_data = f.read(2)
+                            if len(num_terms_data) < 2:
+                                raise ValueError("Truncated forward index")
+                            num_terms_doc = struct.unpack("<H", num_terms_data)[0]
+                            for _ in range(num_terms_doc):
+                                tid_data = f.read(4)
+                                if len(tid_data) < 4:
+                                    raise ValueError("Truncated forward index")
+                                tid = struct.unpack("<I", tid_data)[0]
+                                tf_data = f.read(2)
+                                if len(tf_data) < 2:
+                                    raise ValueError("Truncated forward index")
+                                tf = struct.unpack("<H", tf_data)[0]
+                                term = terms[tid]
+                                doc_token_strs_chunk[d].add(term)
+                                doc_term_freqs_chunk[d][term] = tf
+                    except (struct.error, ValueError):
+                        has_forward_chunk = False
+                        doc_token_strs_chunk = []
+                        doc_term_freqs_chunk = []
 
-        by_len: dict[int, list[str]] = defaultdict(list)
-        by_len_prefix: dict[tuple[int, str], list[str]] = defaultdict(list)
-        for term in self._term_to_id:
-            length = len(term)
-            by_len[length].append(term)
-            by_len_prefix[(length, term[:1])].append(term)
-        self._terms_by_length = {length: tuple(terms) for length, terms in by_len.items()}
-        self._terms_by_length_prefix = {key: tuple(terms) for key, terms in by_len_prefix.items()}
+            by_len: dict[int, list[str]] = defaultdict(list)
+            by_len_prefix: dict[tuple[int, str], list[str]] = defaultdict(list)
+            for term in self._term_to_id:
+                length = len(term)
+                by_len[length].append(term)
+                by_len_prefix[(length, term[:1])].append(term)
+            self._terms_by_length = {length: tuple(terms) for length, terms in by_len.items()}
+            self._terms_by_length_prefix = {key: tuple(terms) for key, terms in by_len_prefix.items()}
 
-        n_docs = len(self._doc_lengths)
-        self._term_collection_freqs = [0] * num_terms
-        total_tokens = self._sum_doc_lengths
-        if total_tokens > 0:
-            self._collection_lm_cache = {}
-        else:
-            self._collection_lm_cache = {}
+            n_docs = len(self._doc_lengths)
+            self._term_collection_freqs = [0] * num_terms
+            total_tokens = self._sum_doc_lengths
+            if total_tokens > 0:
+                self._collection_lm_cache = {}
+            else:
+                self._collection_lm_cache = {}
 
-        if has_forward_chunk:
-            self._doc_token_strs = doc_token_strs_chunk
-            self._doc_term_freqs = doc_term_freqs_chunk
-            for term, tid in self._term_to_id.items():
-                start = self._posting_tfs_ptr[tid]
-                end = self._posting_tfs_ptr[tid + 1]
-                tfs = self._posting_tfs_data[start:end]
-                cf = int(tfs.sum()) if len(tfs) else 0
-                self._term_collection_freqs[tid] = cf
-                if total_tokens > 0:
-                    self._collection_lm_cache[term] = cf / total_tokens
-        else:
-            # Rebuild forward index and collection LM from loaded postings
-            self._doc_token_strs = [set() for _ in range(n_docs)]
-            self._doc_term_freqs = [dict() for _ in range(n_docs)]
-            for term, tid in self._term_to_id.items():
-                start = self._posting_docs_ptr[tid]
-                end = self._posting_docs_ptr[tid + 1]
-                docs = self._posting_docs_data[start:end]
-                tfs = self._posting_tfs_data[start:end]
-                cf = int(tfs.sum()) if len(tfs) else 0
-                self._term_collection_freqs[tid] = cf
-                if total_tokens > 0:
-                    self._collection_lm_cache[term] = cf / total_tokens
-                docs_list = docs.tolist()
-                tfs_list = tfs.tolist()
-                for d_int, tf_int in zip(docs_list, tfs_list):
-                    if d_int < n_docs:
-                        self._doc_token_strs[d_int].add(term)
-                        self._doc_term_freqs[d_int][term] = tf_int
-        self._finalized = True
+            self._doc_id_to_idx = {i: i for i in range(n_docs)}
+            self._idx_to_doc_id = list(range(n_docs))
+
+            if has_forward_chunk:
+                self._doc_token_strs = doc_token_strs_chunk
+                self._doc_term_freqs = doc_term_freqs_chunk
+                for term, tid in self._term_to_id.items():
+                    start = self._posting_tfs_ptr[tid]
+                    end = self._posting_tfs_ptr[tid + 1]
+                    tfs = self._posting_tfs_data[start:end]
+                    cf = int(tfs.sum()) if len(tfs) else 0
+                    self._term_collection_freqs[tid] = cf
+                    if total_tokens > 0:
+                        self._collection_lm_cache[term] = cf / total_tokens
+            else:
+                # Rebuild forward index and collection LM from loaded postings
+                self._doc_token_strs = [set() for _ in range(n_docs)]
+                self._doc_term_freqs = [dict() for _ in range(n_docs)]
+                for term, tid in self._term_to_id.items():
+                    start = self._posting_docs_ptr[tid]
+                    end = self._posting_docs_ptr[tid + 1]
+                    docs = self._posting_docs_data[start:end]
+                    tfs = self._posting_tfs_data[start:end]
+                    cf = int(tfs.sum()) if len(tfs) else 0
+                    self._term_collection_freqs[tid] = cf
+                    if total_tokens > 0:
+                        self._collection_lm_cache[term] = cf / total_tokens
+                    docs_list = docs.tolist()
+                    tfs_list = tfs.tolist()
+                    for d_int, tf_int in zip(docs_list, tfs_list):
+                        if d_int < n_docs:
+                            self._doc_token_strs[d_int].add(term)
+                            self._doc_term_freqs[d_int][term] = tf_int
+
+            self._symmetric_delete_index = {}
+            if version >= 3:
+                try:
+                    for edit_dist in (1, 2):
+                        sd_len_data = f.read(4)
+                        if len(sd_len_data) < 4:
+                            raise ValueError("Truncated SD index")
+                        sd_len = struct.unpack("<I", sd_len_data)[0]
+                        sd: dict[str, tuple[str, ...]] = {}
+                        for _ in range(sd_len):
+                            v_len_data = f.read(2)
+                            if len(v_len_data) < 2:
+                                raise ValueError("Truncated SD index")
+                            v_len = struct.unpack("<H", v_len_data)[0]
+                            variant = f.read(v_len).decode("utf-8")
+                            terms_len_data = f.read(4)
+                            if len(terms_len_data) < 4:
+                                raise ValueError("Truncated SD index")
+                            terms_len = struct.unpack("<I", terms_len_data)[0]
+                            term_list = []
+                            for _ in range(terms_len):
+                                t_len_data = f.read(2)
+                                if len(t_len_data) < 2:
+                                    raise ValueError("Truncated SD index")
+                                t_len = struct.unpack("<H", t_len_data)[0]
+                                term_list.append(f.read(t_len).decode("utf-8"))
+                            sd[variant] = tuple(term_list)
+                        self._symmetric_delete_index[edit_dist] = sd
+                except (struct.error, ValueError, UnicodeDecodeError):
+                    self._symmetric_delete_index = {}
+
+            self._finalized = True
 
 
 class BM25Scorer:
@@ -632,6 +719,7 @@ class BM25Scorer:
         if postings is None:
             return _EMPTY_DOCS, _EMPTY_TFS
         docs, tfs = postings
+        global_df = len(docs)
         if candidate_docs is not None:
             if len(candidate_docs) <= 256:
                 idx = np.searchsorted(candidate_docs, docs)
@@ -646,7 +734,7 @@ class BM25Scorer:
         df = len(docs)
         if df == 0:
             return np.array([], dtype=np.int32), np.array([], dtype=np.float64)
-        idf = self._idf(df, self.index.N)
+        idf = self._idf(global_df, self.index.N)
         n = len(docs)
         tfs_buf, denom_buf = self._ensure_buffers(n)
         tfs_f = tfs_buf[:n]
@@ -1052,7 +1140,7 @@ class Searcher:
             return []
 
         unique_query = list(dict.fromkeys(query_tokens))
-        min_match = max(1, int(len(unique_query) * self.min_should_match))
+        min_match = max(1, math.ceil(len(unique_query) * self.min_should_match))
 
         token_expansions: list[list[str]] = []
         hits = 0
@@ -1303,10 +1391,13 @@ class SimHashLSH:
 
 def _doc_token_set(index: InvertedIndex, doc_id: int) -> set[str]:
     """Recover the token set for *doc_id* from the forward index."""
-    if doc_id < len(index._doc_token_strs):
-        return index._doc_token_strs[doc_id].copy()
-    if doc_id < len(index._doc_term_freqs):
-        return set(index._doc_term_freqs[doc_id])
+    idx = index._doc_id_to_idx.get(doc_id)
+    if idx is None:
+        return set()
+    if idx < len(index._doc_token_strs) and index._doc_token_strs[idx]:
+        return index._doc_token_strs[idx].copy()
+    if idx < len(index._doc_term_freqs):
+        return set(index._doc_term_freqs[idx])
     return set()
 
 
@@ -1396,8 +1487,9 @@ class RM3Expander:
         term_scores: dict[str, float] = {}
         total_tokens = 0
         for doc_id in doc_ids:
-            if doc_id < len(self.index._doc_term_freqs):
-                for term, tf in self.index._doc_term_freqs[doc_id].items():
+            idx = self.index._doc_id_to_idx.get(doc_id)
+            if idx is not None and idx < len(self.index._doc_term_freqs):
+                for term, tf in self.index._doc_term_freqs[idx].items():
                     term_scores[term] = term_scores.get(term, 0.0) + float(tf)
                     total_tokens += tf
 
@@ -1432,16 +1524,13 @@ class RM3Expander:
 # ---------------------------------------------------------------------------
 
 
-_LOG2_INV = [1.0 / math.log2(i) for i in range(2, 20)]
-
-
 def _dcg(scores: list[float] | np.ndarray) -> float:
     n = len(scores)
     if n == 0:
         return 0.0
     s = 0.0
     for i in range(n):
-        s += (2.0 ** scores[i] - 1.0) * _LOG2_INV[i]
+        s += (2.0 ** scores[i] - 1.0) / math.log2(i + 2)
     return s
 
 
@@ -1484,6 +1573,11 @@ class LambdaMART:
             best_dim = -1
             best_delta = 0.0
             best_step = 0.0
+            baseline_ndcg = 0.0
+            w_current = np.asarray(self.weights, dtype=np.float64)
+            for xi_np, yi in zip(X_np, y):
+                scores = xi_np @ w_current
+                baseline_ndcg += _ndcg(scores)
             for dim in range(n_features):
                 for step in (-self.learning_rate, self.learning_rate):
                     w_arr[dim] = self.weights[dim] + step
@@ -1491,8 +1585,9 @@ class LambdaMART:
                     for xi_np, yi in zip(X_np, y):
                         scores = xi_np @ w_arr
                         ndcg_sum += _ndcg(scores)
-                    if ndcg_sum > best_delta:
-                        best_delta = ndcg_sum
+                    improvement = ndcg_sum - baseline_ndcg
+                    if improvement > best_delta:
+                        best_delta = improvement
                         best_dim = dim
                         best_step = step
                     w_arr[dim] = self.weights[dim]
@@ -1567,11 +1662,11 @@ class QueryPerformancePredictor:
         """Fraction of documents containing at least one query token."""
         if self.index.N == 0:
             return 0.0
-        all_docs = [
-            self.index.get_postings(t)[0]
-            for t in set(query_tokens)
-            if self.index.has_term(t)
-        ]
+        all_docs = []
+        for t in set(query_tokens):
+            postings = self.index.get_postings(t)
+            if postings is not None:
+                all_docs.append(postings[0])
         if not all_docs:
             return 0.0
         concat = np.concatenate(all_docs)
