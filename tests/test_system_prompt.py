@@ -78,7 +78,7 @@ class TestSystemPromptMemoryCompaction:
         self._write_steps(tmp_path, 3)
         runtime = _make_runtime(tmp_path)
         prompt_func = get_system_prompt(work_dir=tmp_path, agent_role=SystemPromptType.Worker)
-        prompt = prompt_func(runtime)
+        prompt = prompt_func(runtime, is_compacting=True)
         _append_prompt("test_memory_no_compaction_under_limit", prompt)
 
         assert "Memory:" in prompt
@@ -91,7 +91,7 @@ class TestSystemPromptMemoryCompaction:
         self._write_steps(tmp_path, 200)
         runtime = _make_runtime(tmp_path)
         prompt_func = get_system_prompt(work_dir=tmp_path, agent_role=SystemPromptType.Worker)
-        prompt = prompt_func(runtime)
+        prompt = prompt_func(runtime, is_compacting=True)
         _append_prompt("test_memory_at_limit_no_compaction", prompt)
 
         assert "Memory:" in prompt
@@ -103,7 +103,7 @@ class TestSystemPromptMemoryCompaction:
         self._write_steps(tmp_path, 201)
         runtime = _make_runtime(tmp_path)
         prompt_func = get_system_prompt(work_dir=tmp_path, agent_role=SystemPromptType.Worker)
-        prompt = prompt_func(runtime)
+        prompt = prompt_func(runtime, is_compacting=True)
         _append_prompt("test_memory_one_over_limit_compacts", prompt)
 
         assert "Memory:" in prompt
@@ -120,7 +120,7 @@ class TestSystemPromptMemoryCompaction:
         self._write_steps(tmp_path, 202)
         runtime = _make_runtime(tmp_path)
         prompt_func = get_system_prompt(work_dir=tmp_path, agent_role=SystemPromptType.Worker)
-        prompt = prompt_func(runtime)
+        prompt = prompt_func(runtime, is_compacting=True)
         _append_prompt("test_memory_compacts_over_limit", prompt)
 
         assert "Memory:" in prompt

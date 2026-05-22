@@ -78,7 +78,7 @@ async def _create_session_async(
             agent_file = base._default_agent_file_dir / agent_file
     skills_dirs = _ensure_skill_dirs(
         skills_dir) if skills_dir is not None else base.get_skill_dirs()
-    system_prompts: Callable[[Runtime], str] | None = None
+    system_prompts: Callable[[Runtime, bool], str] | None = None
     if system_prompts is None:
         system_prompts = get_system_prompt(yolo, work_dir, extra_system_prompt, agent_type)
     if resume:
@@ -163,6 +163,42 @@ def create_session(
         max_ralph_iterations=max_ralph_iterations,
         anonymous=anonymous,
     ))
+
+
+def create_supervisor_session(
+    session_id: Optional[str] = None,
+    work_dir: Optional[KaosPath] = None,
+    skills_dir: Optional[KaosPath] = None,
+    thinking: Optional[bool] = None,
+    yolo: Optional[bool] = None,
+    resume: bool = False,
+    provider_dict: dict[str, Any] | None = None,
+    chat_provider: ChatProvider | None = None,
+    vfs_path: Path | None = None,
+    extra_system_prompt: SystemPromptCallback | None = None,
+    max_steps_per_turn: int | None = None,
+    max_retries_per_step: int | None = None,
+    max_ralph_iterations: int | None = None,
+    anonymous: bool = False,
+) -> Session:
+    return create_session(
+        session_id=session_id,
+        work_dir=work_dir,
+        skills_dir=skills_dir,
+        thinking=thinking,
+        yolo=yolo,
+        agent_file=base._default_agent_file_dir / 'agent_boss.json',
+        resume=resume,
+        provider_dict=provider_dict,
+        chat_provider=chat_provider,
+        agent_type=SystemPromptType.Supervisor,
+        vfs_path=vfs_path,
+        extra_system_prompt=extra_system_prompt,
+        max_steps_per_turn=max_steps_per_turn,
+        max_retries_per_step=max_retries_per_step,
+        max_ralph_iterations=max_ralph_iterations,
+        anonymous=anonymous,
+    )
 
 
 def set_ralph_loop(value: int, session: Session | None = None) -> None:

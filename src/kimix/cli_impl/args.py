@@ -37,7 +37,7 @@ def set_arg() -> tuple[bool, argparse.Namespace]:
                         help='Specify custom skill directory(s)')
     parser.add_argument('--config', type=str, default=None,
                         help='Path to a JSON config file to load as default provider')
-    parser.add_argument('--ralph', nargs='?', const=-1, type=int, default=None,
+    parser.add_argument('--ralph', nargs='?', const=1, type=int, default=None,
                         help='Enable Ralph mode (unlimited iterations) or set to specific number')
     parser.add_argument('--supervisor', action='store_true',
                         help='Enable supervisor mode')

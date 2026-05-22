@@ -264,8 +264,8 @@ def _cmd_ralph(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
     val = task_split[1].strip().lower()
     session = get_default_session()
     if val == 'on':
-        set_ralph_loop(-1)
-        print_success(f'Ralph mode set to -1.')
+        set_ralph_loop(1)
+        print_success(f'Ralph mode set to 1.')
     elif val == 'off':
         base._default_ralph = None
         set_ralph_loop(0)

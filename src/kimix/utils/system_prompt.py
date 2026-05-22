@@ -61,14 +61,14 @@ def get_system_prompt(
     agent_md = (Path(str(work_dir)) if work_dir is not None else Path(
         os.curdir)) / 'AGENTS.md'
     yolo = yolo if yolo is not None else base._default_yolo
-    def system_prompt_func(runtime: Runtime) -> str:
+    def system_prompt_func(runtime: Runtime, is_compacting: bool = False) -> str:
         args = runtime.builtin_args
         items: list[str] = []
         agent_md_doc = ''
         skill_doc = ''
         use_agent_md = False
         use_skills = False
-        items.append('call tools in parallel.')
+        items.append('Call tools in parallel.')
         items.append(f'OS: {args.KIMI_OS}')
         def worker_logic(role: str, is_sub_agent: bool = False):
             nonlocal role_doc, use_agent_md, use_skills
@@ -152,12 +152,11 @@ def get_system_prompt(
             if len(lines) == 1:
                 return f"- {name}: {lines[0]}"
             return f"- {name}:\n" + "\n".join(f"  {line}" for line in lines)
-
         extra = ''
         context_dir = runtime.session.dir
         step_mem_path = context_dir / 'steps' / f'{runtime.session.id}.json'
-        # Memory
-        if step_mem_path.is_file():
+        # Memory: only include when context has been compacted
+        if is_compacting and step_mem_path.is_file():
             try:
                 steps = orjson.loads(step_mem_path.read_text(encoding='utf-8'))
                 if isinstance(steps, list) and steps:
@@ -209,14 +208,7 @@ def get_system_prompt(
         tool_call_reason = runtime.session.custom_data.get("tool_call_reason")
         if isinstance(tool_call_reason, ToolCallReason) and tool_call_reason.changed_files:
             cwd = Path.cwd()
-            if len(tool_call_reason) > 100:
-                latest = tool_call_reason.latest_path
-                if latest:
-                    tcr_md = tool_call_reason.to_markdown(paths=[latest], cwd=cwd)
-                else:
-                    tcr_md = ""
-            else:
-                tcr_md = tool_call_reason.to_markdown(cwd=cwd)
+            tcr_md = tool_call_reason.to_markdown(cwd=cwd)
             if tcr_md:
                 if extra:
                     extra = extra.rstrip("\n") + "\n\n" + tcr_md + "\n"
