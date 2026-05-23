@@ -12,12 +12,19 @@ from typing import Any, Callable
 
 from kimi_cli.wire.types import (
     ApprovalRequest,
+    BackgroundTaskDisplayBlock,
+    BriefDisplayBlock,
     CompactionBegin,
+    DisplayBlock,
+    UnknownDisplayBlock,
     CompactionEnd,
+    DiffDisplayBlock,
+    ShellDisplayBlock,
     StepBegin,
     StepInterrupted,
     TextPart,
     ThinkPart,
+    TodoDisplayBlock,
     ToolCall,
     ToolCallPart,
     ToolResult,
@@ -174,6 +181,13 @@ def _process_lru() -> None:
 
 PRINT_STREAM_last_ended_with_newline = False
 PRINT_STREAM_flag: str | None = None
+_PRINT_STREAM_STATE = threading.local()
+
+def _get_consecutive_tool_calls() -> int:
+    return getattr(_PRINT_STREAM_STATE, "consecutive_tool_calls", 0)
+
+def _set_consecutive_tool_calls(value: int) -> None:
+    _PRINT_STREAM_STATE.consecutive_tool_calls = value
 
 
 def print_tool(s: str, file: Any = None, flush: bool = False) -> None:
@@ -197,12 +211,48 @@ toolset.print_tool_func = print_tool
 _TOOL_TYPES = (ToolCall, ToolCallPart, ToolResult)
 
 
+def _format_display_blocks(display: list[Any]) -> str | None:
+    """Format display blocks into a colored terminal string."""
+    if not display:
+        return None
+    parts: list[str] = []
+    for block in display:
+        if isinstance(block, BriefDisplayBlock):
+            if block.text:
+                parts.append(f"\033[0;90m{block.text}\033[0m")
+        elif isinstance(block, DiffDisplayBlock):
+            parts.append(f"\033[0;93mDiff: {block.path}\033[0m")
+            for line in block.old_text.splitlines():
+                parts.append(f"\033[0;91m- {line}\033[0m")
+            for line in block.new_text.splitlines():
+                parts.append(f"\033[0;92m+ {line}\033[0m")
+        elif isinstance(block, TodoDisplayBlock):
+            for item in block.items:
+                status = item.status.replace("_", " ").lower()
+                if status == "done":
+                    parts.append(f"\033[0;90m- ~~{item.title}~~\033[0m")
+                elif status == "in progress":
+                    parts.append(f"\033[0;93m- {item.title} \u2190\033[0m")
+                else:
+                    parts.append(f"\033[0;90m- {item.title}\033[0m")
+        elif isinstance(block, ShellDisplayBlock):
+            parts.append(f"\033[0;94m$ {block.command}\033[0m")
+        elif isinstance(block, BackgroundTaskDisplayBlock):
+            parts.append(
+                f"\033[0;90m[{block.status}] {block.task_id}: {block.description}\033[0m"
+            )
+        elif isinstance(block, UnknownDisplayBlock):
+            parts.append(f"\033[0;90m{block.data}\033[0m")
+        elif isinstance(block, DisplayBlock):
+            data = block.model_dump()
+            if data:
+                parts.append(f"\033[0;90m{data}\033[0m")
+    return ("\n".join(parts)).strip() if parts else None
+
+
 def _format_tool_result(result: ToolResult) -> str:
     """Format a ToolResult for the output function."""
     rv = result.return_value
-    brief = rv.brief if rv.brief else ""
-    if brief:
-        return f"{rv.message} ({brief})" if rv.message else brief
     return rv.message or ""
 
 
@@ -225,6 +275,50 @@ def print_agent_json(
             PRINT_STREAM_flag = new_flag
             return True
         return False
+
+    if isinstance(wire_msg, _TOOL_TYPES):
+        _switch("tool")
+        if isinstance(wire_msg, ToolCall):
+            if _get_consecutive_tool_calls() >= 1:
+                _print_func("")
+            _set_consecutive_tool_calls(_get_consecutive_tool_calls() + 1)
+            name = wire_msg.function.name
+            header = f"⚡ {name}"
+            colorful_print(header, fg=Color.BRIGHT_MAGENTA, end="")
+            _set_last_ended_with_newline(False)
+            if output_function:
+                output_function(f"[ToolCall] {name}", MessageType.ToolCalling)
+        elif isinstance(wire_msg, ToolCallPart):
+            part = wire_msg.arguments_part or ""
+            if part:
+                _set_last_ended_with_newline(part.endswith("\n"))
+            if output_function and part:
+                output_function(part, MessageType.ToolCalling)
+        elif isinstance(wire_msg, ToolResult):
+            _set_consecutive_tool_calls(0)
+            rv = wire_msg.return_value
+            if not PRINT_STREAM_last_ended_with_newline:
+                _print_func("\n", end="")
+            display_text = _format_display_blocks(rv.display)
+            if display_text:
+                _print_func(display_text, end="")
+                _print_func("\n", end="")
+                _set_last_ended_with_newline(True)
+            result_text = _format_tool_result(wire_msg)
+            if result_text:
+                prefix = "✗ " if rv.is_error else "✓ "
+                colorful_print(
+                    f"{prefix}{result_text}",
+                    fg=Color.BRIGHT_RED if rv.is_error else Color.BRIGHT_GREEN,
+                )
+            _set_last_ended_with_newline(True)
+            if output_function:
+                formatted = f"[ToolResult] {_format_tool_result(wire_msg)}"
+                if formatted:
+                    output_function(formatted, MessageType.ToolCalling)
+        return
+    else:
+        _set_consecutive_tool_calls(0)
 
     if isinstance(wire_msg, ApprovalRequest):
         wire_msg.resolve("approve")
@@ -258,21 +352,6 @@ def print_agent_json(
                 output_function(chunk, MessageType.Text)
             _print_func(chunk, end="")
             _set_last_ended_with_newline(chunk.endswith("\n"))
-        return
-
-    if isinstance(wire_msg, _TOOL_TYPES):
-        _switch("tool")
-        if output_function:
-            if isinstance(wire_msg, ToolCall):
-                formatted = f"[ToolCall] {wire_msg.function.name}"
-            elif isinstance(wire_msg, ToolCallPart):
-                formatted = wire_msg.arguments_part or ""
-            elif isinstance(wire_msg, ToolResult):
-                formatted = f"[ToolResult] {_format_tool_result(wire_msg)}"
-            else:
-                formatted = str(wire_msg)
-            if formatted:
-                output_function(formatted, MessageType.ToolCalling)
         return
 
 

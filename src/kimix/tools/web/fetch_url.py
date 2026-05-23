@@ -34,7 +34,7 @@ class FetchURL(CallableTool2[Params]):
             return ToolError(
                 message=str(exc),
                 output="",
-                brief="Failed to fetch URL"
+                brief=f"Failed to fetch {params.url}"
             )
 
         if params.output_path:
@@ -43,14 +43,15 @@ class FetchURL(CallableTool2[Params]):
                 output_file.parent.mkdir(parents=True, exist_ok=True)
                 await asyncio.to_thread(output_file.write_text, markdown, encoding="utf-8")
                 return ToolOk(
-                    output=f"Content saved to {params.output_path} ({len(markdown)} characters)."
+                    output=f"Content saved to {params.output_path} ({len(markdown)} characters).",
+                    brief=f"Fetched {params.url} and saved to {params.output_path}"
                 )
             except Exception as exc:
                 return ToolError(
                     message=str(exc),
                     output=markdown,
-                    brief="Failed to write output file"
+                    brief=f"Failed to write {params.output_path}"
                 )
 
         output = _maybe_export_output(markdown)
-        return ToolOk(output=output)
+        return ToolOk(output=output, brief=f"Fetched {params.url}")

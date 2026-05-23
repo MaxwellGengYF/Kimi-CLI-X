@@ -168,7 +168,7 @@ Kimix 通过 JSON 配置文件初始化 LLM Provider。若启动时未通过 `--
     "name": "moonshot",
     "model": "kimi-for-coding",
     "max_context_size": 262144,
-    "capabilities": ["always_thinking"],
+    "capabilities": ["thinking"],
     "url": "https://api.kimi.com/coding/v1",
     "type": "kimi",
     "loop_control": {
@@ -178,7 +178,7 @@ Kimix 通过 JSON 配置文件初始化 LLM Provider。若启动时未通过 `--
         "reserved_context_size": 50000,
         "compaction_trigger_ratio": 0.85
     },
-    "max_tokens": 128000,
+    "max_tokens": 131072,
     "show_thinking_stream": true,
     "thinking_effort": "low",
     "temperature": 1.0,
@@ -208,7 +208,7 @@ Kimix 通过 JSON 配置文件初始化 LLM Provider。若启动时未通过 `--
 | `max_context_size` | 是 | 最大上下文长度（token 数），可选 `128k`、`200k`、`256k`、`512k`、`1M` |
 | `model_name` | 否 | 模型别名，默认为 `unknown_model` |
 | `name` | 否 | Provider 名称，默认为 `unknown` |
-| `capabilities` | 否 | 模型能力列表，可选值：`thinking`、`always_thinking`、`image_in`、`video_in`。如 `["always_thinking"]` |
+| `capabilities` | 否 | 模型能力列表，可选值：`thinking`、`always_thinking`、`image_in`、`video_in`。如 `["thinking"]` |
 | `api_key` | 否 | API 密钥。若省略，将依次读取环境变量 `KIMI_API_KEY`、`KIMIX_API_KEY` |
 | `custom_headers` | 否 | 自定义 HTTP 请求头 |
 | `oauth` | 否 | OAuth 配置，例如 `{"storage": "file", "key": "my-key"}` |
@@ -268,8 +268,8 @@ Kimix 通过 JSON 配置文件初始化 LLM Provider。若启动时未通过 `--
 | `--no_think` | 关闭思考模式（thinking mode） |
 | `--no_yolo` | 关闭 YOLO 模式 |
 | `--no_color` | 关闭彩色输出 |
-| `--manually-cot` | 开启手动 CoT 模式 |
-| `--ralph` | 开启 Ralph 模式，可指定迭代次数（不传参数则为无限循环） |
+| `--manually-cot` | 开启手动 CoT 模式（可能使用多个会话并消耗额外 token） |
+| `--ralph` | 开启 Ralph 模式，可指定迭代次数（不传参数则设为 1） |
 | `--supervisor` | 开启 Supervisor 模式（使用 Supervisor 角色代替默认的 Worker） |
 | `-s`, `--skill-dir` | 指定自定义的 skill 目录（可多次使用以指定多个目录） |
 | `--config` | 指定 JSON 格式的配置文件路径。若直接路径不存在，会依次在当前工作目录的各级父目录中递归查找、在 kimix 安装目录的各级父目录中递归查找，最后在系统 `PATH` 中查找同名文件（格式可参考 `docs/*.json` 示例） |
@@ -286,7 +286,7 @@ uv run kimix --clean --manually-cot
 
 | 命令 | 说明 |
 |------|------|
-| `<path>` | 直接输入文件路径即可加载。非 `.py` 文件会分段解析为多行提示词；`.py` 文件则会直接执行脚本 |
+| `<path>` | 直接输入文件路径即可加载。非 `.py` 文件会分段解析为多行提示词；`.py` 文件则会直接执行脚本（执行时 `__file__` 变量指向该文件） |
 | `/file:<path>` | 读取指定文件的全部内容作为单条提示词发送 |
 | `/clear` | 清空当前对话上下文 |
 | `/summarize` | 将对话上下文总结并写入记忆 |
@@ -294,17 +294,17 @@ uv run kimix --clean --manually-cot
 | `/help` | 显示帮助信息 |
 | `/context` | 打印当前上下文的使用情况 |
 | `/fix:<command>` | 运行一条命令，如果出错则自动尝试修复 |
-| `/txt` | 进入多行文本输入模式（以 `/end` 结束，`/cancel` 取消） |
-| `/init` | 交互式初始化默认 LLM 配置文件 |
+| `/txt` | 进入多行文本输入模式（以 `/end` 结束，`/cancel` 取消），内容加入输入队列，可随后批量发送 |
+| `/init` | 交互式初始化默认 LLM 配置文件（执行后会重置当前会话） |
 | `/compact` | 压缩对话上下文 |
 | `/export:<path>` | 导出当前会话消息到指定文件 |
 | `/swarm` | 多 Agent 协作执行 Swarm 任务（以 `/end` 结束，`/cancel` 取消） |
 | `/ralph:on` / `/ralph:off` / `/ralph:<num>` | 设置 Ralph 模式循环次数 |
 | `/supervisor:on` / `/supervisor:off` | 开启 / 关闭 Supervisor 模式（切换后会重建会话） |
 | `/cot:on` / `/cot:off` | 开启 / 关闭手动 CoT 模式 |
-| `/plan` | 使用 Agent 队列，执行长任务（支持 `/plan:<file>` 从文件加载任务描述） |
+| `/plan` | 使用 TodoMaker Agent 生成任务计划并一步步执行，支持断点续传（支持 `/plan:<file>` 从文件加载任务描述） |
 | `/script` | 编写并执行 Python 脚本（以 `/end` 结束输入） |
 | `/cmd:<command>` | 执行系统命令 |
-| `/cd:<path>` | 切换当前工作目录 |
+| `/cd:<path>` | 切换当前工作目录（切换后会重置 skill 目录并清空对话上下文） |
 
 除上述命令外，你也可以直接输入任意自然语言提示词（prompt）发送给 Agent 进行处理。

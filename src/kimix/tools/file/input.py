@@ -1,7 +1,7 @@
 """Input tool for sending input to a running process."""
 import asyncio
 
-from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue
+from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue, UnknownDisplayBlock
 from pydantic import BaseModel, Field
 from kimi_cli.session import Session
 from kimix.tools.background.utils import get_all_tasks
@@ -39,4 +39,8 @@ class Input(CallableTool2):
                 message="Failed to send input to process",
                 brief="Input failed"
             )
-        return ToolOk(output=f"Input sent to task {params.task_id}")
+        return ToolOk(
+            output=f"Input sent to task {params.task_id}",
+            brief="Input sent",
+            display_block=UnknownDisplayBlock(data={"text": params.text}),
+        )

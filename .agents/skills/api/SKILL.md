@@ -63,6 +63,20 @@ session = await _create_session_async(
 )
 ```
 
+### create_supervisor_session
+
+Convenience wrapper to create a Supervisor session with `agent_boss.json`.
+
+```python
+from kimix.utils import create_supervisor_session
+
+session = create_supervisor_session(
+    session_id="supervisor_session",
+    resume=True,
+    # ... accepts same parameters as create_session
+)
+```
+
 ### Default Session
 
 ```python
@@ -91,7 +105,6 @@ prompt("What is the capital of France?")
 prompt(
     "Analyze this code",
     session=session,                   # Optional: use specific session (None=default)
-    skill_name="python",               # Optional: enable skill (str)
     output_function=custom_print,      # Optional: custom output handler for text chunks
     info_print=True,                   # Optional: print context usage after completion
     cancel_callable=None,              # Optional: callable that returns True to cancel
@@ -506,12 +519,14 @@ results: list[SearchResult] = index.search("query")
 ```python
 from kimix.utils.prompt_str import escape_file_paths, clean_text
 
-# Sanitize prompt text: detect file paths, wrap in backticks,
-# remove invisible chars, normalize Unicode, dedupe repeats.
+# Sanitize prompt text: detect file paths and wrap in backticks,
+# strip invalid unicode surrogates/noncharacters/PUA, remove invisible chars,
+# normalize Unicode (NFKC), convert full-width to half-width, remove emojis,
+# collapse repeated punctuation, dedupe long character runs, and normalize whitespace.
 safe_text = escape_file_paths(
     raw_text,
     max_chars=0,           # Optional: truncate after N chars (0 = no limit)
-    max_repeat=100,        # Optional: collapse repeated char runs
+    max_repeat=100,        # Optional: collapse repeated char runs longer than N
     truncate_msg="",       # Optional: suffix when truncating
     case_mode="",          # Optional: "lower" or "title"
 )
@@ -573,6 +588,7 @@ finally:
 # Core utilities (kimix.utils.__all__)
 from kimix.utils import (
     create_session, close_session, close_session_async,
+    create_supervisor_session,
     prompt, prompt_async, clear_default_context, compact_default_context, print_usage,
     get_default_session, _create_default_session, _create_session_async,
     get_tool_call_errors,
@@ -582,8 +598,12 @@ from kimix.utils import (
     execute_plan, check_plan_cache,
     TextSearchIndex, SearchResult, _ensure_text_search,
     set_ralph_loop,
+    # Internal/advanced
+    _create_config, _ensure_skill_dirs,
+    _default_session, _should_print_usage,
+    _SYSTEM_PROMP, get_system_prompt,
 )
-from kimix.utils.system_prompt import SystemPromptType, SystemPromptCallback, get_system_prompt
+from kimix.utils.system_prompt import SystemPromptType, SystemPromptCallback
 from kimix.utils.prompt import PlanLoader  # Plan execution helper
 from kimix.utils.fix_error import fix_error_async  # Not in top-level __all__
 from kimix.utils.prompt_str import escape_file_paths, clean_text  # Not in top-level __all__

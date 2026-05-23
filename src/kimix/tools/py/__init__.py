@@ -62,7 +62,8 @@ class Python(CallableTool2[Params]):
 
             if params.run_in_background:
                 return ToolOk(
-                    output=f"Running in background. task_id: `{task_id}`. Use `TaskOutput` tool to retrieve output."
+                    output=f"Running in background. task_id: `{task_id}`. Use `TaskOutput` tool to retrieve output.",
+                    brief="Background task started"
                 )
 
             # Wait for completion with timeout (allow a small buffer for cleanup)
@@ -113,4 +114,4 @@ class Python(CallableTool2[Params]):
                 )
 
             colored_code = colorful_text(params.code, fg=Color.BLACK)
-            return ToolOk(output=f"{colored_code}\n\n{output}")
+            return ToolOk(output=f"{colored_code}\n\n{output}", brief=params.code)

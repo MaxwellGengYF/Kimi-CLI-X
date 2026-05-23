@@ -8,6 +8,7 @@ from kimi_cli.session import Session
 
 from .utils import generate_task_id, remove_task_id, add_task, get_all_tasks, BackgroundStream, discard_all_tasks
 from kimix.tools.common import _maybe_export_output_async, _export_to_temp_file_async
+from kimi_cli.tools.display import BackgroundTaskDisplayBlock
 
 
 class TaskOutputParams(BaseModel):
@@ -75,10 +76,10 @@ class TaskOutput(CallableTool2):
 
             if params.task_id is None:
                 if not tasks:
-                    return ToolOk(output="No tasks.")
+                    return ToolOk(output="No tasks.", brief="No background tasks")
                 started = await _list_started()
                 task_list = ", ".join(started) if started else "(no tasks)"
-                return ToolOk(output=task_list)
+                return ToolOk(output=task_list, brief="Background tasks listed")
 
             stream: BackgroundStream | None = tasks.get(params.task_id.strip())
             if stream is None:
@@ -110,7 +111,18 @@ class TaskOutput(CallableTool2):
                 output = f"Output exported to file `{temp_path}`"
             else:
                 output = await _maybe_export_output_async(output)
-            return ToolOk(output=output if output else "(no output)")
+            kind = params.task_id.split("_")[0] if params.task_id else "task"
+            status = "running" if task_alive else "completed"
+            return ToolOk(
+                output=output if output else "(no output)",
+                brief="Task output retrieved",
+                display_block=BackgroundTaskDisplayBlock(
+                    task_id=params.task_id,
+                    kind=kind,
+                    status=status,
+                    description=output[:200] if output else "(no output)",
+                ),
+            )
         except Exception as e:
             return ToolError(
                 message=str(e),

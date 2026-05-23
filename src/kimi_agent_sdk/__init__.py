@@ -117,7 +117,7 @@ from kosong.message import (
     ToolCall,
     VideoURLPart,
 )
-from kosong.tooling import CallableTool2, ToolError, ToolOk, ToolReturnValue
+from kosong.tooling import CallableTool2, ToolError, ToolOk, ToolReturnValue, UnknownDisplayBlock
 
 from kimi_agent_sdk._approval import ApprovalHandlerFn
 from kimi_agent_sdk._exception import PromptValidationError, SessionStateError
