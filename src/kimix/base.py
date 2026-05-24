@@ -96,6 +96,7 @@ class Style(Enum):
 _colorful_print = True
 _print_func: Callable = print
 
+
 def print(*values: object, sep: str | None = " ", end: str | None = "\n", file: Any = None, flush: bool = False):
     _print_func(*values, sep=sep, end=end, file=file, flush=flush)
 
@@ -132,6 +133,45 @@ def colorful_print(
     text = colorful_text(text, fg, bg, styles)
     _print_func(text, end=end, file=file, flush=flush)
 
+class StreamPrintState(Enum):
+    Text = 0
+    Thinking = 1
+    Other = 2
+    
+class PrintStream:
+    """A stream wrapper that tracks whether the last printed character was a newline.
+
+    Provides print_word(word) that automatically inserts a leading
+    newline when the previous output didn't end with one.
+    """
+
+    def __init__(self, print_func: Callable = _print_func) -> None:
+        self._print_func = print_func
+        self._last_char_was_newline = True
+        self._state = StreamPrintState.Other
+
+    def print_word(self, word: str, require_new_line: bool) -> None:
+        """Print a word, auto-inserting a leading newline when the previous
+        output didn't end with one."""
+        if not word:
+            if require_new_line and not self._last_char_was_newline:
+                self._print_func('', end='\n')
+                self._last_char_was_newline = True
+            return
+
+        if require_new_line and not self._last_char_was_newline:
+            word = '\n' + word
+
+        self._print_func(word, end='')
+        self._last_char_was_newline = word.endswith('\n')
+
+    def colorful_print_word(
+        self, word: str,
+        require_new_line: bool,
+        fg: Color | None = None,
+        bg: BgColor | None = None,
+        styles: list[Style] | None = None) -> None:
+        self.print_word(colorful_text(word, fg, bg, styles), require_new_line=require_new_line)
 
 _quiet = False
 
@@ -179,34 +219,8 @@ def _process_lru() -> None:
         _threads = [p for p in _threads if p.is_alive()]
 
 
-PRINT_STREAM_last_ended_with_newline = False
-PRINT_STREAM_flag: str | None = None
-_PRINT_STREAM_STATE = threading.local()
+_stream = PrintStream()
 
-def _get_consecutive_tool_calls() -> int:
-    return getattr(_PRINT_STREAM_STATE, "consecutive_tool_calls", 0)
-
-def _set_consecutive_tool_calls(value: int) -> None:
-    _PRINT_STREAM_STATE.consecutive_tool_calls = value
-
-
-def print_tool(s: str, file: Any = None, flush: bool = False) -> None:
-    global PRINT_STREAM_flag, PRINT_STREAM_last_ended_with_newline
-    if (
-        PRINT_STREAM_flag is not None
-        and PRINT_STREAM_flag != "tool"
-        and not PRINT_STREAM_last_ended_with_newline
-    ):
-        if not s.startswith("\n"):
-            s = "\n" + s
-        PRINT_STREAM_flag = "tool"
-        PRINT_STREAM_last_ended_with_newline = True
-    _print_func(s, file=file, flush=flush)
-
-
-import kimi_cli.soul.toolset as toolset
-
-toolset.print_tool_func = print_tool
 
 _TOOL_TYPES = (ToolCall, ToolCallPart, ToolResult)
 
@@ -255,104 +269,67 @@ def _format_tool_result(result: ToolResult) -> str:
     rv = result.return_value
     return rv.message or ""
 
-_SUB_AGENT_TASK = {'Agent', 'Search'}
 def print_agent_json(
     wire_msg: Any, output_function: Callable[[str, MessageType], Any] | None = None
 ) -> None:
-    def _set_last_ended_with_newline(ended: bool) -> None:
-        global PRINT_STREAM_last_ended_with_newline
-        PRINT_STREAM_last_ended_with_newline = ended
-
-    def _switch(new_flag: str | None) -> bool:
-        global PRINT_STREAM_flag
-        if PRINT_STREAM_flag != new_flag:
-            if (
-                PRINT_STREAM_flag is not None
-                and not PRINT_STREAM_last_ended_with_newline
-            ):
-                _print_func('')
-            PRINT_STREAM_flag = new_flag
-            return True
-        return False
-
     if isinstance(wire_msg, _TOOL_TYPES):
-        _switch("tool")
         if isinstance(wire_msg, ToolCall):
             name = wire_msg.function.name
-            is_sub_agent = name in _SUB_AGENT_TASK
-            if _get_consecutive_tool_calls() >= 1:
-                _print_func("")
-            _set_consecutive_tool_calls(_get_consecutive_tool_calls() + 1 if not is_sub_agent else 0)
             header = f"⚡ {name}"
-            if is_sub_agent:
-                header += '\n'
-            colorful_print(header, fg=Color.BRIGHT_MAGENTA, end="")
-            _set_last_ended_with_newline(False)
+            _stream.colorful_print_word(header, fg=Color.BRIGHT_MAGENTA, require_new_line=True)
             if output_function:
-                output_function(f"[ToolCall] {name}", MessageType.ToolCalling)
+                output_function(f"{name} {wire_msg.function.arguments or ''}", MessageType.ToolCalling)
         elif isinstance(wire_msg, ToolCallPart):
             part = wire_msg.arguments_part or ""
-            if part:
-                _set_last_ended_with_newline(part.endswith("\n"))
             if output_function and part:
                 output_function(part, MessageType.ToolCalling)
         elif isinstance(wire_msg, ToolResult):
-            _set_consecutive_tool_calls(0)
             rv = wire_msg.return_value
-            display_text: str = ('\n' if not PRINT_STREAM_last_ended_with_newline else '') + _format_display_blocks(rv.display)
+            display_text = _format_display_blocks(rv.display)
             if display_text:
-                _print_func(display_text, end="")
-                _set_last_ended_with_newline(display_text.endswith('\n'))
+                _stream.print_word(display_text, require_new_line=True)
             result_text = _format_tool_result(wire_msg)
             if result_text:
-                prefix = ('\n' if not PRINT_STREAM_last_ended_with_newline else '') + ("✗ " if rv.is_error else "✓ ")
-                colorful_print(
-                    f"{prefix}{result_text}",
-                    fg=Color.BRIGHT_RED if rv.is_error else Color.BRIGHT_GREEN,
-                    end=''
-                )
-                _set_last_ended_with_newline(result_text.endswith('\n'))
+                prefix = ("✗ " if rv.is_error else "✓ ")
+                _stream.colorful_print_word(f"{prefix}{result_text}", fg=Color.BRIGHT_RED if rv.is_error else Color.BRIGHT_GREEN, require_new_line=True)
             if output_function:
                 formatted = f"[ToolResult] {_format_tool_result(wire_msg)}"
                 if formatted:
                     output_function(formatted, MessageType.ToolCalling)
         return
-    else:
-        _set_consecutive_tool_calls(0)
-
+    
     if isinstance(wire_msg, ApprovalRequest):
         wire_msg.resolve("approve")
         return
 
     if isinstance(wire_msg, (StepBegin, StepInterrupted, CompactionEnd)):
-        _switch(None)
         return
 
     if isinstance(wire_msg, CompactionBegin):
-        _switch(None)
-        print_info("Compacting...")
+        _stream.colorful_print_word("Compacting...", require_new_line=True, fg=Color.BRIGHT_MAGENTA)
         return
 
     if isinstance(wire_msg, ThinkPart):
         think_content = wire_msg.think
-        if think_content.strip() and not _quiet:
-            if _switch("think"):
-                think_content = f"[Think] {think_content}"
+        if not _quiet:
             if output_function:
                 output_function(think_content, MessageType.Thinking)
-            colorful_print(think_content, fg=Color.BRIGHT_CYAN, end="")
-            _set_last_ended_with_newline(think_content.endswith("\n"))
+            if _stream._state != StreamPrintState.Thinking:
+                _stream.colorful_print_word(f"[Think] {think_content}", fg=Color.BRIGHT_CYAN, require_new_line=True)
+            else:
+                _stream.colorful_print_word(f"{think_content}", fg=Color.BRIGHT_CYAN, require_new_line=False)
+            _stream._state = StreamPrintState.Thinking
         return
 
     if isinstance(wire_msg, TextPart):
         chunk = wire_msg.text
-        if chunk.strip():
-            _switch("text")
-            if output_function:
-                output_function(chunk, MessageType.Text)
-            _print_func(chunk, end="")
-            _set_last_ended_with_newline(chunk.endswith("\n"))
+        if output_function:
+            output_function(chunk, MessageType.Text)
+        _stream.print_word(chunk, require_new_line=_stream._state != StreamPrintState.Text)
+        _stream._state = StreamPrintState.Text
         return
+    else:
+        _stream._state = StreamPrintState.Other
 
 
 def run_thread(

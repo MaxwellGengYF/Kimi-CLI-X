@@ -7,7 +7,7 @@ from pathlib import Path
 from kimi_agent_sdk import Session
 import kimix.base as base
 from kimix.utils.system_prompt import SystemPromptType
-from kimix.base import MessageType, print_debug, print_warning, print_error, print_agent_json, print_info
+from kimix.base import MessageType, print_agent_json, Color, Style
 from . import _globals
 from .session import close_session_async, _create_default_session, _print_usage, clear_default_context, create_session, close_session
 from kimix.tools.common import _export_to_temp_file
@@ -36,7 +36,7 @@ class PlanLoader:
         if self.file_path.exists():
             try:
                 os.unlink(self.file_path)
-            except:
+            except Exception:
                 pass
 
     def store(self) -> None:
@@ -77,8 +77,9 @@ def check_plan_cache(ask_if_use_cache: Callable[[str], bool] | None = None) -> t
             if current_hash == plan_loader.plan_file_hash and plan_loader.finished_step_count > 0 and plan_loader.finished_step_count < plan_loader.steps_count:
                 use_cache = ask_if_use_cache(str(cached_plan_path))
                 if use_cache:
-                    print_debug(
-                        f'Using cache, jumping to step {plan_loader.finished_step_count}.')
+                    if not base._quiet:
+                        base._stream.colorful_print_word(
+                            f'Using cache, jumping to step {plan_loader.finished_step_count}.', fg=Color.BRIGHT_CYAN, require_new_line=True)
     return use_cache, plan_loader
 
 
@@ -103,7 +104,7 @@ async def prompt_async(
         prompt_str = f'read and execute: `{name}`'
     try:
         if info_print:
-            print_debug(f'Start...', end='\n')
+            base._stream.colorful_print_word(f'Start...\n', fg=base.Color.BRIGHT_CYAN, require_new_line=True)
 
         max_retries = 5
         prompt_success = False
@@ -113,7 +114,7 @@ async def prompt_async(
             try:
                 import time
                 start_time = time.time()
-                base.PRINT_STREAM_flag = None
+                base._stream._last_char_was_newline = True
                 if merge_wire_messages is None and output_function is not None:
                     merge_wire_messages = True
                 async for message in session.prompt(prompt_str, merge_wire_messages=merge_wire_messages if merge_wire_messages is not None else False):
@@ -121,7 +122,7 @@ async def prompt_async(
                         session.cancel()
                         break
                     print_agent_json(message, output_function)
-                base.print()
+                base._stream.print_word('\n', require_new_line=True)
                 if info_print:
                     end_time = time.time()
                     _print_usage(session, end_time - start_time)
@@ -130,13 +131,14 @@ async def prompt_async(
             except KeyboardInterrupt as e:
                 if session:
                     session.cancel()
+                break
             except Exception as e:
-                print_error(str(e))
+                base._stream.colorful_print_word(str(e), fg=Color.BRIGHT_RED, styles=[Style.BOLD], require_new_line=True)
                 if session:
                     session.cancel()
                 if "429" in str(e) or "400" in str(e) or "500" in str(e) or "502" in str(e) or "503" in str(e):
                     wait_time = min(2 ** attempt, 60)
-                    print_warning(f"Rate limited. Waiting {wait_time}s...")
+                    base._stream.colorful_print_word(f"Rate limited. Waiting {wait_time}s...", fg=Color.BRIGHT_YELLOW, styles=[Style.BOLD], require_new_line=True)
                     await asyncio.sleep(wait_time)
                 elif attempt == max_retries - 1:
                     raise
@@ -144,11 +146,12 @@ async def prompt_async(
                     await asyncio.sleep(1)
 
         if not prompt_success:
-            base.print_error('prompt failed.')
+            base._stream.colorful_print_word('prompt failed.', fg=Color.BRIGHT_RED, styles=[Style.BOLD], require_new_line=True)
 
     finally:
         if close_session_after_prompt and session:
             await close_session_async(session)
+        base._stream.print_word('', True)
 
 
 def prompt(
@@ -193,10 +196,10 @@ def execute_plan(prompt_str: str, ask_if_use_cache: Callable[[str], bool] | None
         plan_file = _make_new_plan_file()
         try:
             os.unlink(plan_file)
-        except:
+        except Exception:
             pass
         if plan_file.exists():
-            print_error(f'plan file {plan_file} already exists. quit.')
+            base._stream.colorful_print_word(f'plan file {plan_file} already exists. quit.', fg=Color.BRIGHT_RED, styles=[Style.BOLD], require_new_line=True)
             return
         task_finished = False
         plan_session: Session | None = None
@@ -211,14 +214,14 @@ def execute_plan(prompt_str: str, ask_if_use_cache: Callable[[str], bool] | None
             for i in range(4):
                 prompt(prompt_str, session=plan_session)
                 if not (custom_data is not None and custom_data.get('note_called', False)):
-                    print_warning(
-                        f'Prompt did not write the proper plan. let it try again({i + 1}/4).')
+                    base._stream.colorful_print_word(
+                        f'Prompt did not write the proper plan. let it try again({i + 1}/4).', fg=Color.BRIGHT_YELLOW, styles=[Style.BOLD], require_new_line=True)
                 else:
                     task_finished = True
                     break
             if not task_finished:
-                print_error(
-                    'Execute plan failed, the plan file cannot generated.')
+                base._stream.colorful_print_word(
+                    'Execute plan failed, the plan file cannot generated.', fg=Color.BRIGHT_RED, styles=[Style.BOLD], require_new_line=True)
                 return
         finally:
             if plan_session:
@@ -242,17 +245,17 @@ def execute_plan(prompt_str: str, ask_if_use_cache: Callable[[str], bool] | None
         steps = read_file(plan_file)
 
     if not steps:
-        print_warning('No plan made, quit.')
+        base._stream.colorful_print_word('No plan made, quit.', fg=Color.BRIGHT_YELLOW, styles=[Style.BOLD], require_new_line=True)
         return
 
     # Step 2: execute plan
     start_idx = plan_loader.finished_step_count if plan_loader is not None else 0
     if (ask_if_execute_plan is not None) and (not ask_if_execute_plan(steps, start_idx)):
-        print_warning('plan quit')
+        base._stream.colorful_print_word('plan quit', fg=Color.BRIGHT_YELLOW, styles=[Style.BOLD], require_new_line=True)
         return
     clear_default_context()
     for idx in range(start_idx, len(steps)):
-        print_info(f'Executing step {idx}.')
+        base._stream.colorful_print_word(f'Executing step {idx}.', fg=Color.BRIGHT_MAGENTA, require_new_line=True)
         step = steps[idx]
         prompt(f'''Implement:
 
@@ -272,8 +275,8 @@ def prompt_path(path: Path, split_word: Optional[str] = None, session: Session |
     try:
         with open(path, 'r', encoding='utf-8') as f:
             s = f.read()
-    except:
-        print_error(f'File {str(path)} not found.')
+    except Exception:
+        base._stream.colorful_print_word(f'File {str(path)} not found.', fg=Color.BRIGHT_RED, styles=[Style.BOLD], require_new_line=True)
     coro = None
     if after_prompt_coro is not None:
         coro = after_prompt_coro()
@@ -283,13 +286,13 @@ def prompt_path(path: Path, split_word: Optional[str] = None, session: Session |
             prompt(i, session=session)
             if coro is not None:
                 try:
-                    coro.next()
+                    next(coro)
                 except StopIteration as e:
                     coro = None
     else:
         prompt(s, session=session)
         if coro is not None:
             try:
-                coro.next()
+                next(coro)
             except StopIteration as e:
                 coro = None

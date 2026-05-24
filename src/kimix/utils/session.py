@@ -6,7 +6,7 @@ from kaos.path import KaosPath
 from kimi_agent_sdk import Session
 from kosong.chat_provider import ChatProvider
 import kimix.base as base
-from kimix.base import print_success, print_debug, percentage_str, percentage_and_token
+from kimix.base import percentage_str, percentage_and_token, Color, Style
 from . import _globals
 from .config import _create_config
 from .system_prompt import get_system_prompt, SystemPromptType, SystemPromptCallback
@@ -23,7 +23,7 @@ def delete_session_dir() -> None:
     path = context_path()
     if path.exists():
         shutil.rmtree(path)
-        print_success(f'{str(path)} deleted.')
+        base._stream.colorful_print_word(f'{str(path)} deleted.', fg=Color.BRIGHT_GREEN, styles=[Style.BOLD], require_new_line=True)
 
 
 def make_kaos_dir(obj: Any) -> KaosPath:
@@ -106,7 +106,8 @@ async def _create_session_async(
             anonymous=anonymous,
         )
         if not session:
-            print_debug(f'Session {session_id} not found.')
+            if not base._quiet:
+                base._stream.colorful_print_word(f'Session {session_id} not found.', fg=Color.BRIGHT_CYAN, require_new_line=True)
     if not session:
         session = await Session.create(
             session_id=session_id,
@@ -276,8 +277,8 @@ def _print_usage(session: Session, time_seconds: float | None = None) -> None:
         time_text = f'  time: {hours}:{minutes:02d}:{seconds:02d}'
     else:
         time_text = ''
-    print_success(
-        f'Finished, context usage: {s}{time_text}'
+    base._stream.colorful_print_word(
+        f'Finished, context usage: {s}{time_text}', fg=Color.BRIGHT_GREEN, styles=[Style.BOLD], require_new_line=True
     )
 
 
@@ -285,14 +286,15 @@ def print_usage(session: Session | None = None) -> None:
     if session is None:
         session = _create_default_session()
     s = percentage_and_token(session)
-    print_success(
-        f'Context usage: {s}'
+    base._stream.colorful_print_word(
+        f'Context usage: {s}', fg=Color.BRIGHT_GREEN, styles=[Style.BOLD], require_new_line=True
     )
 
 
 def compact_default_context() -> None:
     if _globals._default_session and _globals._default_session.status.context_usage > 1e-8:
-        print_debug('Start compacting...')
+        if not base._quiet:
+            base._stream.colorful_print_word('Start compacting...', fg=Color.BRIGHT_CYAN, require_new_line=True)
         import time
         start_time = time.time()
         old_usage = percentage_and_token(_globals._default_session)
@@ -304,8 +306,8 @@ def compact_default_context() -> None:
         minutes = (int(time_seconds) % 3600) // 60
         seconds = int(time_seconds) % 60
         time_text = f'  time: {hours}:{minutes:02d}:{seconds:02d}'
-        print_success(
-            f'Context usage from {old_usage} to {new_usage}  time: {time_text}'
+        base._stream.colorful_print_word(
+            f'Context usage from {old_usage} to {new_usage}{time_text}', fg=Color.BRIGHT_GREEN, styles=[Style.BOLD], require_new_line=True
         )
 
 
