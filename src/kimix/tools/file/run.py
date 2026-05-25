@@ -14,6 +14,9 @@ from kimix.tools.file.bash import _BASH_COMMANDS, _WINDOWS_ALIASES
 from kimix.tools.file.bash.run_bash import run_bash
 from kimi_cli.tools.display import ShellDisplayBlock
 
+_HUGE_CMD_THRESHOLD = 10000
+"""Character count above which command display is culled to only the path."""
+
 
 class RunParams(BaseModel):
     path: str = Field(
@@ -91,6 +94,7 @@ class Run(CallableTool2[RunParams]):
 
             display_args = [arg[:100] + '...' if len(arg) > 100 else arg for arg in params.args]
             cmd_str = shlex.join([params.path] + display_args)
+            display_cmd = params.path if len(cmd_str) > _HUGE_CMD_THRESHOLD else cmd_str
 
             # Check forbidden commands
             forbidden_commands = self._session.custom_config.get("config_json", {}).get("forbidden_commands", [])
@@ -109,7 +113,7 @@ class Run(CallableTool2[RunParams]):
                         return ToolError(
                             output="",
                             message=f"Command `{full_cmd}` is forbidden by config rule: `{forbidden}`.",
-                            brief=cmd_str,
+                            brief=display_cmd,
                         )
 
             # Check if params.path is a valid process name first (executable in PATH or existing file),
@@ -152,7 +156,7 @@ class Run(CallableTool2[RunParams]):
                     return ToolError(
                         output="",
                         message=f"Command not found: '{params.path}' is not a valid executable or bash built-in command." + warning,
-                        brief=cmd_str,
+                        brief=display_cmd,
                     )
 
 
@@ -183,7 +187,7 @@ class Run(CallableTool2[RunParams]):
                     return ToolOk(
                         output=f"Running in background. task_id: `{task_id}`. Use `TaskOutput` tool to retrieve output.",
                         brief="Background task started",
-                        display_block=ShellDisplayBlock(language="shell", command=cmd_str),
+                        display_block=ShellDisplayBlock(language="shell", command=display_cmd),
                     )
 
                 # Wait for completion with timeout (allow a small buffer for cleanup)
@@ -195,7 +199,7 @@ class Run(CallableTool2[RunParams]):
                     return ToolError(
                         output=output,
                         message=f"Running in background. task_id: `{task_id}`. use `TaskOutput` or `Input`",
-                        brief=cmd_str,
+                        brief=display_cmd,
                     )
                 # Clean up foreground task registration
                 from kimix.tools.background.utils import remove_task_id
@@ -221,14 +225,14 @@ class Run(CallableTool2[RunParams]):
                     return ToolError(
                         output=output,
                         message="Command execution failed",
-                        brief=cmd_str,
+                        brief=display_cmd,
                     )
 
                 output = await _maybe_export_output_async(output)
                 return ToolOk(
                     output=output,
                     brief="Command executed successfully",
-                    display_block=ShellDisplayBlock(language="shell", command=cmd_str),
+                    display_block=ShellDisplayBlock(language="shell", command=display_cmd),
                 )
         except Exception as e:
             return ToolError(

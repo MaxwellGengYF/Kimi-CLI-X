@@ -10,6 +10,9 @@ from pydantic import BaseModel, Field
 from kimi_cli.session import Session
 from kimix.base import colorful_text, Color
 
+_HUGE_CODE_THRESHOLD = 10000
+"""Character count above which the code block is skipped in display output."""
+
 
 class Params(BaseModel):
     code: str = Field(
@@ -113,5 +116,7 @@ class Python(CallableTool2[Params]):
                     brief="Python execution error"
                 )
 
+            if len(params.code) > _HUGE_CODE_THRESHOLD:
+                return ToolOk(output=output, brief="Python code executed successfully")
             colored_code = colorful_text(params.code, fg=Color.BLACK)
             return ToolOk(output=f"{colored_code}\n\n{output}", brief=params.code)
