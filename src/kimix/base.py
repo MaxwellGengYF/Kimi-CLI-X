@@ -149,21 +149,23 @@ class PrintStream:
         self._print_func = print_func
         self._last_char_was_newline = True
         self._state = StreamPrintState.Other
+        self._lock = threading.Lock()
 
     def print_word(self, word: str, require_new_line: bool) -> None:
         """Print a word, auto-inserting a leading newline when the previous
         output didn't end with one."""
-        if not word:
+        with self._lock:
+            if not word:
+                if require_new_line and not self._last_char_was_newline:
+                    self._print_func('', end='\n')
+                    self._last_char_was_newline = True
+                return
+
             if require_new_line and not self._last_char_was_newline:
                 self._print_func('', end='\n')
-                self._last_char_was_newline = True
-            return
 
-        if require_new_line and not self._last_char_was_newline:
-            word = '\n' + word
-
-        self._print_func(word, end='')
-        self._last_char_was_newline = word.endswith('\n')
+            self._print_func(word, end='')
+            self._last_char_was_newline = word.endswith('\n')
 
     def colorful_print_word(
         self, word: str,
@@ -226,42 +228,48 @@ _TOOL_TYPES = (ToolCall, ToolCallPart, ToolResult)
 
 
 def _format_display_blocks(display: list[Any]) -> str | None:
-    """Format display blocks into a colored terminal string."""
+    """Format display blocks into a colored terminal string.
+
+    Returns a string ending with ``\n`` so that ``PrintStream.print_word``
+    correctly tracks ``_last_char_was_newline`` after the output.
+    """
     if not display:
         return None
     parts: list[str] = []
     for block in display:
         if isinstance(block, BriefDisplayBlock):
             if block.text:
-                parts.append(f"\033[0;90m{block.text}\033[0m")
+                parts.append(colorful_text(block.text, fg=Color.BRIGHT_BLACK))
         elif isinstance(block, DiffDisplayBlock):
-            parts.append(f"\033[0;93mDiff: {block.path}\033[0m")
+            parts.append(colorful_text(f"Diff: {block.path}", fg=Color.BRIGHT_YELLOW))
             for line in block.old_text.splitlines():
-                parts.append(f"\033[0;91m- {line}\033[0m")
+                parts.append(colorful_text(f"- {line}", fg=Color.BRIGHT_RED))
             for line in block.new_text.splitlines():
-                parts.append(f"\033[0;92m+ {line}\033[0m")
+                parts.append(colorful_text(f"+ {line}", fg=Color.BRIGHT_GREEN))
         elif isinstance(block, TodoDisplayBlock):
             for item in block.items:
                 status = item.status.replace("_", " ").lower()
                 if status == "done":
-                    parts.append(f"\033[0;90m- ~~{item.title}~~\033[0m")
+                    parts.append(colorful_text(f"- ~~{item.title}~~", fg=Color.BRIGHT_BLACK))
                 elif status == "in progress":
-                    parts.append(f"\033[0;93m- {item.title} \u2190\033[0m")
+                    parts.append(colorful_text(f"- {item.title} \u2190", fg=Color.BRIGHT_YELLOW))
                 else:
-                    parts.append(f"\033[0;90m- {item.title}\033[0m")
+                    parts.append(colorful_text(f"- {item.title}", fg=Color.BRIGHT_BLACK))
         elif isinstance(block, ShellDisplayBlock):
-            parts.append(f"\033[0;94m$ {block.command}\033[0m")
+            parts.append(colorful_text(f"$ {block.command}", fg=Color.BRIGHT_BLUE))
         elif isinstance(block, BackgroundTaskDisplayBlock):
             parts.append(
-                f"\033[0;90m[{block.status}] {block.task_id}: {block.description}\033[0m"
+                colorful_text(f"[{block.status}] {block.task_id}: {block.description}", fg=Color.BRIGHT_BLACK)
             )
         elif isinstance(block, UnknownDisplayBlock):
-            parts.append(f"\033[0;90m{block.data}\033[0m")
+            parts.append(colorful_text(str(block.data), fg=Color.BRIGHT_BLACK))
         elif isinstance(block, DisplayBlock):
             data = block.model_dump()
             if data:
-                parts.append(f"\033[0;90m{data}\033[0m")
-    return ("\n".join(parts)).strip() if parts else None
+                parts.append(colorful_text(str(data), fg=Color.BRIGHT_BLACK))
+    if not parts:
+        return None
+    return "\n".join(parts) + "\n"
 
 
 def _format_tool_result(result: ToolResult) -> str:
