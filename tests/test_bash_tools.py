@@ -71,8 +71,6 @@ from kimix.tools.file.bash import (
     Ifconfig,
     Install,
     Iostat,
-    Kill,
-    Killall,
     Ln,
     Ls,
     LsbRelease,
@@ -2725,31 +2723,6 @@ class TestIostat:
         result = await _run(Iostat, [], output_path=str(out))
         assert isinstance(result, ToolOk)
         assert "saved to file" in result.output
-
-# ---------------------------------------------------------------------------
-# Kill
-# ---------------------------------------------------------------------------
-class TestKill:
-    async def test_invalid_pid(self) -> None:
-        result = await _run(Kill, ["999999"])
-        assert isinstance(result, (ToolOk, ToolError))
-
-    async def test_missing_operand(self) -> None:
-        result = await _run(Kill, [])
-        assert isinstance(result, ToolOk)
-
-# ---------------------------------------------------------------------------
-# Killall
-# ---------------------------------------------------------------------------
-class TestKillall:
-    async def test_missing_operand(self) -> None:
-        result = await _run(Killall, [])
-        assert isinstance(result, ToolError)
-        assert "missing operand" in result.message.lower()
-
-    async def test_nonexistent_process(self) -> None:
-        result = await _run(Killall, ["nonexistent_process_12345"])
-        assert isinstance(result, (ToolOk, ToolError))
 
 # ---------------------------------------------------------------------------
 # LsbRelease

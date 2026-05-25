@@ -17,6 +17,26 @@ from kimi_cli.tools.display import ShellDisplayBlock
 _HUGE_CMD_THRESHOLD = 10000
 """Character count above which command display is culled to only the path."""
 
+_DEFAULT_FORBIDDEN_COMMANDS = [
+    "taskkill",
+    "kill",
+    "killall",
+    "pkill",
+    "xkill",
+    "rd",
+    "format",
+    "fdisk",
+    "dd",
+    "mkfs",
+    "shutdown",
+    "reboot",
+    "poweroff",
+    "halt",
+    "reg",
+    "regedit",
+    "regedt32",
+]
+
 
 class RunParams(BaseModel):
     path: str = Field(
@@ -96,8 +116,8 @@ class Run(CallableTool2[RunParams]):
             cmd_str = shlex.join([params.path] + display_args)
             display_cmd = params.path if len(cmd_str) > _HUGE_CMD_THRESHOLD else cmd_str
 
-            # Check forbidden commands
-            forbidden_commands = self._session.custom_config.get("config_json", {}).get("forbidden_commands", [])
+            # Check forbidden commands (default + user-configured)
+            forbidden_commands = _DEFAULT_FORBIDDEN_COMMANDS + self._session.custom_config.get("config_json", {}).get("forbidden_commands", [])
             if forbidden_commands:
                 full_cmd = " ".join([params.path] + params.args)
                 normalized_cmd = " ".join(full_cmd.split())

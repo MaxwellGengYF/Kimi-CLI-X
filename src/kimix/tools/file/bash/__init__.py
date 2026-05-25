@@ -55,8 +55,6 @@ from .ip import Ip
 from .ifconfig import Ifconfig
 from .install import Install
 from .iostat import Iostat
-from .kill import Kill
-from .killall import Killall
 from .ln import Ln
 from .ls import Ls
 from .lsb_release import LsbRelease
@@ -181,8 +179,6 @@ __all__ = [
     "Ifconfig",
     "Install",
     "Iostat",
-    "Kill",
-    "Killall",
     "Ln",
     "Ls",
     "LsbRelease",
@@ -323,8 +319,6 @@ BASH_COMMANDS: dict[str, CallableTool2] = {
     "install": Install(),
     "iostat": Iostat(),
     "ip": Ip(),
-    "kill": Kill(),
-    "killall": Killall(),
     "ln": Ln(),
     "ls": Ls(),
     "lsb_release": LsbRelease(),
