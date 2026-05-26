@@ -230,6 +230,34 @@ async def close_session_async(session: Session) -> None:
     await session.close()
 
 
+async def compact_context_async(session: Session | None = None) -> None:
+    """Compact the context of a session."""
+    if session is None:
+        session = get_default_session()
+    if session is None:
+        return
+    await session.compact()
+
+
+def compact_context(session: Session | None = None) -> None:
+    """Compact the context of a session (sync wrapper)."""
+    asyncio.run(compact_context_async(session))
+
+
+async def clear_context_async(session: Session | None = None) -> None:
+    """Clear the context of a session."""
+    if session is None:
+        session = get_default_session()
+    if session is None:
+        return
+    await session.clear()
+
+
+def clear_context(session: Session | None = None) -> None:
+    """Clear the context of a session (sync wrapper)."""
+    asyncio.run(clear_context_async(session))
+
+
 def get_cancel_event(session: Session | None = None) -> asyncio.Event | None:
     """Get the cancel event of a session."""
     if session is None:

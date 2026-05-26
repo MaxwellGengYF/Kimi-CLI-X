@@ -286,16 +286,6 @@ def get_system_prompt(
             numbered_block = ''.join(
                 f'- {item}\n' for item in items
             )
-        # Only do system-prompt inject after compaction
-        if not is_compacting:
-            return _SYSTEM_PROMP.format(
-                AGENT_ROLE=role_doc.strip(),
-                NUMBERED=numbered_block,
-                AGENTS_MD=agent_md_doc,
-                SKILLS=skill_doc,
-                EXTRA=''
-            ).strip()
-
         # Attempt progressively stricter budgets until the prompt fits.
         budgets = [
             # Full everything
@@ -308,12 +298,15 @@ def get_system_prompt(
             {"step_mem_limit_chars": 2_000, "max_changed_files": 20, "agent_md_mode": "drop", "max_todos": 15},
         ]
         for budget in budgets:
-            extra = _build_extra(
-                runtime,
-                step_mem_limit_chars=budget["step_mem_limit_chars"],
-                max_changed_files=budget["max_changed_files"],
-                max_todos=budget["max_todos"],
-            )
+            if is_compacting:
+                extra = _build_extra(
+                    runtime,
+                    step_mem_limit_chars=budget["step_mem_limit_chars"],
+                    max_changed_files=budget["max_changed_files"],
+                    max_todos=budget["max_todos"],
+                )
+            else:
+                extra = ''
             if budget["agent_md_mode"] == "drop":
                 agent_md_doc = 'read AGENTS.md before work\n'
             else:
