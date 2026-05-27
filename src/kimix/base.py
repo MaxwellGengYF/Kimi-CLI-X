@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import os
 import re
 import subprocess
@@ -97,6 +98,8 @@ class Style(Enum):
 _ANSI_ESCAPE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 
 def _strip_ansi(text: str) -> str:
+    if "\x1b" not in text:
+        return text
     return _ANSI_ESCAPE.sub("", text)
 
 _colorful_print = True
@@ -106,21 +109,35 @@ _print_func: Callable = print
 def print(*values: object, sep: str | None = " ", end: str | None = "\n", file: Any = None, flush: bool = False):
     _print_func(*values, sep=sep, end=end, file=file, flush=flush)
 
+@functools.lru_cache(maxsize=256)
+def _ansi_prefix(fg_value: int | None, bg_value: int | None, styles_tuple: tuple[int, ...]) -> str | None:
+    codes: list[int] = []
+    if styles_tuple:
+        codes.extend(styles_tuple)
+    if fg_value is not None:
+        codes.append(fg_value)
+    if bg_value is not None:
+        codes.append(bg_value)
+    if codes:
+        return f"\033[{';'.join(map(str, codes))}m"
+    return None
+
+
 def colorful_text(
     text: str,
     fg: Color | None = None,
     bg: BgColor | None = None,
     styles: list[Style] | None = None,
 ) -> str:
-    codes: list[int] = []
-    if styles:
-        codes.extend(style.value for style in styles)
-    if fg:
-        codes.append(fg.value)
-    if bg:
-        codes.append(bg.value)
-    if codes:
-        text = f"\033[{';'.join(map(str, codes))}m{text}\033[0m"
+    if not _colorful_print:
+        return text
+    prefix = _ansi_prefix(
+        fg.value if fg else None,
+        bg.value if bg else None,
+        tuple(s.value for s in styles) if styles else (),
+    )
+    if prefix:
+        text = f"{prefix}{text}\033[0m"
     return text
 
 
@@ -281,75 +298,101 @@ def _format_tool_result(result: ToolResult) -> str:
     """Format a ToolResult for the output function."""
     rv = result.return_value
     return rv.message or ""
-def _print_agent_json(
-    wire_msg: Any, output_function: Callable[[str, MessageType], Any] | None = None
-) -> None:
-    if isinstance(wire_msg, _TOOL_TYPES):
-        if isinstance(wire_msg, ToolCall):
-            name = wire_msg.function.name
-            header = f"⚡ {name}"
-            _stream.colorful_print_word(header, fg=Color.BRIGHT_MAGENTA, require_new_line=True)
-            if output_function:
-                output_function(f"{name} {wire_msg.function.arguments or ''}", MessageType.ToolCalling)
-        elif isinstance(wire_msg, ToolCallPart):
-            part = wire_msg.arguments_part or ""
-            if output_function and part:
-                output_function(part, MessageType.ToolCalling)
-            _stream.print_word('', True)
-        elif isinstance(wire_msg, ToolResult):
-            rv = wire_msg.return_value
-            display_text = _format_display_blocks(rv.display)
-            _stream.print_word(display_text, require_new_line=True)
-            result_text = _format_tool_result(wire_msg)
-            if result_text:
-                prefix = ("✗ " if rv.is_error else "✓ ")
-                _stream.colorful_print_word(f"{prefix}{result_text}", fg=Color.BRIGHT_RED if rv.is_error else Color.BRIGHT_GREEN, require_new_line=True)
-            else:
-                _stream.print_word('', True)
-            if output_function:
-                formatted = f"[ToolResult] {_format_tool_result(wire_msg)}"
-                if formatted:
-                    output_function(formatted, MessageType.ToolCalling)
-        return
-    
-    if isinstance(wire_msg, ApprovalRequest):
-        wire_msg.resolve("approve")
-        return
 
-    if isinstance(wire_msg, (StepBegin, StepInterrupted, CompactionEnd)):
-        return
 
-    if isinstance(wire_msg, CompactionBegin):
-        _stream.colorful_print_word("Compacting...", require_new_line=True, fg=Color.BRIGHT_MAGENTA)
-        return
+def _handle_tool_call(wire_msg: ToolCall, output_function: Callable[[str, MessageType], Any] | None) -> None:
+    name = wire_msg.function.name
+    header = f"⚡ {name}"
+    _stream.colorful_print_word(header, fg=Color.BRIGHT_MAGENTA, require_new_line=True)
+    if output_function:
+        output_function(f"{name} {wire_msg.function.arguments or ''}", MessageType.ToolCalling)
 
-    if isinstance(wire_msg, ThinkPart):
-        think_content = wire_msg.think
-        if not _quiet:
-            if output_function:
-                output_function(think_content, MessageType.Thinking)
-            if _stream._state != StreamPrintState.Thinking:
-                _stream.colorful_print_word(f"[Think] {think_content}", fg=Color.BRIGHT_CYAN, require_new_line=True)
-            else:
-                _stream.colorful_print_word(f"{think_content}", fg=Color.BRIGHT_CYAN, require_new_line=False)
-            _stream._state = StreamPrintState.Thinking
-        return
 
-    if isinstance(wire_msg, TextPart):
-        chunk = wire_msg.text
-        if output_function:
-            output_function(chunk, MessageType.Text)
-        _stream.print_word(chunk, require_new_line=_stream._state != StreamPrintState.Text)
-        _stream._state = StreamPrintState.Text
-        return
+def _handle_tool_call_part(wire_msg: ToolCallPart, output_function: Callable[[str, MessageType], Any] | None) -> None:
+    part = wire_msg.arguments_part or ""
+    if output_function and part:
+        output_function(part, MessageType.ToolCalling)
+    _stream.print_word('', True)
+
+
+def _handle_tool_result(wire_msg: ToolResult, output_function: Callable[[str, MessageType], Any] | None) -> None:
+    rv = wire_msg.return_value
+    display_text = _format_display_blocks(rv.display)
+    _stream.print_word(display_text, require_new_line=True)
+    result_text = _format_tool_result(wire_msg)
+    if result_text:
+        prefix = ("✗ " if rv.is_error else "✓ ")
+        _stream.colorful_print_word(
+            f"{prefix}{result_text}",
+            fg=Color.BRIGHT_RED if rv.is_error else Color.BRIGHT_GREEN,
+            require_new_line=True,
+        )
     else:
-        _stream._state = StreamPrintState.Other
-print_lock = threading.Lock()
+        _stream.print_word('', True)
+    if output_function:
+        formatted = f"[ToolResult] {_format_tool_result(wire_msg)}"
+        if formatted:
+            output_function(formatted, MessageType.ToolCalling)
+
+
+def _handle_approval_request(wire_msg: ApprovalRequest, _output_function: Callable[[str, MessageType], Any] | None) -> None:
+    wire_msg.resolve("approve")
+
+
+def _handle_noop(_wire_msg: Any, _output_function: Callable[[str, MessageType], Any] | None) -> None:
+    pass
+
+
+def _handle_compaction_begin(_wire_msg: Any, _output_function: Callable[[str, MessageType], Any] | None) -> None:
+    _stream.colorful_print_word("Compacting...", require_new_line=True, fg=Color.BRIGHT_MAGENTA)
+
+
+def _handle_think_part(wire_msg: ThinkPart, output_function: Callable[[str, MessageType], Any] | None) -> None:
+    think_content = wire_msg.think
+    if not _quiet:
+        if output_function:
+            output_function(think_content, MessageType.Thinking)
+        if _stream._state != StreamPrintState.Thinking:
+            _stream.colorful_print_word(f"[Think] {think_content}", fg=Color.BRIGHT_CYAN, require_new_line=True)
+        else:
+            _stream.colorful_print_word(f"{think_content}", fg=Color.BRIGHT_CYAN, require_new_line=False)
+        _stream._state = StreamPrintState.Thinking
+
+
+def _handle_text_part(wire_msg: TextPart, output_function: Callable[[str, MessageType], Any] | None) -> None:
+    chunk = wire_msg.text
+    if output_function:
+        output_function(chunk, MessageType.Text)
+    _stream.print_word(chunk, require_new_line=_stream._state != StreamPrintState.Text)
+    _stream._state = StreamPrintState.Text
+
+
+def _handle_other(_wire_msg: Any, _output_function: Callable[[str, MessageType], Any] | None) -> None:
+    _stream._state = StreamPrintState.Other
+
+
+_PRINT_AGENT_JSON_DISPATCH: dict[type, Callable[[Any, Callable[[str, MessageType], Any] | None], None]] = {
+    ToolCall: _handle_tool_call,
+    ToolCallPart: _handle_tool_call_part,
+    ToolResult: _handle_tool_result,
+    ApprovalRequest: _handle_approval_request,
+    StepBegin: _handle_noop,
+    StepInterrupted: _handle_noop,
+    CompactionEnd: _handle_noop,
+    CompactionBegin: _handle_compaction_begin,
+    ThinkPart: _handle_think_part,
+    TextPart: _handle_text_part,
+}
+
+
 def print_agent_json(
     wire_msg: Any, output_function: Callable[[str, MessageType], Any] | None = None
 ) -> None:
-    with print_lock:
-        _print_agent_json(wire_msg, output_function)
+    handler = _PRINT_AGENT_JSON_DISPATCH.get(type(wire_msg))
+    if handler is not None:
+        handler(wire_msg, output_function)
+    else:
+        _handle_other(wire_msg, output_function)
 
 def run_thread(
     function: Callable[..., Any], args: tuple[Any, ...] | None = None

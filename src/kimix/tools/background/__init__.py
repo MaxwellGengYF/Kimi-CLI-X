@@ -24,7 +24,7 @@ class TaskOutputParams(BaseModel):
     timeout: int = Field(
         default=60,
         ge=3,
-        le=300,
+        le=900,
         description="Timeout in seconds."
     )
     output_path: str | None = Field(
@@ -105,7 +105,7 @@ class TaskOutput(CallableTool2):
                 path = Path(params.output_path)
                 async with await anyio.open_file(path, 'w', encoding='utf-8') as f:
                     await f.write(output)
-                output = f"{'Task is still running, ' if task_alive else ''}output exported to file `{path}`"
+                output = f"{f'`{params.task_id}` is still running, call `TaskOutput` again, ' if task_alive else ''}output exported to file `{path}`"
             elif output and task_alive and not await stream.success():
                 temp_path, _ = await _export_to_temp_file_async(key=None, content=output, ext='.txt')
                 output = f"Output exported to file `{temp_path}`"

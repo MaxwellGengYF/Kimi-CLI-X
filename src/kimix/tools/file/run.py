@@ -49,7 +49,7 @@ class RunParams(BaseModel):
     timeout: int = Field(
         default=10,
         ge=3,
-        le=180,
+        le=300,
         description="Timeout in seconds."
     )
     output_path: str | None = Field(
