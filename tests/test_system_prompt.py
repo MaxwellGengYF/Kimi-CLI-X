@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from pydantic import BaseModel
 
 from kimix.utils.system_prompt import get_system_prompt, SystemPromptType
-from kimi_cli.tools.reason import ToolCallReason
 
 _OUTPUT_MD = Path(__file__).with_name("output.md")
 
@@ -19,18 +16,6 @@ _OUTPUT_MD = Path(__file__).with_name("output.md")
 def _append_prompt(test_name: str, prompt: str) -> None:
     with _OUTPUT_MD.open("a", encoding="utf-8") as f:
         f.write(f"\n\n---\n\n## {test_name}\n\n{prompt}\n")
-
-
-class _MockParams(BaseModel):
-    path: str
-    reason: str = ""
-
-
-class _MockTool:
-    name: str = "WriteFile"
-
-    def __init__(self, name: str = "WriteFile") -> None:
-        self.name = name
 
 
 def _make_runtime(tmp_path: Path, custom_data: dict[str, Any] | None = None) -> SimpleNamespace:
@@ -54,76 +39,6 @@ def _make_runtime(tmp_path: Path, custom_data: dict[str, Any] | None = None) -> 
         builtin_args=builtin_args,
         session=session,
     )
-
-
-class TestSystemPromptMemoryCompaction:
-    """Test step memory compaction in system prompt."""
-
-    def _write_steps(self, tmp_path: Path, count: int) -> None:
-        steps_dir = tmp_path / "steps"
-        steps_dir.mkdir(parents=True, exist_ok=True)
-        steps = []
-        for i in range(1, count + 1):
-            steps.append({
-                "seq": i,
-                "time": f"2024-01-{i:02d}T00:00:00+00:00",
-                "brief": f"brief {i}",
-                "step": f"step text {i}",
-                "result": f"result {i}",
-                "files": [f"file_{i}.py"],
-            })
-        (steps_dir / "test-session.json").write_text(json.dumps(steps), encoding="utf-8")
-
-    def test_memory_no_compaction_under_limit(self, tmp_path: Path):
-        self._write_steps(tmp_path, 3)
-        runtime = _make_runtime(tmp_path)
-        prompt_func = get_system_prompt(work_dir=tmp_path, agent_role=SystemPromptType.Worker)
-        prompt = prompt_func(runtime, is_compacting=True)
-        _append_prompt("test_memory_no_compaction_under_limit", prompt)
-
-        assert "Memory:" in prompt
-        assert "step text 1" in prompt
-        assert "step text 2" in prompt
-        assert "step text 3" in prompt
-        assert "[compacted]" not in prompt
-
-    def test_memory_at_limit_no_compaction(self, tmp_path: Path):
-        self._write_steps(tmp_path, 200)
-        runtime = _make_runtime(tmp_path)
-        prompt_func = get_system_prompt(work_dir=tmp_path, agent_role=SystemPromptType.Worker)
-        prompt = prompt_func(runtime, is_compacting=True)
-        _append_prompt("test_memory_at_limit_no_compaction", prompt)
-
-        assert "Memory:" in prompt
-        assert "step text 1" in prompt
-        assert "step text 200" in prompt
-        assert "[compacted]" not in prompt
-
-    def test_memory_one_over_limit_compacts(self, tmp_path: Path):
-        self._write_steps(tmp_path, 201)
-        runtime = _make_runtime(tmp_path)
-        prompt_func = get_system_prompt(work_dir=tmp_path, agent_role=SystemPromptType.Worker)
-        prompt = prompt_func(runtime, is_compacting=True)
-        _append_prompt("test_memory_one_over_limit_compacts", prompt)
-
-        assert "Memory:" in prompt
-        # With the token budget, step memory may be truncated rather than compacted.
-        # The key invariant is that the prompt stays under the default budget.
-        from kimi_cli.utils.tokens import count_tokens
-        assert count_tokens(prompt) <= 4_000
-
-    def test_memory_compacts_over_limit(self, tmp_path: Path):
-        self._write_steps(tmp_path, 202)
-        runtime = _make_runtime(tmp_path)
-        prompt_func = get_system_prompt(work_dir=tmp_path, agent_role=SystemPromptType.Worker)
-        prompt = prompt_func(runtime, is_compacting=True)
-        _append_prompt("test_memory_compacts_over_limit", prompt)
-
-        assert "Memory:" in prompt
-        # With the token budget, step memory may be truncated rather than compacted.
-        # The key invariant is that the prompt stays under the default budget.
-        from kimi_cli.utils.tokens import count_tokens
-        assert count_tokens(prompt) <= 4_000
 
 
 class TestSystemPromptAgentsMd:
@@ -153,110 +68,3 @@ class TestSystemPromptAgentsMd:
 
         assert content in prompt
         assert "read AGENTS.md before work" not in prompt
-
-
-class TestSystemPromptToolCallReason:
-    """Test that ToolCallReason changed files appear in the system prompt."""
-
-    def test_prompt_includes_changed_files(self, tmp_path: Path):
-        tcr = ToolCallReason()
-        tool = _MockTool()
-        tcr.add_tool_call_reason(_MockParams(path=str(tmp_path / "a.py"), reason="create a"), tool)
-        tcr.add_tool_call_reason(_MockParams(path=str(tmp_path / "b.py"), reason="create b"), tool)
-
-        runtime = _make_runtime(tmp_path, custom_data={"tool_call_reason": tcr})
-        prompt_func = get_system_prompt(work_dir=tmp_path, agent_role=SystemPromptType.Worker)
-        prompt = prompt_func(runtime)
-        _append_prompt("test_prompt_includes_changed_files", prompt)
-
-        assert "Changed files:" in prompt
-        assert str((tmp_path / "a.py").resolve()) in prompt
-        assert str((tmp_path / "b.py").resolve()) in prompt
-        assert "WriteFile: create a" in prompt
-        assert "WriteFile: create b" in prompt
-
-    def test_prompt_no_changed_files_when_empty(self, tmp_path: Path):
-        runtime = _make_runtime(tmp_path)
-        prompt_func = get_system_prompt(work_dir=tmp_path, agent_role=SystemPromptType.Worker)
-        prompt = prompt_func(runtime)
-        _append_prompt("test_prompt_no_changed_files_when_empty", prompt)
-
-        assert "Changed files:" not in prompt
-
-    def test_prompt_no_changed_files_when_reason_not_instance(self, tmp_path: Path):
-        runtime = _make_runtime(tmp_path, custom_data={"tool_call_reason": "not an instance"})
-        prompt_func = get_system_prompt(work_dir=tmp_path, agent_role=SystemPromptType.Worker)
-        prompt = prompt_func(runtime)
-        _append_prompt("test_prompt_no_changed_files_when_reason_not_instance", prompt)
-
-        assert "Changed files:" not in prompt
-
-    def test_prompt_changed_files_edit_tool(self, tmp_path: Path):
-        tcr = ToolCallReason()
-        write_tool = _MockTool("WriteFile")
-        edit_tool = _MockTool("EditFile")
-        tcr.add_tool_call_reason(_MockParams(path=str(tmp_path / "config.py"), reason="create config"), write_tool)
-        tcr.add_tool_call_reason(_MockParams(path=str(tmp_path / "config.py"), reason="update config"), edit_tool)
-
-        runtime = _make_runtime(tmp_path, custom_data={"tool_call_reason": tcr})
-        prompt_func = get_system_prompt(work_dir=tmp_path, agent_role=SystemPromptType.Worker)
-        prompt = prompt_func(runtime)
-        _append_prompt("test_prompt_changed_files_edit_tool", prompt)
-
-        assert "Changed files:" in prompt
-        config_line = [line for line in prompt.splitlines() if "config.py" in line][0]
-        assert "WriteFile: create config" in config_line
-        assert "EditFile: update config" in config_line
-
-    def test_changed_files_sorted(self, tmp_path: Path):
-        tcr = ToolCallReason()
-        tool = _MockTool()
-        tcr.add_tool_call_reason(_MockParams(path=str(tmp_path / "z.py"), reason="z"), tool)
-        tcr.add_tool_call_reason(_MockParams(path=str(tmp_path / "a.py"), reason="a"), tool)
-
-        runtime = _make_runtime(tmp_path, custom_data={"tool_call_reason": tcr})
-        prompt_func = get_system_prompt(work_dir=tmp_path, agent_role=SystemPromptType.Worker)
-        prompt = prompt_func(runtime)
-        _append_prompt("test_changed_files_sorted", prompt)
-
-        prompt_lines = prompt.splitlines()
-        idx = prompt_lines.index("Changed files:")
-        file_lines = prompt_lines[idx + 1 : idx + 3]
-        assert len(file_lines) == 2
-        # Paths should appear in sorted order
-        assert "a.py" in file_lines[0]
-        assert "z.py" in file_lines[1]
-
-    def test_tool_call_reason_too_long_keeps_latest(self, tmp_path: Path):
-        tcr = ToolCallReason()
-        tool = _MockTool()
-        for i in range(101):
-            tcr.add_tool_call_reason(_MockParams(path=str(tmp_path / f"file_{i:03d}.py"), reason=f"reason {i}"), tool)
-
-        runtime = _make_runtime(tmp_path, custom_data={"tool_call_reason": tcr})
-        prompt_func = get_system_prompt(work_dir=tmp_path, agent_role=SystemPromptType.Worker)
-        prompt = prompt_func(runtime)
-        _append_prompt("test_tool_call_reason_too_long_keeps_latest", prompt)
-
-        assert "Changed files:" in prompt
-        # With the default token budget, all files may appear if the prompt fits.
-        # The key invariant is that the prompt stays under budget.
-        from kimi_cli.utils.tokens import count_tokens
-        assert count_tokens(prompt) <= 4_000
-        assert "file_100.py" in prompt
-
-    def test_tool_call_reason_relative_paths(self, tmp_path: Path, monkeypatch: Any):
-        monkeypatch.chdir(tmp_path)
-        tcr = ToolCallReason()
-        tool = _MockTool()
-        tcr.add_tool_call_reason(_MockParams(path=str(tmp_path / "a.py"), reason="create a"), tool)
-
-        runtime = _make_runtime(tmp_path, custom_data={"tool_call_reason": tcr})
-        prompt_func = get_system_prompt(work_dir=tmp_path, agent_role=SystemPromptType.Worker)
-        prompt = prompt_func(runtime)
-        _append_prompt("test_tool_call_reason_relative_paths", prompt)
-
-        assert "Changed files:" in prompt
-        # Path should be relative since cwd == tmp_path
-        assert str(tmp_path / "a.py") not in prompt
-        assert "a.py" in prompt

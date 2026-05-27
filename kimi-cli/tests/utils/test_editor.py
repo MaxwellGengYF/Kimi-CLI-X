@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import stat
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
@@ -114,6 +115,7 @@ class TestGetEditorCommand:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Unix shell scripts")
 class TestEditTextInEditor:
     """Tests for edit_text_in_editor()."""
 

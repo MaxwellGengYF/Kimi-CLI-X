@@ -154,7 +154,7 @@ def _build_kimi_session(entry: SessionIndexEntry) -> KimiCLISession:
     from kaos.path import KaosPath
 
     return KimiCLISession(
-        id=str(entry.session_id),
+        id=entry.session_dir.name,
         work_dir=KaosPath.unsafe_from_local_path(Path(entry.work_dir)),
         work_dir_meta=entry.work_dir_meta,
         context_file=entry.context_file,
@@ -162,6 +162,8 @@ def _build_kimi_session(entry: SessionIndexEntry) -> KimiCLISession:
         state=entry.state,
         title=entry.title,
         updated_at=entry.last_updated.timestamp(),
+        custom_data={},
+        custom_config={},
     )
 
 

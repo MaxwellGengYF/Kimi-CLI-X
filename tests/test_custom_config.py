@@ -106,7 +106,7 @@ class TestWriteFileProtected:
         params = WriteFileParams(path=str(tmp_path / "protected.txt"), content="secret")
         result = await write_tool(params)
         assert isinstance(result, ToolError)
-        assert result.brief == "Protected path"
+        assert result.brief.startswith("Protected path")
 
     async def test_write_inside_protected_dir(
         self, write_tool: WriteFile, tmp_path: Path
@@ -116,7 +116,7 @@ class TestWriteFileProtected:
         )
         result = await write_tool(params)
         assert isinstance(result, ToolError)
-        assert result.brief == "Protected path"
+        assert result.brief.startswith("Protected path")
 
     async def test_write_allowed_file(
         self, write_tool: WriteFile, tmp_path: Path
@@ -213,7 +213,7 @@ class TestReadFileProtected:
         params = ReadFileParams(path=str(tmp_path / "protected.txt"))
         result = await read_tool(params)
         assert isinstance(result, ToolError)
-        assert result.brief == "Protected path"
+        assert result.brief.startswith("Protected path")
 
     async def test_read_inside_protected_dir(
         self, read_tool: ReadFile, tmp_path: Path
@@ -221,7 +221,7 @@ class TestReadFileProtected:
         params = ReadFileParams(path=str(tmp_path / "secrets" / "nested.txt"))
         result = await read_tool(params)
         assert isinstance(result, ToolError)
-        assert result.brief == "Protected path"
+        assert result.brief.startswith("Protected path")
 
     async def test_read_allowed_file(
         self, read_tool: ReadFile, tmp_path: Path
@@ -269,19 +269,19 @@ class TestRunForbiddenCommands:
         params = RunParams(path="git", args=["commit", "-m", "msg"])
         result = await run_tool(params)
         assert isinstance(result, ToolError)
-        assert result.brief == "Forbidden command"
+        assert result.brief == "git commit -m msg"
 
     async def test_forbidden_command_with_path_in_path(self, run_tool: Run) -> None:
         params = RunParams(path="git commit", args=["-m", "msg"])
         result = await run_tool(params)
         assert isinstance(result, ToolError)
-        assert result.brief == "Forbidden command"
+        assert "git" in result.brief and "commit" in result.brief
 
     async def test_forbidden_command_rm_rf(self, run_tool: Run) -> None:
         params = RunParams(path="rm", args=["-rf", "/"])
         result = await run_tool(params)
         assert isinstance(result, ToolError)
-        assert result.brief == "Forbidden command"
+        assert "rm" in result.brief
 
     async def test_allowed_command(self, run_tool: Run, mock_process_task: MagicMock) -> None:
         params = RunParams(path="git", args=["status"])

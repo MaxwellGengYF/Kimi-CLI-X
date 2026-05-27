@@ -93,6 +93,7 @@ def _make_compactable_soul() -> Any:
     soul._loop_control = loop_control
 
     soul._checkpoint = AsyncMock()
+    soul._history_index = MagicMock()
 
     fake_result = MagicMock()
     fake_result.messages = []

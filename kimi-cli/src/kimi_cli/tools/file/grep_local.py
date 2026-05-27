@@ -27,7 +27,14 @@ import os
 import re
 
 import aiohttp
-from kosong.tooling import CallableTool2, ToolError, ToolReturnValue
+from kosong.tooling import (
+    CallableTool2,
+    ToolError,
+    ToolReturnValue,
+    FIELD_ALIASES_GENERAL,
+    FIELD_ALIASES_FILE,
+    FIELD_ALIASES_WEB,
+)
 from pydantic import BaseModel, Field
 
 import kimi_cli
@@ -541,6 +548,7 @@ class Grep(CallableTool2[Params]):
     name: str = "Grep"
     description: str = "Search files using ripgrep."
     params: type[Params] = Params
+    field_aliases = {**FIELD_ALIASES_GENERAL, **FIELD_ALIASES_FILE, **FIELD_ALIASES_WEB}
 
     def __init__(self, runtime: Runtime, vfs: VFS | None = None) -> None:
         self._rg_path: str | None = None

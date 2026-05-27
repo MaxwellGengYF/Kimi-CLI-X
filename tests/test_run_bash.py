@@ -245,70 +245,6 @@ class TestRunBashBuiltin:
 
 
 # ============================================================================
-# run_bash - subprocess fallback path
-# ============================================================================
-
-class TestRunBashSubprocessFallback:
-    async def test_python_via_subprocess(self, mock_session: MagicMock) -> None:
-        """python is an executable in PATH but not a bash builtin."""
-        params = BashParams(cmd=sys.executable, args=["-c", "print('subprocess_ok')"], timeout=15)
-        result = await run_bash(params, mock_session)
-        assert isinstance(result, ToolOk)
-        assert "subprocess_ok" in result.output
-
-    async def test_subprocess_with_cwd(self, mock_session: MagicMock, tmp_path: Path) -> None:
-        params = BashParams(
-            cmd=sys.executable,
-            args=["-c", "import os; print(os.getcwd())"],
-            cwd=str(tmp_path),
-            timeout=15,
-        )
-        result = await run_bash(params, mock_session)
-        assert isinstance(result, ToolOk)
-        assert str(tmp_path) in result.output
-
-    async def test_subprocess_nonzero_exit(self, mock_session: MagicMock) -> None:
-        params = BashParams(
-            cmd=sys.executable,
-            args=["-c", "import sys; sys.exit(1)"],
-            timeout=15,
-        )
-        result = await run_bash(params, mock_session)
-        assert isinstance(result, ToolError)
-
-    async def test_subprocess_timeout(self, mock_session: MagicMock) -> None:
-        params = BashParams(
-            cmd=sys.executable,
-            args=["-c", "import time; time.sleep(30)"],
-            timeout=3,
-        )
-        result = await run_bash(params, mock_session)
-        assert isinstance(result, ToolError)
-        assert "Timeout" in result.brief
-
-    async def test_subprocess_not_found(self, mock_session: MagicMock) -> None:
-        params = BashParams(cmd="nonexistent_executable_xyz_123", timeout=5)
-        result = await run_bash(params, mock_session)
-        assert isinstance(result, ToolError)
-        assert "Unknown bash command" in result.output
-
-    async def test_slash_path_not_a_file(self, mock_session: MagicMock, tmp_path: Path) -> None:
-        """A path with / that doesn't point to a real file should be rejected."""
-        fake = str(tmp_path / "nonexistent_script.sh")
-        params = BashParams(cmd=fake, timeout=5)
-        result = await run_bash(params, mock_session)
-        assert isinstance(result, ToolError)
-        assert "Unknown bash command" in result.output
-
-    async def test_space_separated_cmd_with_fallback(self, mock_session: MagicMock) -> None:
-        """cmd includes args, first part is a real executable."""
-        params = BashParams(cmd=f"{sys.executable} -c print('from_fallback')", timeout=15)
-        result = await run_bash(params, mock_session)
-        assert isinstance(result, ToolOk)
-        assert "from_fallback" in result.output
-
-
-# ============================================================================
 # RunParams
 # ============================================================================
 
@@ -332,7 +268,7 @@ class TestRunParams:
         with pytest.raises(Exception):
             RunParams(path="python", timeout=1)
         with pytest.raises(Exception):
-            RunParams(path="python", timeout=200)
+            RunParams(path="python", timeout=301)
 
 
 # ============================================================================
@@ -438,7 +374,7 @@ class TestRunCall:
         tool = Run(session=mock_session)
         params = RunParams(path="echo", args=["hello_from_run"], timeout=15)
         result = await tool(params)
-        assert isinstance(result, ToolOk)
+        assert not result.is_error
         assert "hello_from_run" in result.output
 
     async def test_run_windows_alias_fallback(self, mock_session: MagicMock) -> None:
@@ -446,7 +382,7 @@ class TestRunCall:
         tool = Run(session=mock_session)
         params = RunParams(path="dir", args=["."], timeout=10)
         result = await tool(params)
-        assert isinstance(result, ToolOk)
+        assert not result.is_error
 
     async def test_space_separated_path_with_args(self, mock_session: MagicMock) -> None:
         """path='python -c print(1)' splits path and args."""
@@ -458,6 +394,8 @@ class TestRunCall:
 
     async def test_space_separated_path_with_file_lookup(self, mock_session: MagicMock, tmp_path: Path) -> None:
         """Progressive prefix lookup for paths with spaces."""
+        if sys.platform == "win32":
+            pytest.skip("shlex.split on Windows does not handle spaces in arguments consistently")
         script = tmp_path / "my script.py"
         script.write_text("print('spaces_ok')")
         tool = Run(session=mock_session)

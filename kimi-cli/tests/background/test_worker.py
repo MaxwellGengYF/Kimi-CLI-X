@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 import time
 
 import pytest
@@ -14,6 +15,7 @@ from kimi_cli.background import (
 from kimi_cli.background.worker import terminate_process_tree_windows
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Uses Unix-specific shell commands")
 @pytest.mark.asyncio
 async def test_worker_completes_successfully(runtime):
     store = BackgroundTaskStore(runtime.session.context_file.parent / "tasks")
@@ -39,6 +41,7 @@ async def test_worker_completes_successfully(runtime):
     assert "hello" in store.output_path(spec.id).read_text(encoding="utf-8")
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Uses Unix-specific shell commands")
 @pytest.mark.asyncio
 async def test_worker_respects_kill_control(runtime):
     store = BackgroundTaskStore(runtime.session.context_file.parent / "tasks")
@@ -81,6 +84,7 @@ async def test_worker_respects_kill_control(runtime):
     assert view.runtime.failure_reason == "stop test"
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Uses Unix-specific shell commands")
 @pytest.mark.asyncio
 async def test_worker_marks_timeout_as_failed(runtime):
     store = BackgroundTaskStore(runtime.session.context_file.parent / "tasks")

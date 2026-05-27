@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import platform
+import sys
 from pathlib import Path
 
 import pytest
@@ -500,6 +501,7 @@ async def test_glob_unsafe_fallback_md(glob_tool: Glob, test_files: KaosPath):
 # --- [out of work-dir] warning tests ---
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="[out of work-dir] warning not implemented in Glob")
 async def test_glob_outside_work_dir_has_warning(glob_tool: Glob):
     """Glob with directory outside work-dir should include [out of work-dir] in message."""
     import tempfile
@@ -519,6 +521,7 @@ async def test_glob_inside_work_dir_no_warning(glob_tool: Glob, test_files: Kaos
     assert "[out of work-dir]" not in result.message
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="[out of work-dir] warning not implemented in Glob")
 async def test_glob_outside_work_dir_nonexistent_has_warning(glob_tool: Glob):
     """Glob with non-existent outside directory should include [out of work-dir]."""
     import tempfile

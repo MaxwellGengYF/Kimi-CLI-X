@@ -45,7 +45,7 @@ def test_read_output_and_tail(runtime):
         timeout_s=60,
     )
     store.create_task(spec)
-    store.output_path(spec.id).write_text("line1\nline2\nline3\n", encoding="utf-8")
+    store.output_path(spec.id).write_text("line1\nline2\nline3\n", encoding="utf-8", newline="\n")
 
     chunk = store.read_output(spec.id, 0, 7, status="running")
     assert chunk.text == "line1\nl"

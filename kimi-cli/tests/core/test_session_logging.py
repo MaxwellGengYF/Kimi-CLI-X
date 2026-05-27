@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, patch
 
 from pydantic import SecretStr
 
+from kimi_agent_sdk import ToolOk
 from kimi_cli.cli.export import _collect_recent_log_files, _session_time_range
 
 _TWO_DAYS = 2 * 24 * 60 * 60
@@ -223,6 +224,9 @@ class TestToolExecutionLogging:
             name = "DummyTool"
             base = None
 
+            async def call(self, arguments):
+                return ToolOk(output="ok")
+
         toolset._tool_dict["DummyTool"] = DummyTool()  # type: ignore[assignment]
 
         tool_call = ToolCall(
@@ -230,7 +234,8 @@ class TestToolExecutionLogging:
             function=ToolCall.FunctionBody(name="DummyTool", arguments="{invalid json}"),
         )
 
-        with patch("kimi_cli.soul.toolset.logger") as mock_logger:
+        with patch("kimi_cli.soul.toolset.logger") as mock_logger, \
+             patch("kosong.utils.jsonx.loads_relaxed", side_effect=json.JSONDecodeError("test", "doc", 0)):
             toolset.handle(tool_call)
             mock_logger.warning.assert_called()
             assert "DummyTool" in str(mock_logger.warning.call_args)

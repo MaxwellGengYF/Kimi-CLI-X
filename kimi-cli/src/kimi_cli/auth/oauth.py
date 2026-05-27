@@ -389,25 +389,38 @@ def _load_from_file(key: str) -> OAuthToken | None:
 
 def _save_to_file(key: str, token: OAuthToken) -> None:
     path = _credentials_path(key)
-    fd, tmp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    lock = _CrossProcessLock(f"oauth/{key}")
+    acquired = False
     try:
-        data = orjson.dumps(token.to_dict())
-        written = os.write(fd, data)
-        if written != len(data):
-            raise OSError(f"Short write: {written}/{len(data)} bytes")
-        os.fsync(fd)
-        os.close(fd)
-        fd = -1
-        with suppress(OSError):
-            os.chmod(tmp_path, 0o600)
-        os.replace(tmp_path, path)
-    except BaseException:
-        if fd >= 0:
+        # Acquire cross-process lock to serialize writes (required on Windows
+        # where concurrent os.replace calls cause PermissionError).
+        for _ in range(20):
+            acquired = lock._acquire()
+            if acquired:
+                break
+            time.sleep(0.05)
+        fd, tmp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+        try:
+            data = orjson.dumps(token.to_dict())
+            written = os.write(fd, data)
+            if written != len(data):
+                raise OSError(f"Short write: {written}/{len(data)} bytes")
+            os.fsync(fd)
+            os.close(fd)
+            fd = -1
             with suppress(OSError):
-                os.close(fd)
-        with suppress(OSError):
-            os.unlink(tmp_path)
-        raise
+                os.chmod(tmp_path, 0o600)
+            os.replace(tmp_path, path)
+        except BaseException:
+            if fd >= 0:
+                with suppress(OSError):
+                    os.close(fd)
+            with suppress(OSError):
+                os.unlink(tmp_path)
+            raise
+    finally:
+        if acquired:
+            lock.release()
 
 
 def _delete_from_file(key: str) -> None:

@@ -1,4 +1,5 @@
 """Bash command tools implemented in pure Python."""
+import shlex
 from pathlib import Path
 from .alias import Alias
 from .awk import Awk
@@ -122,6 +123,7 @@ from .xxd import Xxd
 from .xz import Xz
 from .yes import Yes
 from .zip import Zip
+import os
 
 __all__ = [
     "Alias",
@@ -478,11 +480,11 @@ class Bash(CallableTool2[BashParams]):
         Returns:
             ToolOk on success, ToolError on failure or timeout.
         """
-        from kimix.tools.file.bash.run_bash import run_bash, split_command
+        from kimix.tools.file.bash.run_bash import run_bash
 
         # Split space-separated cmd into cmd + args, respecting quotes
         if " " in params.cmd or "\t" in params.cmd:
-            parts = split_command(params.cmd)
+            parts = shlex.split(params.cmd, posix=os.name != "nt")
             params.cmd = parts[0]
             params.args[:0] = parts[1:]
 

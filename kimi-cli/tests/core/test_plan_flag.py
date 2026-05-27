@@ -74,7 +74,7 @@ def _patch_create_deps(monkeypatch, *, session_plan_mode: bool = False):
     monkeypatch.setattr(
         app_module,
         "load_agent",
-        AsyncMock(return_value=SimpleNamespace(name="test", system_prompt="sp")),
+        AsyncMock(return_value=SimpleNamespace(name="test", system_prompt="sp", get_system_prompt=AsyncMock(return_value="sp"))),
     )
     monkeypatch.setattr(app_module, "Context", lambda _path: fake_context)
     monkeypatch.setattr(app_module, "KimiSoul", FakeSoul)

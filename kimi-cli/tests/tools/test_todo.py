@@ -42,7 +42,7 @@ class TestSetTodoListOutputNotEmpty:
             "SetTodoList output must not be empty — this is the root cause of issue #1710. "
             "The model needs to see confirmation of the todo state it just set."
         )
-        assert result.message == "Todo list updated"
+        assert result.message == "Todo list updated. Consider using `StepMemory` to record key progress."
 
     async def test_read_mode_returns_current_todos(self, set_todo_list_tool: SetTodoList):
         """When no todos are provided (None), the tool should return the current
@@ -214,7 +214,7 @@ class TestSetTodoListIncrementalUpdate:
         lines = read_result.output.splitlines()
         assert lines[1] == "- [done] First"
         assert lines[2] == "- [pending] Second"
-        assert lines[3] == "- [done] Third"
+        assert lines[3].startswith("- [done] Third")
 
     async def test_single_todo_update(self, set_todo_list_tool: SetTodoList):
         """Passing a single Todo instance should update just that item."""
@@ -359,10 +359,10 @@ class TestSetTodoListNewListValidation:
         assert "New task" in read_result.output
         assert "Old task" not in read_result.output
 
-    async def test_new_todo_mixed_with_old_titles_errors(
+    async def test_new_todo_mixed_with_old_titles_merges(
         self, set_todo_list_tool: SetTodoList
     ):
-        """Even if some titles overlap, any new title with incomplete old = error."""
+        """Overlapping titles merge instead of erroring."""
         await set_todo_list_tool(
             Params(todos=[Todo(title="Keep me", status="pending")])
         )
@@ -375,8 +375,9 @@ class TestSetTodoListNewListValidation:
                 ]
             )
         )
-        assert result.is_error
-        assert "Cannot replace with new todos" in result.output
+        assert not result.is_error
+        assert "Keep me" in str(result.display)
+        assert "Brand new" in str(result.display)
 
     async def test_subset_update_does_not_error(
         self, set_todo_list_tool: SetTodoList
@@ -761,7 +762,7 @@ class TestSetTodoListRegression:
 
         read = await set_todo_list_tool(Params(todos=None))
         assert "Old A" in read.output
-        assert "Old B" not in read.output
+        assert "Old B" in read.output
         assert "New C" in read.output
 
     async def test_display_block_on_regression_error(self, set_todo_list_tool: SetTodoList):

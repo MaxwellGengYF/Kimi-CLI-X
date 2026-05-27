@@ -320,6 +320,11 @@ def test_glob_params_schema(glob_tool: Glob):
                     "description": "Include directories in results.",
                     "type": "boolean",
                 },
+                "include_ignored": {
+                    "default": False,
+                    "description": "Include .gitignore files.",
+                    "type": "boolean",
+                },
             },
             "required": ["pattern"],
             "type": "object",

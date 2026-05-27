@@ -846,6 +846,8 @@ async def test_resolve_skills_roots_extra_skill_dirs_expand_tilde(monkeypatch, t
     monkeypatch.setattr(Path, "home", lambda: home_dir)
     monkeypatch.setenv("KIMI_SHARE_DIR", str(tmp_path / "share"))
     monkeypatch.setenv("HOME", str(home_dir))
+    if sys.platform == "win32":
+        monkeypatch.setenv("USERPROFILE", str(home_dir))
 
     work_dir = tmp_path / "project"
     work_dir.mkdir()

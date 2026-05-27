@@ -1,4 +1,5 @@
 """sw_vers tool - print macOS version information."""
+import os
 import platform
 
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue

@@ -41,7 +41,7 @@ class TestInspectPlanEditTarget:
             plan_file_path_getter=lambda: None,
         )
         assert isinstance(result, ToolError)
-        assert "unavailable" in result.message
+        assert "unavailable" in result.brief or "no plan file" in result.message.lower()
 
     def test_path_matches_plan_file(self, tmp_path: Path) -> None:
         plan_path = tmp_path / "plan.md"
@@ -64,4 +64,4 @@ class TestInspectPlanEditTarget:
             plan_file_path_getter=lambda: plan_path,
         )
         assert isinstance(result, ToolError)
-        assert "only edit the current plan file" in result.message
+        assert "Only the current plan file can be edited" in result.message

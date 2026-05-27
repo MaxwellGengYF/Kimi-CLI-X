@@ -1,3 +1,4 @@
+import sys
 import tempfile
 from pathlib import Path
 
@@ -8,6 +9,7 @@ from kimi_cli.hooks.config import HookDef
 from kimi_cli.hooks.engine import HookEngine
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Unix shell commands")
 @pytest.mark.asyncio
 async def test_pre_tool_use_block_flow():
     """Full flow: hook blocks a dangerous command."""
@@ -42,6 +44,7 @@ async def test_pre_tool_use_block_flow():
         assert "rm -rf" in results[0].reason
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Unix shell commands")
 @pytest.mark.asyncio
 async def test_stop_hook_feedback():
     """Stop hook returns block with reason."""
@@ -135,6 +138,7 @@ def test_hook_engine_summary():
     assert summary == {"PreToolUse": 2, "Stop": 1}
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Unix shell commands")
 @pytest.mark.asyncio
 async def test_session_hooks_payload():
     """SessionStart/End hooks receive correct payloads."""
@@ -186,6 +190,7 @@ async def test_post_tool_use_failure_hook():
     assert "failure_caught" in results[0].stdout
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Unix shell commands")
 @pytest.mark.asyncio
 async def test_user_prompt_submit_block():
     """UserPromptSubmit hook can block a prompt."""

@@ -4,8 +4,10 @@ import platform
 import sys
 from pathlib import Path
 
+import pytest
 from inline_snapshot import snapshot
 
+pytest.importorskip("PyInstaller")
 
 def test_pyinstaller_datas():
     from kimi_cli.utils.pyinstaller import datas

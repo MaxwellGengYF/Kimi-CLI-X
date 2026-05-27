@@ -1,6 +1,6 @@
 import asyncio
 
-from kosong.chat_provider import APIStatusError, StreamedMessagePart
+from kosong.chat_provider import APIStatusError, ChatProviderError, StreamedMessagePart
 from kosong.chat_provider.chaos import ChaosChatProvider, ChaosConfig
 from kosong.chat_provider.kimi import Kimi
 from kosong.chat_provider.mock import MockChatProvider
@@ -38,6 +38,6 @@ async def test_chaos_chat_provider():
                 history=[Message(role="user", content=[TextPart(text="Hello, world!")])],
             ):
                 parts.append(part)
-            raise AssertionError("Expected APIStatusError")
-        except APIStatusError:
+            raise AssertionError("Expected ChatProviderError")
+        except ChatProviderError:
             pass

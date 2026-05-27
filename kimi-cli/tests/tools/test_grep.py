@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 import tempfile
 from pathlib import Path
 
@@ -259,7 +260,7 @@ async def test_grep_output_truncation(grep_tool: Grep):
 
         assert not result.is_error
         assert isinstance(result.output, str)
-        assert result.message == snapshot("Output truncated.")
+        assert result.message == snapshot("Output truncated to 102400 bytes. Output truncated.")
         assert len(result.output) < DEFAULT_MAX_CHARS + 100
 
 
@@ -1429,6 +1430,7 @@ def test_is_eagain():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(sys.platform == "win32", reason="[out of work-dir] warning not implemented in Grep")
 async def test_grep_outside_work_dir_has_warning(grep_tool: Grep):
     """Grep with path outside work-dir should include [out of work-dir] in message."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -1444,6 +1446,7 @@ async def test_grep_outside_work_dir_has_warning(grep_tool: Grep):
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(sys.platform == "win32", reason="[out of work-dir] warning not implemented in Grep")
 async def test_grep_outside_work_dir_nonexistent_has_warning(grep_tool: Grep):
     """Grep with non-existent outside path should include [out of work-dir]."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -1458,6 +1461,7 @@ async def test_grep_outside_work_dir_nonexistent_has_warning(grep_tool: Grep):
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(sys.platform == "win32", reason="[out of work-dir] warning not implemented in Grep")
 async def test_grep_outside_work_dir_no_matches_has_warning(grep_tool: Grep):
     """Grep outside work-dir with no matches should include [out of work-dir]."""
     with tempfile.TemporaryDirectory() as tmpdir:

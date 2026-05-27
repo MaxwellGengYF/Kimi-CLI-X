@@ -90,7 +90,8 @@ class Run(CallableTool2[RunParams]):
             # Try progressively longer prefixes to find an existing file, so paths with spaces are handled.
             if " " in params.path:
                 try:
-                    parts = shlex.split(params.path)
+                    import sys
+                    parts = shlex.split(params.path, posix=os.name != "nt")
                 except ValueError:
                     parts = params.path.split(" ")
                 candidate = parts[0]
@@ -219,7 +220,7 @@ class Run(CallableTool2[RunParams]):
                     return ToolError(
                         output=output,
                         message=f"Running in background. task_id: `{task_id}`. use `TaskOutput` or `Input`",
-                        brief=display_cmd,
+                        brief="Timeout",
                     )
                 # Clean up foreground task registration
                 from kimix.tools.background.utils import remove_task_id

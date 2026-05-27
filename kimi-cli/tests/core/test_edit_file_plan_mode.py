@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, cast
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 from kaos.path import KaosPath
 from kosong.tooling import ToolError, ToolReturnValue
@@ -26,7 +26,8 @@ class TestEditFilePlanMode:
         plan_path.write_text("# Plan\n- old", encoding="utf-8")
 
         with tool_call_context("EditFile"):
-            tool = EditFile(runtime, approval)
+            session = MagicMock()
+            tool = EditFile(runtime, approval, session)
             tool.bind_plan_mode(
                 checker=lambda: True,
                 path_getter=lambda: plan_path,
@@ -57,7 +58,8 @@ class TestEditFilePlanMode:
         plan_path = Path(str(temp_work_dir)) / "plans" / "plan.md"
 
         with tool_call_context("EditFile"):
-            tool = EditFile(runtime, approval)
+            session = MagicMock()
+            tool = EditFile(runtime, approval, session)
             tool.bind_plan_mode(
                 checker=lambda: True,
                 path_getter=lambda: plan_path,
@@ -86,7 +88,8 @@ class TestEditFilePlanMode:
         await target.write_text("old content")
 
         with tool_call_context("EditFile"):
-            tool = EditFile(runtime, approval)
+            session = MagicMock()
+            tool = EditFile(runtime, approval, session)
             result = await tool(
                 Params(
                     path=str(target),
@@ -104,7 +107,8 @@ class TestEditFilePlanMode:
         plan_path = tmp_path / "plans" / "missing-plan.md"
 
         with tool_call_context("EditFile"):
-            tool = EditFile(runtime, approval)
+            session = MagicMock()
+            tool = EditFile(runtime, approval, session)
             tool.bind_plan_mode(
                 checker=lambda: True,
                 path_getter=lambda: plan_path,

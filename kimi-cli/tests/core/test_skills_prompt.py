@@ -110,7 +110,7 @@ def test_format_skills_for_prompt_lists_name_path_description():
     assert "alpha" in rendered
     assert "Alpha does things" in rendered
     # Path is included (helps model read the skill on demand)
-    assert "/tmp/user/alpha" in rendered
+    assert "/tmp/user/alpha" in rendered or r"\tmp\user\alpha" in rendered
 
 
 def test_format_skills_for_prompt_sorts_within_scope():

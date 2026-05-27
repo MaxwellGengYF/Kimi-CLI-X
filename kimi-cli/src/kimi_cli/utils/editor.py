@@ -12,7 +12,7 @@ from pathlib import Path
 
 from kimi_cli.utils.logging import logger
 from kimi_cli.utils.subprocess_env import get_clean_env
-
+import sys
 # VSCode needs --wait to block until the file is closed.
 _EDITOR_CANDIDATES = [
     (["code", "--wait"], "code"),
@@ -30,7 +30,7 @@ def get_editor_command(configured: str = "") -> list[str] | None:
     """
     if configured:
         try:
-            return shlex.split(configured)
+            return shlex.split(configured, posix=os.name != "nt")
         except ValueError:
             logger.warning("Invalid configured editor value: {}", configured)
 
@@ -38,7 +38,7 @@ def get_editor_command(configured: str = "") -> list[str] | None:
         value = os.environ.get(var)
         if value:
             try:
-                return shlex.split(value)
+                return shlex.split(value, posix=os.name != "nt")
             except ValueError:
                 logger.warning("Invalid {} value: {}", var, value)
                 continue

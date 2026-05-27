@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import sys
 import time
 from datetime import datetime
 
@@ -1134,6 +1135,7 @@ def test_completion_event_set_on_publish(runtime):
     assert manager.completion_event.is_set()
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Uses Unix-specific shell commands")
 @pytest.mark.asyncio
 async def test_manager_launches_real_worker_and_waits(runtime):
     manager = runtime.background_tasks
@@ -1154,6 +1156,7 @@ async def test_manager_launches_real_worker_and_waits(runtime):
     assert "bg-ok" in manager.store.output_path(view.spec.id).read_text(encoding="utf-8")
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Uses Unix-specific shell commands")
 @pytest.mark.asyncio
 async def test_manager_surfaces_timeout_failure(runtime):
     manager = runtime.background_tasks

@@ -227,6 +227,7 @@ class KimiSoul:
         self._plan_mode: bool = self._runtime.session.state.plan_mode
         self._plan_session_id: str | None = self._runtime.session.state.plan_session_id
         self._current_turn_id: str = ""
+        self._current_step_no: int = 0
         self._current_turn_user_text: str = ""
         self._last_auto_retrieved_turn_id: int | None = None
         # Pre-warm slug cache so the persisted slug survives process restarts

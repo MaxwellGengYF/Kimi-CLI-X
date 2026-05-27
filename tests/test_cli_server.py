@@ -306,6 +306,7 @@ def _mock_httpx_client(mock_resp):
     client.get = AsyncMock(return_value=mock_resp)
     client.post = AsyncMock(return_value=mock_resp)
     client.delete = AsyncMock(return_value=mock_resp)
+    client.aclose = AsyncMock()
     return client
 
 

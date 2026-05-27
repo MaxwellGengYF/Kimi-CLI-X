@@ -1,4 +1,5 @@
 """nslookup tool - query DNS servers."""
+import os
 import socket
 
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue

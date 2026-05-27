@@ -30,7 +30,7 @@ def _check_command_exists(command: str) -> bool:
 class Params(BaseModel):
     command: str = Field(description="Command to execute.")
     timeout: int = Field(
-        description="Timeout in seconds (range: 600-900, default: 60)."
+        description="Timeout in seconds (range: 600-900, default: 60).",
         default=60,
         ge=1,
         le=MAX_TIMEOUT,

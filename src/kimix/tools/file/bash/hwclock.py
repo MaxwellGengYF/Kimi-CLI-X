@@ -1,4 +1,5 @@
 """hwclock tool - query or set the hardware clock."""
+import os
 import time
 
 from kimi_agent_sdk import CallableTool2, ToolError, ToolOk, ToolReturnValue

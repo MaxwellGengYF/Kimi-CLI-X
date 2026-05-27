@@ -508,7 +508,7 @@ class TestTaskListAsync:
         tool = TaskOutput(session=mock_session)
         result = await tool(TaskOutputParams(task_id=None))
         assert isinstance(result, ToolOk)
-        assert "No background tasks running" in str(result.output)
+        assert "No tasks" in str(result.output)
 
     async def test_task_list_shows_started_tasks(self, mock_session: MagicMock) -> None:
         tool = TaskOutput(session=mock_session)

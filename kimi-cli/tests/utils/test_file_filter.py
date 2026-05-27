@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -224,6 +225,7 @@ class TestUntrackedFiles:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows does not allow these characters in filenames")
 class TestSpecialCharFilenames:
     """Filenames with tab, quotes, or backslash must be handled correctly."""
 

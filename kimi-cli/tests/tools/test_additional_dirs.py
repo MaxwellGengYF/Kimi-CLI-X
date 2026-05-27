@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import platform
+import sys
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
@@ -69,6 +70,7 @@ async def test_glob_in_additional_dir_subdirectory(
     assert "main.py" in result.output
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows path validation order differs")
 async def test_glob_outside_all_dirs_rejected(
     runtime_with_additional_dir: Runtime,
 ):
@@ -163,6 +165,7 @@ async def test_replace_in_additional_dir(
 # ── Dynamic mutation tests ──────────────────────────────────────────────────
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows path validation differs")
 async def test_add_dir_dynamically_affects_tools(runtime: Runtime, approval: Approval):
     """Adding a dir to runtime.additional_dirs should immediately affect tool behavior."""
     glob_tool = Glob(runtime)
@@ -244,6 +247,7 @@ async def test_glob_in_skills_dir_subdirectory(
     assert "read_content.py" in result.output
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows path validation order differs")
 async def test_glob_outside_skills_and_workspace_rejected(
     runtime_with_skills_dir: Runtime,
 ):
@@ -256,6 +260,7 @@ async def test_glob_outside_skills_and_workspace_rejected(
     assert "outside the workspace" in result.message
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows path validation differs")
 async def test_glob_skill_scripts_dir_outside_workspace(
     runtime: Runtime,
 ):

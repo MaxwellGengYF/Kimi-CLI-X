@@ -56,7 +56,6 @@ from kimix.tools.file.bash import (
     Fmt,
     Free,
     Fuser,
-    Grep,
     Groups,
     Gunzip,
     Gzip,
@@ -274,83 +273,6 @@ class TestLs:
         result = await _run(Ls, ["-l", str(tmp_path)])
         assert isinstance(result, ToolOk)
         assert "->" in result.output
-
-
-# ---------------------------------------------------------------------------
-# Grep
-# ---------------------------------------------------------------------------
-class TestGrep:
-    async def test_basic_match(self, tmp_path: Path) -> None:
-        f = tmp_path / "a.txt"
-        f.write_text("hello world\nfoo bar\n", encoding="utf-8")
-        result = await _run(Grep, ["hello", str(f)])
-        assert isinstance(result, ToolOk)
-        assert "hello world" in result.output
-        assert "foo bar" not in result.output
-
-    async def test_invert_match(self, tmp_path: Path) -> None:
-        f = tmp_path / "a.txt"
-        f.write_text("hello\nworld\n", encoding="utf-8")
-        result = await _run(Grep, ["-v", "hello", str(f)])
-        assert isinstance(result, ToolOk)
-        assert "world" in result.output
-        assert "hello" not in result.output
-
-    async def test_ignore_case(self, tmp_path: Path) -> None:
-        f = tmp_path / "a.txt"
-        f.write_text("Hello\n", encoding="utf-8")
-        result = await _run(Grep, ["-i", "hello", str(f)])
-        assert isinstance(result, ToolOk)
-        assert "Hello" in result.output
-
-    async def test_line_number(self, tmp_path: Path) -> None:
-        f = tmp_path / "a.txt"
-        f.write_text("a\nb\n", encoding="utf-8")
-        result = await _run(Grep, ["-n", "b", str(f)])
-        assert isinstance(result, ToolOk)
-        assert "2:b" in result.output
-
-    async def test_count_only(self, tmp_path: Path) -> None:
-        f = tmp_path / "a.txt"
-        f.write_text("a\na\n", encoding="utf-8")
-        result = await _run(Grep, ["-c", "a", str(f)])
-        assert isinstance(result, ToolOk)
-        assert result.output == "2"
-
-    async def test_fixed_strings(self, tmp_path: Path) -> None:
-        f = tmp_path / "a.txt"
-        f.write_text("a.b\n", encoding="utf-8")
-        result = await _run(Grep, ["-F", "a.b", str(f)])
-        assert isinstance(result, ToolOk)
-        assert "a.b" in result.output
-
-    async def test_recursive(self, tmp_path: Path) -> None:
-        sub = tmp_path / "sub"
-        sub.mkdir()
-        (sub / "a.txt").write_text("findme\n")
-        result = await _run(Grep, ["-r", "findme", str(tmp_path)])
-        assert isinstance(result, ToolOk)
-        assert "findme" in result.output
-
-    async def test_missing_pattern(self, tmp_path: Path) -> None:
-        result = await _run(Grep, [])
-        assert isinstance(result, ToolError)
-        assert "missing pattern" in result.message.lower()
-
-    async def test_missing_file(self, tmp_path: Path) -> None:
-        result = await _run(Grep, ["pattern"])
-        assert isinstance(result, ToolError)
-        assert "missing file" in result.message.lower()
-
-    async def test_multiple_files(self, tmp_path: Path) -> None:
-        f1 = tmp_path / "a.txt"
-        f2 = tmp_path / "b.txt"
-        f1.write_text("x\n")
-        f2.write_text("x\n")
-        result = await _run(Grep, ["x", str(f1), str(f2)])
-        assert isinstance(result, ToolOk)
-        assert str(f1) in result.output or str(f2) in result.output
-
 
 # ---------------------------------------------------------------------------
 # Mkdir

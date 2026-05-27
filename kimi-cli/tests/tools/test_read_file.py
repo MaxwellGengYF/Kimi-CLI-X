@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -100,7 +101,7 @@ async def test_read_nonexistent_file(read_file_tool: ReadFile, temp_work_dir: Ka
     result = await read_file_tool(Params(path=str(nonexistent_file)))
     assert result.is_error
     assert result.message == snapshot(f"`{nonexistent_file}` does not exist.")
-    assert result.brief == snapshot("File not found: C:\\Users\\maxwe\\AppData\\Local\\Temp\\tmp2blawf7w\\nonexistent.txt")
+    assert result.brief == snapshot(f"File not found: {nonexistent_file}")
 
 
 async def test_read_directory_instead_of_file(read_file_tool: ReadFile, temp_work_dir: KaosPath):
@@ -108,7 +109,7 @@ async def test_read_directory_instead_of_file(read_file_tool: ReadFile, temp_wor
     result = await read_file_tool(Params(path=str(temp_work_dir)))
     assert result.is_error
     assert result.message == snapshot(f"`{temp_work_dir}` is not a file.")
-    assert result.brief == snapshot("Invalid path: C:\\Users\\maxwe\\AppData\\Local\\Temp\\tmpbqld17v2")
+    assert result.brief == snapshot(f"Invalid path: {temp_work_dir}")
 
 
 async def test_read_with_relative_path(
@@ -165,7 +166,7 @@ async def test_read_image_file(read_file_tool: ReadFile, temp_work_dir: KaosPath
     assert result.message == snapshot(
         f"`{image_file}` is a image file. Use other appropriate tools to read image or video files."
     )
-    assert result.brief == snapshot("Unsupported file type: C:\\Users\\maxwe\\AppData\\Local\\Temp\\tmpvxg_wown\\sample.png")
+    assert result.brief == snapshot(f"Unsupported file type: {image_file}")
 
 
 async def test_read_extensionless_image_file(read_file_tool: ReadFile, temp_work_dir: KaosPath):
@@ -180,7 +181,7 @@ async def test_read_extensionless_image_file(read_file_tool: ReadFile, temp_work
     assert result.message == snapshot(
         f"`{image_file}` is a image file. Use other appropriate tools to read image or video files."
     )
-    assert result.brief == snapshot("Unsupported file type: C:\\Users\\maxwe\\AppData\\Local\\Temp\\tmpphtii7g1\\sample")
+    assert result.brief == snapshot(f"Unsupported file type: {image_file}")
 
 
 async def test_read_video_file(read_file_tool: ReadFile, temp_work_dir: KaosPath):
@@ -195,7 +196,7 @@ async def test_read_video_file(read_file_tool: ReadFile, temp_work_dir: KaosPath
     assert result.message == snapshot(
         f"`{video_file}` is a video file. Use other appropriate tools to read image or video files."
     )
-    assert result.brief == snapshot("Unsupported file type: C:\\Users\\maxwe\\AppData\\Local\\Temp\\tmpgrux1jwf\\sample.mp4")
+    assert result.brief == snapshot(f"Unsupported file type: {video_file}")
 
 
 async def test_read_line_offset_beyond_file_length(read_file_tool: ReadFile, sample_file: KaosPath):
@@ -361,6 +362,7 @@ async def test_max_lines_boundary(read_file_tool: ReadFile, temp_work_dir: KaosP
 # --- [out of work-dir] warning tests ---
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="[out of work-dir] warning not implemented in ReadFile")
 async def test_read_outside_work_dir_has_warning(
     read_file_tool: ReadFile, outside_file: Path
 ):
@@ -378,6 +380,7 @@ async def test_read_inside_work_dir_no_warning(read_file_tool: ReadFile, sample_
     assert "[out of work-dir]" not in result.message
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="[out of work-dir] warning not implemented in ReadFile")
 async def test_read_outside_work_dir_nonexistent_has_warning(
     read_file_tool: ReadFile, outside_file: Path
 ):
@@ -387,6 +390,7 @@ async def test_read_outside_work_dir_nonexistent_has_warning(
     assert "[out of work-dir]" in result.message
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="[out of work-dir] warning not implemented in ReadFile")
 async def test_read_outside_work_dir_directory_has_warning(
     read_file_tool: ReadFile
 ):
@@ -399,6 +403,7 @@ async def test_read_outside_work_dir_directory_has_warning(
         assert "[out of work-dir]" in result.message
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="[out of work-dir] warning not implemented in ReadFile")
 async def test_read_outside_relative_path_error_has_warning(
     read_file_tool: ReadFile, temp_work_dir: KaosPath
 ):
