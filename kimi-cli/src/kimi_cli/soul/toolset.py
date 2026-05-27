@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import importlib
 import inspect
+import json
 import orjson
 import time
 import contextvars
@@ -194,7 +195,6 @@ class KimiToolset:
         self._mcp_loading_task: asyncio.Task[None] | None = None
         self._deferred_mcp_load: tuple[list[MCPConfig], Runtime] | None = None
         self._hook_engine: HookEngine = HookEngine()
-        self._recent_tool_failures: dict[str, int] = {}
 
         # Deduplication state
         self._previous_step_calls: list[ToolCallKey] = []
@@ -317,7 +317,7 @@ class KimiToolset:
 
             try:
                 arguments: JsonType = loads_relaxed(tool_call.function.arguments or "{}")
-            except orjson.JSONDecodeError as e:
+            except json.JSONDecodeError as e:
                 logger.warning(
                     "Tool call JSON parse error: {tool_name} (call_id={call_id}): {error}",
                     tool_name=tool_name,
@@ -386,11 +386,6 @@ class KimiToolset:
                 # --- Execute tool ---
                 t0 = time.monotonic()
                 try:
-                    # Track repeated tool-call failures for the same tool.
-                    func_name = str(tool_name)
-                    calls_len = self._recent_tool_failures.get(func_name, 0) + 1
-                    self._recent_tool_failures[func_name] = calls_len
-
                     ret = await tool.call(arguments)
                     if isinstance(ret.output, str):
                         ret.output = sanitize_for_tokenizer(ret.output)
@@ -416,14 +411,6 @@ class KimiToolset:
                         if len_bytes > MAX_BYTES:   # Add by Maxwell: process large size
                             temp_file = _export_to_temp_file(ret.output)
                             ret.output = f'Output too large ({len_bytes} bytes), exported to `{temp_file}`'
-                    # Surface repeat-failure count so the model knows it's looping.
-                    if ret.is_error and calls_len >= 2:
-                        repeat_msg = f"[repeated failure {calls_len}]"
-                        if ret.message:
-                            ret.message = f"{ret.message} {repeat_msg}"
-                        else:
-                            ret.message = repeat_msg
-
                 except Exception as e:
                     tool_elapsed = time.monotonic() - t0
                     logger.exception(
@@ -455,8 +442,6 @@ class KimiToolset:
                     )
 
                 tool_elapsed = time.monotonic() - t0
-                if not ret.is_error:
-                    self._recent_tool_failures.pop(func_name, None)
                 logger.info(
                     "Tool {tool_name} completed in {elapsed:.1f}s (call_id={call_id})",
                     tool_name=tool_name,

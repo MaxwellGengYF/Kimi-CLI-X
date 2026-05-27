@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import json
+import orjson
 from pathlib import Path
 from typing import Literal
 
@@ -59,7 +59,7 @@ def _migrate_legacy_metadata(session_dir: Path, state: SessionState) -> str:
     if not metadata_file.exists():
         return "skip"
     try:
-        data = json.loads(metadata_file.read_text(encoding="utf-8"))
+        data = orjson.loads(metadata_file.read_text(encoding="utf-8"))
     except Exception:
         # Leave the file intact for future retry — it may be temporarily unreadable
         return "skip"
@@ -103,8 +103,8 @@ def load_session_state(session_dir: Path) -> SessionState:
     else:
         try:
             with open(state_file, encoding="utf-8") as f:
-                state = SessionState.model_validate(json.load(f))
-        except (json.JSONDecodeError, ValidationError, UnicodeDecodeError) as e:
+                state = SessionState.model_validate(orjson.loads(f.read()))
+        except (orjson.JSONDecodeError, ValidationError, UnicodeDecodeError) as e:
             logger.warning("Corrupted state file, using defaults: {path}", path=state_file)
 
             state = SessionState()

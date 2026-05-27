@@ -1,5 +1,5 @@
 import asyncio
-import json
+import orjson
 import os
 
 KIMI_CLI_COMMAND = "uv run --project ../../ kimi"
@@ -26,14 +26,14 @@ async def main():
         "role": "user",
         "content": "How many lines of code are there in the current working directory?",
     }
-    proc.stdin.write(json.dumps(user_message).encode("utf-8") + b"\n")
+    proc.stdin.write(orjson.dumps(user_message) + b"\n")
     await proc.stdin.drain()
 
     while True:
         line = await proc.stdout.readline()
         if not line:
             break
-        message = json.loads(line.decode("utf-8"))
+        message = orjson.loads(line.decode("utf-8"))
         print("Received message:", message)
 
 

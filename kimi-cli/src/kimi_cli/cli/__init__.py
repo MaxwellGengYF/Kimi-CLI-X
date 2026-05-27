@@ -271,7 +271,7 @@ def kimi(
     import asyncio
     import contextlib
     import inspect
-    import json
+    import orjson
 
     from kimi_cli.utils.proctitle import init_process_name
 
@@ -367,13 +367,13 @@ def kimi(
             file_configs.append(default_mcp_file)
 
     try:
-        mcp_configs = [json.loads(conf.read_text(encoding="utf-8")) for conf in file_configs]
-    except json.JSONDecodeError as e:
+        mcp_configs = [orjson.loads(conf.read_text(encoding="utf-8")) for conf in file_configs]
+    except orjson.JSONDecodeError as e:
         raise typer.BadParameter(f"Invalid JSON: {e}", param_hint="--mcp-config-file") from e
 
     try:
-        mcp_configs += [json.loads(conf) for conf in raw_mcp_config]
-    except json.JSONDecodeError as e:
+        mcp_configs += [orjson.loads(conf) for conf in raw_mcp_config]
+    except orjson.JSONDecodeError as e:
         raise typer.BadParameter(f"Invalid JSON: {e}", param_hint="--mcp-config") from e
 
     skills_dirs: list[KaosPath] | None = None

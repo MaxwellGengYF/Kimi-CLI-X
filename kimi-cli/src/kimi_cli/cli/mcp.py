@@ -1,4 +1,4 @@
-import json
+import orjson
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -23,8 +23,8 @@ def _load_mcp_config() -> dict[str, Any]:
     if not mcp_file.exists():
         return {"mcpServers": {}}
     try:
-        config = json.loads(mcp_file.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as e:
+        config = orjson.loads(mcp_file.read_text(encoding="utf-8"))
+    except orjson.JSONDecodeError as e:
         raise typer.BadParameter(f"Invalid JSON in MCP config file '{mcp_file}': {e}") from e
 
     try:
@@ -38,7 +38,7 @@ def _load_mcp_config() -> dict[str, Any]:
 def _save_mcp_config(config: dict[str, Any]) -> None:
     """Save MCP config to default file."""
     mcp_file = get_global_mcp_config_file()
-    mcp_file.write_text(json.dumps(config, indent=2, ensure_ascii=False), encoding="utf-8")
+    mcp_file.write_text(orjson.dumps(config, option=orjson.OPT_INDENT_2).decode("utf-8"), encoding="utf-8")
 
 
 def _get_mcp_server(name: str, *, require_remote: bool = False) -> dict[str, Any]:

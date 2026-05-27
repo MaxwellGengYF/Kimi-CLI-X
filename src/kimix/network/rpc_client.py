@@ -5,7 +5,7 @@ This module provides a JSON-RPC client built on top of the low-level TCPClient.
 It sends JSON-RPC 2.0 requests over TCP and returns the decoded results.
 """
 
-import json
+import orjson
 import threading
 from typing import Any
 
@@ -28,8 +28,8 @@ class JSONRPCClient:
 
     def _handle_message(self, message: str) -> None:
         try:
-            response = json.loads(message)
-        except json.JSONDecodeError:
+            response = orjson.loads(message)
+        except orjson.JSONDecodeError:
             return
         with self._lock:
             self._last_response = response
@@ -70,7 +70,7 @@ class JSONRPCClient:
             "method": method,
             "params": list(args),
         }
-        self._client.send(json.dumps(request))
+        self._client.send(orjson.dumps(request).decode("utf-8"))
 
         if not self._pending_event.wait(timeout=timeout):
             raise TimeoutError(f"JSON-RPC call to '{method}' timed out")

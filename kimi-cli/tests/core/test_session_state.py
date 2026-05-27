@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import orjson
 from pathlib import Path
 
 import pytest
@@ -336,14 +337,14 @@ class TestSessionState:
         original = SessionState(approval=ApprovalStateData(yolo=True))
         save_session_state(original, state_dir)
 
-        # Monkey-patch json.dump to raise mid-write
-        original_dump = json.dump
+        # Monkey-patch orjson.dumps to raise mid-write
+        original_dumps = orjson.dumps
 
-        def bad_dump(*args, **kwargs):
-            original_dump(*args, **kwargs)
+        def bad_dumps(*args, **kwargs):
+            result = original_dumps(*args, **kwargs)
             raise OSError("simulated disk error")
 
-        monkeypatch.setattr(json, "dump", bad_dump)
+        monkeypatch.setattr(orjson, "dumps", bad_dumps)
 
         with pytest.raises(OSError, match="simulated disk error"):
             save_session_state(SessionState(approval=ApprovalStateData(yolo=False)), state_dir)

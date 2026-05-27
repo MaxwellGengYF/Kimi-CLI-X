@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import json
+import orjson
 import platform
 from typing import Annotated, TypedDict
 
@@ -30,7 +30,7 @@ def _collect_info() -> InfoData:
 def _emit_info(json_output: bool) -> None:
     info = _collect_info()
     if json_output:
-        typer.echo(json.dumps(info, ensure_ascii=False))
+        typer.echo(orjson.dumps(info).decode("utf-8"))
         return
 
     agent_versions_text = ", ".join(str(version) for version in info["agent_spec_versions"])

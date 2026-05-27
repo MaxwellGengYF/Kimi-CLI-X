@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import json
+import orjson
 import time
 from collections.abc import Sequence
 from pathlib import Path
@@ -122,14 +122,14 @@ class HistoryIndex:
             "doc_id_counter": self._doc_id_counter,
             "turns": self._turns,
         }
-        self._persist_path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        self._persist_path.write_text(orjson.dumps(data).decode("utf-8"), encoding="utf-8")
 
     def load(self) -> bool:
         """Load turn metadata from disk.  Returns ``True`` on success."""
         if self._persist_path is None or not self._persist_path.exists():
             return False
         try:
-            data = json.loads(self._persist_path.read_text(encoding="utf-8"))
+            data = orjson.loads(self._persist_path.read_text(encoding="utf-8"))
         except Exception:
             return False
 

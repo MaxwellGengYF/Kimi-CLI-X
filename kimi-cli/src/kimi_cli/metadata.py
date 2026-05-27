@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import json
+import orjson
 from hashlib import md5
 from pathlib import Path
 
@@ -69,7 +69,7 @@ def load_metadata() -> Metadata:
         logger.debug("No metadata file found, creating empty metadata")
         return Metadata()
     with open(metadata_file, encoding="utf-8") as f:
-        data = json.load(f)
+        data = orjson.loads(f.read())
         return Metadata(**data)
 
 

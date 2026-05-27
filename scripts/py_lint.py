@@ -2,7 +2,7 @@
 """Python syntax/type check CLI using mypy."""
 
 import argparse
-import json
+import orjson
 import subprocess
 import sys
 from pathlib import Path
@@ -58,9 +58,9 @@ def main() -> int:
         if not line:
             continue
         try:
-            diag = json.loads(line)
+            diag = orjson.loads(line)
             diagnostics.append(diag)
-        except json.JSONDecodeError:
+        except orjson.JSONDecodeError:
             continue
 
     # Also capture stderr if any

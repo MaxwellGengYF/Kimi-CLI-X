@@ -1,5 +1,5 @@
 import asyncio
-import json
+import orjson
 from pathlib import Path
 from typing import IO, Protocol, runtime_checkable
 
@@ -123,12 +123,7 @@ class JsonlLinearStorage(MemoryLinearStorage):
 
         def _write():
             file = self._get_file()
-            json.dump(
-                message.model_dump(exclude_none=True),
-                file,
-                ensure_ascii=False,
-                separators=(",", ":"),
-            )
+            file.write(orjson.dumps(message.model_dump(exclude_none=True)).decode("utf-8"))
             file.write("\n")
 
         await asyncio.to_thread(_write)
@@ -138,12 +133,7 @@ class JsonlLinearStorage(MemoryLinearStorage):
 
         def _write():
             file = self._get_file()
-            json.dump(
-                {"role": "_usage", "token_count": token_count},
-                file,
-                ensure_ascii=False,
-                separators=(",", ":"),
-            )
+            file.write(orjson.dumps({"role": "_usage", "token_count": token_count}).decode("utf-8"))
             file.write("\n")
 
         await asyncio.to_thread(_write)

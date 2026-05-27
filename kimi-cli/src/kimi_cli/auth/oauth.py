@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-import json
+import orjson
 import os
 import platform
 import random
@@ -99,7 +99,7 @@ class OAuthEvent:
         payload: dict[str, Any] = {"type": self.type, "message": self.message}
         if self.data is not None:
             payload["data"] = self.data
-        return json.dumps(payload, ensure_ascii=False)
+        return orjson.dumps(payload).decode("utf-8")
 
 
 @dataclass(slots=True)
@@ -357,8 +357,8 @@ def _load_from_keyring(key: str) -> OAuthToken | None:
     if not raw:
         return None
     try:
-        payload = json.loads(raw)
-    except json.JSONDecodeError:
+        payload = orjson.loads(raw)
+    except orjson.JSONDecodeError:
         return None
     if not isinstance(payload, dict):
         return None
@@ -378,8 +378,8 @@ def _load_from_file(key: str) -> OAuthToken | None:
     if not path.exists():
         return None
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+        payload = orjson.loads(path.read_text(encoding="utf-8"))
+    except (orjson.JSONDecodeError, OSError):
         return None
     if not isinstance(payload, dict):
         return None
@@ -391,7 +391,7 @@ def _save_to_file(key: str, token: OAuthToken) -> None:
     path = _credentials_path(key)
     fd, tmp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
     try:
-        data = json.dumps(token.to_dict(), ensure_ascii=False).encode("utf-8")
+        data = orjson.dumps(token.to_dict())
         written = os.write(fd, data)
         if written != len(data):
             raise OSError(f"Short write: {written}/{len(data)} bytes")
@@ -518,7 +518,7 @@ async def refresh_token(refresh_token: str, *, max_retries: int = 3) -> OAuthTok
                 data: dict[str, Any]
                 try:
                     data = await response.json(content_type=None)
-                except (json.JSONDecodeError, aiohttp.ContentTypeError):
+                except (orjson.JSONDecodeError, aiohttp.ContentTypeError):
                     data = {}
             if status in (401, 403):
                 raise OAuthUnauthorized(

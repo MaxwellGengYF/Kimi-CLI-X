@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import orjson
 import os
 from pathlib import Path
 
@@ -49,13 +50,13 @@ class TestAtomicJsonWrite:
         target = tmp_path / "data.json"
         atomic_json_write({"original": True}, target)
 
-        original_dump = json.dump
+        original_dumps = orjson.dumps
 
-        def bad_dump(*args, **kwargs):
-            original_dump(*args, **kwargs)
+        def bad_dumps(*args, **kwargs):
+            result = original_dumps(*args, **kwargs)
             raise OSError("disk full")
 
-        monkeypatch.setattr(json, "dump", bad_dump)
+        monkeypatch.setattr(orjson, "dumps", bad_dumps)
 
         with pytest.raises(OSError, match="disk full"):
             atomic_json_write({"replacement": True}, target)
@@ -67,10 +68,10 @@ class TestAtomicJsonWrite:
     def test_cleans_tmp_on_error(self, tmp_path: Path, monkeypatch):
         target = tmp_path / "data.json"
 
-        def bad_dump(*args, **kwargs):
+        def bad_dumps(*args, **kwargs):
             raise OSError("disk full")
 
-        monkeypatch.setattr(json, "dump", bad_dump)
+        monkeypatch.setattr(orjson, "dumps", bad_dumps)
 
         with pytest.raises(OSError, match="disk full"):
             atomic_json_write({"data": 1}, target)

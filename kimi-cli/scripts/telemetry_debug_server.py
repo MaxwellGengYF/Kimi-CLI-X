@@ -11,7 +11,7 @@ outbound name "kfc_session_started". Leave it as None to print every event.
 
 from __future__ import annotations
 
-import json
+import orjson
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
@@ -68,7 +68,7 @@ class TelemetryHandler(BaseHTTPRequestHandler):
         raw_body = self.rfile.read(length)
 
         try:
-            payload = json.loads(raw_body.decode("utf-8"))
+            payload = orjson.loads(raw_body.decode("utf-8"))
         except Exception as exc:
             self.send_response(400)
             self.send_header("Content-Type", "text/plain; charset=utf-8")
@@ -94,7 +94,7 @@ class TelemetryHandler(BaseHTTPRequestHandler):
             )
             for idx, event in enumerate(matched, start=1):
                 print(f"--- event {idx}: {_compact_event_summary(event)}")
-                print(json.dumps(event, ensure_ascii=False, indent=2, sort_keys=True))
+                print(orjson.dumps(event, option=orjson.OPT_INDENT_2 | orjson.OPT_SORT_KEYS).decode("utf-8"))
 
         self.send_response(200)
         self.send_header("Content-Type", "application/json")

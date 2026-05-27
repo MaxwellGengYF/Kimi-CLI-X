@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import io
-import json
+import orjson
 import platform
 import time
 import zipfile
@@ -303,7 +303,7 @@ def export(
     # Create ZIP
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
+        zf.writestr("manifest.json", orjson.dumps(manifest, option=orjson.OPT_INDENT_2).decode("utf-8"))
         for file_path in files:
             with contextlib.suppress(OSError):
                 zf.write(file_path, arcname=str(file_path.relative_to(session_dir)))

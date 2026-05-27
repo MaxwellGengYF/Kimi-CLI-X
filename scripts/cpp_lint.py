@@ -2,7 +2,7 @@
 """C++ syntax check CLI using clangd."""
 
 import argparse
-import json
+import orjson
 import os
 import subprocess
 import sys
@@ -69,7 +69,7 @@ class ClangdLSPClient:
             "method": method,
             "params": params,
         }
-        self._send_message(json.dumps(message).encode())
+        self._send_message(orjson.dumps(message))
         return self.request_id
 
     def _send_notification(self, method: str, params: dict[str, Any]) -> None:
@@ -79,7 +79,7 @@ class ClangdLSPClient:
             "method": method,
             "params": params,
         }
-        self._send_message(json.dumps(message).encode())
+        self._send_message(orjson.dumps(message))
 
     def _read_message(self) -> dict[str, Any] | None:
         """Read a message from clangd."""
@@ -110,7 +110,7 @@ class ClangdLSPClient:
         # Read body
         assert self.process.stdout is not None
         body = self.process.stdout.read(content_length)
-        return cast(dict[str, Any], json.loads(body.decode()))
+        return cast(dict[str, Any], orjson.loads(body.decode()))
 
     def initialize(self) -> None:
         """Initialize the LSP connection."""
@@ -232,7 +232,7 @@ def find_clangd(clangd_path: str, project_root: str) -> str:
         if settings_path.exists():
             try:
                 with open(settings_path, "r", encoding="utf-8") as f:
-                    settings = json.load(f)
+                    settings = orjson.loads(f.read())
                 config_clangd_path = settings.get("clangd.path")
                 if config_clangd_path:
                     # Resolve relative path from project root
@@ -293,7 +293,7 @@ def main() -> int:
 
         try:
             with open(compile_commands_path, "r", encoding="utf-8") as f:
-                compile_commands = cast(list[dict[str, Any]], json.load(f))
+                compile_commands = cast(list[dict[str, Any]], orjson.loads(f.read()))
             file_maps = {}
             for entry in compile_commands:
                 file_value = entry.get("file")

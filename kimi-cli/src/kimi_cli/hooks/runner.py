@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-import json
+import orjson
 from dataclasses import dataclass
 from typing import Any, Literal, cast
 
@@ -38,7 +38,7 @@ async def run_hook(
         )
         try:
             stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                proc.communicate(input=json.dumps(input_data).encode()),
+                proc.communicate(input=orjson.dumps(input_data)),
                 timeout=timeout,
             )
         except TimeoutError:
@@ -71,7 +71,7 @@ async def run_hook(
     # Exit 0 + JSON stdout = structured decision
     if exit_code == 0 and stdout.strip():
         try:
-            raw = json.loads(stdout)
+            raw = orjson.loads(stdout)
             if isinstance(raw, dict):
                 parsed = cast(dict[str, Any], raw)
                 hook_output = cast(dict[str, Any], parsed.get("hookSpecificOutput", {}))
@@ -83,7 +83,7 @@ async def run_hook(
                         stderr=stderr,
                         exit_code=0,
                     )
-        except (json.JSONDecodeError, TypeError):
+        except (orjson.JSONDecodeError, TypeError):
             pass
 
     return HookResult(action="allow", stdout=stdout, stderr=stderr, exit_code=exit_code)

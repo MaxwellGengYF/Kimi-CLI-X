@@ -12,7 +12,7 @@ Supports:
 from __future__ import annotations
 
 import asyncio
-import json
+import orjson
 import logging
 import time
 from dataclasses import dataclass, field
@@ -141,8 +141,8 @@ class SSEEvent:
         if not self.data:
             return None
         try:
-            return json.loads(self.data)
-        except json.JSONDecodeError:
+            return orjson.loads(self.data)
+        except orjson.JSONDecodeError:
             return None
 
     @property

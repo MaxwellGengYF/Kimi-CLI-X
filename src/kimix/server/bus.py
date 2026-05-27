@@ -10,7 +10,7 @@ No SSE `event:` field is used — event type is determined by JSON data.type.
 from __future__ import annotations
 
 import asyncio
-import json
+import orjson
 import logging
 import threading
 from dataclasses import dataclass, field
@@ -34,7 +34,7 @@ class BusEvent:
         return {"type": self.type, "properties": self.properties}
 
     def to_json(self) -> str:
-        return json.dumps(self.to_dict(), ensure_ascii=False)
+        return orjson.dumps(self.to_dict()).decode("utf-8")
 
 
 class EventBus:

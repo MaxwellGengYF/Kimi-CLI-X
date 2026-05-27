@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import json
+import orjson
 import time
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -132,7 +132,7 @@ class WireFile:
 
 
 def _dump_line(model: BaseModel) -> str:
-    return json.dumps(model.model_dump(mode="json"), ensure_ascii=False) + "\n"
+    return orjson.dumps(model.model_dump(mode="json")).decode("utf-8") + "\n"
 
 
 def _load_protocol_version(path: Path) -> str | None:

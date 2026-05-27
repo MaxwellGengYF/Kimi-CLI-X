@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import asyncio
-import json
+import orjson
 import tempfile
 from collections.abc import AsyncIterator, Sequence
 from pathlib import Path
@@ -72,7 +72,7 @@ class FixedChatProvider:
         for i, tool in enumerate(tools, 1):
             s += (f"  [{i}] {tool.name}") + '\n'
             s += (f"      description: {tool.description}") + '\n'
-            s += (f"      parameters:  {json.dumps(tool.parameters, indent=6, ensure_ascii=False)}") + '\n'
+            s += (f"      parameters:  {orjson.dumps(tool.parameters, option=orjson.OPT_INDENT_2).decode("utf-8")}") + '\n'
         # Path('tools.md').write_text(s, encoding='utf-8', errors='replace')
         print('Exported ' + str(len(s)))
         print('=' * 20 + ' history ' + '=' * 20)
@@ -185,7 +185,7 @@ async def demo_custom_llm_read_file() -> None:
                     id="call_readfile",
                     function=ToolCall.FunctionBody(
                         name="ReadFile",
-                        arguments=json.dumps({"path": test_file_path}),
+                        arguments=orjson.dumps({"path": test_file_path}).decode("utf-8"),
                     ),
                 )
             ],

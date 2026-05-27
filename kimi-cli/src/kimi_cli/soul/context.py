@@ -7,8 +7,8 @@ from typing import Any, cast
 
 import aiofiles
 import aiofiles.os
-import orjson
 import json
+import orjson
 from kosong.message import Message
 from pydantic import ValidationError
 

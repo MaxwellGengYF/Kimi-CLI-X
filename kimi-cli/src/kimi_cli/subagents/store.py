@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import json
+import orjson
 import shutil
 from dataclasses import asdict
 from pathlib import Path
@@ -186,8 +186,8 @@ class SubagentStore:
 
 def _load_instance_record(meta_path: Path) -> AgentInstanceRecord | None:
     try:
-        return _record_from_dict(json.loads(meta_path.read_text(encoding="utf-8")))
-    except (OSError, json.JSONDecodeError, ValidationError, TypeError, ValueError) as exc:
+        return _record_from_dict(orjson.loads(meta_path.read_text(encoding="utf-8")))
+    except (OSError, orjson.JSONDecodeError, ValidationError, TypeError, ValueError) as exc:
         logger.warning(
             "Skipping invalid subagent metadata {path}: {error}",
             path=meta_path,

@@ -7,7 +7,7 @@ to registered functions, and returns JSON-RPC 2.0 responses.
 """
 
 import asyncio
-import json
+import orjson
 import threading
 import time
 from typing import Any, Callable, Optional
@@ -57,28 +57,28 @@ class JSONRPCServer:
     def _handle_raw_data(self, client_id: int, data: bytes) -> Optional[str]:
         """Parse a JSON-RPC request, invoke the method, and return a response."""
         try:
-            request = json.loads(data.decode("utf-8"))
-        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-            return json.dumps(
+            request = orjson.loads(data.decode("utf-8"))
+        except (orjson.JSONDecodeError, UnicodeDecodeError) as exc:
+            return orjson.dumps(
                 {
                     "jsonrpc": "2.0",
                     "error": {"code": -32700, "message": f"Parse error: {exc}"},
                 }
-            )
+            ).decode("utf-8")
 
         if not isinstance(request, dict):
-            return json.dumps(
+            return orjson.dumps(
                 {
                     "jsonrpc": "2.0",
                     "error": {"code": -32600, "message": "Invalid Request"},
                 }
-            )
+            ).decode("utf-8")
 
         method_name = request.get("method")
         params = request.get("params", [])
 
         if not isinstance(method_name, str) or method_name not in self._registry:
-            return json.dumps(
+            return orjson.dumps(
                 {
                     "jsonrpc": "2.0",
                     "error": {
@@ -86,7 +86,7 @@ class JSONRPCServer:
                         "message": f"Method not found: {method_name}",
                     },
                 }
-            )
+            ).decode("utf-8")
 
         func = self._registry[method_name]
         try:
@@ -97,21 +97,21 @@ class JSONRPCServer:
             else:
                 result = func(client_id)
         except TypeError as exc:
-            return json.dumps(
+            return orjson.dumps(
                 {
                     "jsonrpc": "2.0",
                     "error": {"code": -32602, "message": f"Invalid params: {exc}"},
                 }
-            )
+            ).decode("utf-8")
         except Exception as exc:
-            return json.dumps(
+            return orjson.dumps(
                 {
                     "jsonrpc": "2.0",
                     "error": {"code": -32603, "message": f"Internal error: {exc}"},
                 }
-            )
+            ).decode("utf-8")
 
-        return json.dumps({"jsonrpc": "2.0", "result": result})
+        return orjson.dumps({"jsonrpc": "2.0", "result": result}).decode("utf-8")
 
     def start(self, blocking: bool = True) -> None:
         """Start the JSON-RPC server."""

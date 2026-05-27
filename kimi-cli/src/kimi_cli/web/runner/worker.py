@@ -10,7 +10,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
-import json
+import orjson
 import sys
 from typing import Any
 from uuid import UUID
@@ -38,8 +38,8 @@ async def run_worker(session_id: UUID) -> None:
     if default_mcp_file.exists():
         raw = default_mcp_file.read_text(encoding="utf-8")
         try:
-            mcp_configs = [json.loads(raw)]
-        except json.JSONDecodeError:
+            mcp_configs = [orjson.loads(raw)]
+        except orjson.JSONDecodeError:
             logger.warning(
                 "Invalid JSON in MCP config file: {path}",
                 path=default_mcp_file,

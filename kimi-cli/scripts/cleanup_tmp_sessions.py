@@ -17,7 +17,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
+import orjson
 import shutil
 import sys
 from hashlib import md5
@@ -64,7 +64,7 @@ def main() -> None:
         sys.exit(1)
 
     with open(METADATA_FILE, encoding="utf-8") as f:
-        metadata = json.load(f)
+        metadata = orjson.loads(f.read())
 
     work_dirs: list[dict] = metadata.get("work_dirs", [])
 
@@ -137,7 +137,7 @@ def main() -> None:
     if tmp_entries:
         metadata["work_dirs"] = keep_entries
         with open(METADATA_FILE, "w", encoding="utf-8") as f:
-            json.dump(metadata, f, ensure_ascii=False, indent=2)
+            f.write(orjson.dumps(metadata, option=orjson.OPT_INDENT_2).decode("utf-8"))
         print(f"Updated {METADATA_FILE.name}: {len(work_dirs)} -> {len(keep_entries)} work_dirs.")
 
 

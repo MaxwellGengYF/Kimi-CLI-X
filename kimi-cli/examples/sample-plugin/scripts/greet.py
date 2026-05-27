@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Python tool: generate a greeting message."""
 
-import json
+import orjson
 import sys
 
 GREETINGS = {
@@ -10,7 +10,7 @@ GREETINGS = {
     "ja": "こんにちは、{name}さん！ようこそ！",
 }
 
-params = json.loads(sys.stdin.read()) if not sys.stdin.isatty() else {}
+params = orjson.loads(sys.stdin.read()) if not sys.stdin.isatty() else {}
 name = params.get("name", "World")
 lang = params.get("lang", "en")
 

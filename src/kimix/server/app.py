@@ -24,7 +24,7 @@ Routes (opencode-standard):
 from __future__ import annotations
 
 import asyncio
-import json
+import orjson
 import logging
 import time
 from typing import Any, Dict, List, Optional
@@ -148,10 +148,9 @@ def create_app() -> FastAPI:
     async def event_stream(request: Request) -> StreamingResponse:
         async def _generate():  # type: ignore[return]
             # Send initial connected event
-            connected = json.dumps(
+            connected = orjson.dumps(
                 {"type": "server.connected", "properties": {}},
-                ensure_ascii=False,
-            )
+            ).decode("utf-8")
             yield f"data: {connected}\n\n"
 
             q = bus.create_async_queue()

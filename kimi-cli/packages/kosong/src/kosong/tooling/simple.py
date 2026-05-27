@@ -1,7 +1,6 @@
 import asyncio
 import inspect
 import json
-import orjson
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any, Self
 

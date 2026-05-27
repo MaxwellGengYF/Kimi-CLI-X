@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import json
+import orjson
 import logging
 from collections.abc import Callable
 from pathlib import Path
@@ -142,7 +142,7 @@ class AskUserQuestion(CallableTool2[Params]):
                 display=[BriefDisplayBlock(text="User dismissed")],
             )
 
-        formatted = json.dumps({"answers": answers}, ensure_ascii=False)
+        formatted = orjson.dumps({"answers": answers}).decode("utf-8")
         return ToolReturnValue(
             is_error=False,
             output=formatted,

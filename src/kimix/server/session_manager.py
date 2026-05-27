@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import json
+import orjson
 import logging
 import os
 import threading
@@ -530,7 +530,7 @@ class SessionManager:
                         MessagePart(
                             id=_gen_part_id(),
                             type="text",
-                            text=json.dumps(response),
+                            text=orjson.dumps(response).decode("utf-8"),
                             sessionID=session_id,
                             messageID=asst_msg_id,
                         )
@@ -703,8 +703,8 @@ class SessionManager:
                         parsed_input: Any = {}
                         if tool_args_raw:
                             try:
-                                parsed_input = json.loads(tool_args_raw)
-                            except (json.JSONDecodeError, TypeError):
+                                parsed_input = orjson.loads(tool_args_raw)
+                            except (orjson.JSONDecodeError, TypeError):
                                 parsed_input = {"raw": str(tool_args_raw)}
 
                         _emit_part(
@@ -781,7 +781,7 @@ class SessionManager:
                         try:
                             raw = wire_msg.model_dump()
                             part_type_str = raw.get("type", "unknown")
-                            part_text = json.dumps(raw, ensure_ascii=False)
+                            part_text = orjson.dumps(raw).decode("utf-8")
                             if text_time_start is None:
                                 text_time_start = _now_ms()
                             text_buf.append(f"[{part_type_str}] {part_text}")

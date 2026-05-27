@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import builtins
-import json
 import shutil
 import uuid
 from dataclasses import dataclass
@@ -10,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import aiofiles
-import orjson
+import json
 from kaos.path import KaosPath
 from kosong.message import Message
 
@@ -167,7 +166,7 @@ class Session:
                     continue
                 try:
                     line_json = loads_relaxed(line)
-                except (orjson.JSONDecodeError, json.JSONDecodeError):
+                except json.JSONDecodeError:
                     continue
                 if not isinstance(line_json, dict):
                     continue
