@@ -220,7 +220,11 @@ class CallableTool(Tool, ABC):
 
 # Common LLM field-name substitutions that differ from the canonical schema name.
 # Maps the *wrong* key the LLM often sends → the *correct* field name.
-_COMMON_FIELD_ALIASES: dict[str, str] = {
+#
+# These are split into category-specific dicts so tools can opt into only the
+# aliases relevant to their parameter schema, reducing false-positive repairs.
+
+FIELD_ALIASES_GENERAL: dict[str, str] = {
     # title / description / message
     "content": "title",
     "text": "title",
@@ -232,12 +236,32 @@ _COMMON_FIELD_ALIASES: dict[str, str] = {
     "info": "description",
     "msg": "message",
     "note": "message",
-    # command / code / script
-    "cmd": "command",
-    "script": "command",
-    "shell_command": "command",
-    "program": "code",
-    "snippet": "code",
+    # reason / cause
+    "cause": "reason",
+    "explanation": "reason",
+    "rationale": "reason",
+    "justification": "reason",
+    "purpose": "reason",
+    # prompt / instruction
+    "instruction": "prompt",
+    "task": "prompt",
+    "request": "prompt",
+    # step / stage
+    "stage": "step",
+    "phase": "step",
+    "entry": "step",
+    # result / outcome
+    "outcome": "result",
+    "return": "result",
+    "status": "result",
+    # action / operation
+    "operation": "action",
+    "op": "action",
+    # brief
+    "short": "brief",
+}
+
+FIELD_ALIASES_FILE: dict[str, str] = {
     # path / file / directory
     "file": "path",
     "filepath": "path",
@@ -253,85 +277,6 @@ _COMMON_FIELD_ALIASES: dict[str, str] = {
     "body": "content",
     "source": "content",
     "value": "content",
-    # url / link
-    "link": "url",
-    "href": "url",
-    "address": "url",
-    "uri": "url",
-    "site": "url",
-    # query / search
-    "q": "query",
-    "search": "query",
-    "keyword": "query",
-    "keywords": "query",
-    "term": "query",
-    "question": "query",
-    # prompt / instruction
-    "instruction": "prompt",
-    "task": "prompt",
-    "request": "prompt",
-    # timeout / wait
-    "wait": "timeout",
-    "delay": "timeout",
-    "time_limit": "timeout",
-    "duration": "timeout",
-    # reason / cause
-    "cause": "reason",
-    "explanation": "reason",
-    "rationale": "reason",
-    "justification": "reason",
-    "purpose": "reason",
-    # pattern / regex
-    "regex": "pattern",
-    "expr": "pattern",
-    "expression": "pattern",
-    "match": "pattern",
-    # edit / changes
-    "changes": "edit",
-    "modifications": "edit",
-    "patch": "edit",
-    # edit nested fields
-    "original": "old",
-    "current": "old",
-    "find": "old",
-    "target": "old",
-    "replace_with": "new",
-    "to": "new",
-    "all": "replace_all",
-    # action / operation
-    "operation": "action",
-    "op": "action",
-    # step / stage
-    "stage": "step",
-    "phase": "step",
-    "entry": "step",
-    # result / outcome
-    "outcome": "result",
-    "return": "result",
-    "status": "result",
-    # files / paths
-    "paths": "files",
-    "file_list": "files",
-    # task_id
-    "id": "task_id",
-    "job_id": "task_id",
-    # block / sync
-    "blocking": "block",
-    "sync": "block",
-    # kill / stop
-    "force": "kill",
-    "terminate": "kill",
-    "stop": "kill",
-    # output_path / destination
-    "out": "output_path",
-    "output": "output_path",
-    "destination": "output_path",
-    "dest": "output_path",
-    # run_in_background
-    "background": "run_in_background",
-    "async": "run_in_background",
-    "detach": "run_in_background",
-    "bg": "run_in_background",
     # mode / method
     "method": "mode",
     "write_mode": "mode",
@@ -371,6 +316,121 @@ _COMMON_FIELD_ALIASES: dict[str, str] = {
     # type (file type)
     "file_type": "type",
     "kind": "type",
+    # pattern / regex
+    "regex": "pattern",
+    "expr": "pattern",
+    "expression": "pattern",
+    "match": "pattern",
+    # edit / changes
+    "changes": "edit",
+    "modifications": "edit",
+    "patch": "edit",
+    # edit nested fields
+    "original": "old",
+    "find": "old",
+    "target": "old",
+    "replace_with": "new",
+    "to": "new",
+    "all": "replace_all",
+    # output_path / destination
+    "out": "output_path",
+    "output": "output_path",
+    "destination": "output_path",
+    "dest": "output_path",
+    # files / paths
+    "paths": "files",
+    "file_list": "files",
+    # glob / filter
+    "filter": "glob",
+    "file_pattern": "glob",
+}
+
+FIELD_ALIASES_SHELL: dict[str, str] = {
+    # command / code / script
+    "cmd": "command",
+    "script": "command",
+    "shell_command": "command",
+    "program": "code",
+    "snippet": "code",
+    # timeout / wait
+    "wait": "timeout",
+    "delay": "timeout",
+    "time_limit": "timeout",
+    "duration": "timeout",
+    # run_in_background
+    "background": "run_in_background",
+    "async": "run_in_background",
+    "detach": "run_in_background",
+    "bg": "run_in_background",
+    # args / arguments
+    "arguments": "args",
+    "params": "args",
+    "arg": "args",
+    "parameters": "args",
+    # cwd
+    "working_dir": "cwd",
+    "work_dir": "cwd",
+    # env / variables
+    "environment": "env",
+    "vars": "env",
+    "variables": "env",
+}
+
+FIELD_ALIASES_WEB: dict[str, str] = {
+    # url / link
+    "link": "url",
+    "href": "url",
+    "address": "url",
+    "uri": "url",
+    "site": "url",
+    # query / search
+    "q": "query",
+    "search": "query",
+    "keyword": "query",
+    "keywords": "query",
+    "term": "query",
+    "question": "query",
+}
+
+FIELD_ALIASES_TASK: dict[str, str] = {
+    # task_id
+    "id": "task_id",
+    "job_id": "task_id",
+    # block / sync
+    "blocking": "block",
+    "sync": "block",
+    # kill / stop
+    "force": "kill",
+    "terminate": "kill",
+    "stop": "kill",
+}
+
+FIELD_ALIASES_INPUT: dict[str, str] = {
+    # text / input / stdin
+    "input": "text",
+    "stdin": "text",
+}
+
+FIELD_ALIASES_SEARCH: dict[str, str] = {
+    # k / n / top_k
+    "n": "k",
+    "top_k": "k",
+    "num": "k",
+    # questions
+    "queries": "questions",
+    "msgs": "questions",
+}
+
+FIELD_ALIASES_MODEL: dict[str, str] = {
+    # model / llm
+    "llm": "model",
+    "model_name": "model",
+    # resume / session
+    "continue": "resume",
+    "agent_id": "resume",
+}
+
+FIELD_ALIASES_TODO: dict[str, str] = {
     # todos
     "items": "todos",
     "list": "todos",
@@ -379,45 +439,33 @@ _COMMON_FIELD_ALIASES: dict[str, str] = {
     # force_replace
     "replace": "force_replace",
     "override": "force_replace",
-    # questions
-    "queries": "questions",
-    "msgs": "questions",
+}
+
+FIELD_ALIASES_ACTIVE: dict[str, str] = {
     # active_only
     "active": "active_only",
     "running": "active_only",
     "current": "active_only",
-    # brief
-    "short": "brief",
-    # k / n / top_k
-    "n": "k",
-    "top_k": "k",
-    "num": "k",
+}
+
+FIELD_ALIASES_SUBAGENT: dict[str, str] = {
     # subagent_type
     "agent_type": "subagent_type",
-    # model / llm
-    "llm": "model",
-    "model_name": "model",
-    # resume / session
-    "continue": "resume",
-    "agent_id": "resume",
-    # cwd
-    "working_dir": "cwd",
-    "work_dir": "cwd",
-    # env / variables
-    "environment": "env",
-    "vars": "env",
-    "variables": "env",
-    # args / arguments
-    "arguments": "args",
-    "params": "args",
-    "arg": "args",
-    "parameters": "args",
-    # text / input / stdin
-    "input": "text",
-    "stdin": "text",
-    # glob / filter
-    "filter": "glob",
-    "file_pattern": "glob",
+}
+
+# Merge all categories into the common set for backward compatibility.
+_COMMON_FIELD_ALIASES: dict[str, str] = {
+    **FIELD_ALIASES_GENERAL,
+    **FIELD_ALIASES_FILE,
+    **FIELD_ALIASES_SHELL,
+    **FIELD_ALIASES_WEB,
+    **FIELD_ALIASES_TASK,
+    **FIELD_ALIASES_INPUT,
+    **FIELD_ALIASES_SEARCH,
+    **FIELD_ALIASES_MODEL,
+    **FIELD_ALIASES_TODO,
+    **FIELD_ALIASES_ACTIVE,
+    **FIELD_ALIASES_SUBAGENT,
 }
 
 
@@ -445,7 +493,8 @@ def _repair_dict_for_model(
     2. For remaining missing fields, try common LLM aliases.
     3. Recurse into nested BaseModel fields and list items.
     """
-    common_aliases = common_aliases or _COMMON_FIELD_ALIASES
+    if common_aliases is None:
+        common_aliases = _COMMON_FIELD_ALIASES
     fields = model.model_fields
 
     # Build known key → canonical field name mapping from model metadata.
@@ -522,6 +571,8 @@ class CallableTool2[Params: BaseModel](ABC):
     """The description of the tool."""
     params: type[Params]
     """The Pydantic model type of the tool parameters."""
+    field_aliases: ClassVar[dict[str, str]] = _COMMON_FIELD_ALIASES
+    """Aliases used when repairing dict keys to match this tool's parameter schema."""
 
     def __init__(
         self,
@@ -576,7 +627,7 @@ class CallableTool2[Params: BaseModel](ABC):
         except pydantic.ValidationError as e:
             # Attempt to repair common LLM field-name mismatches and re-validate.
             if isinstance(arguments, dict):
-                repaired = _repair_dict_for_model(arguments, self.params)
+                repaired = _repair_dict_for_model(arguments, self.params, self.field_aliases)
                 if repaired != arguments:
                     try:
                         params = self.params.model_validate(repaired)
