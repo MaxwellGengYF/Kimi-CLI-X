@@ -1,18 +1,65 @@
 # -*- coding: utf-8 -*-
-"""Dummy session manager: stubs all SessionManager interfaces with no real logic.
+"""Dummy session manager: stubs all SessionManager interfaces.
 
 Prints each web request and its formatted arguments for debugging purposes.
 Matches the interface consumed by `src/kimix/server/app.py`.
+
+SessionStateClass holds a real SDK Session and runs prompts via a background
+work thread that calls prompt_async from kimix.utils.prompt.
 """
 
 from __future__ import annotations
 
+import asyncio
+import queue
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from kimi_agent_sdk import Session
+from kimix.base import MessageType, _default_agent_file_dir
+from kimix.utils.session import _create_session_async
+from kimix.utils.system_prompt import SystemPromptType
+
 
 # ── Minimal data models (replicated for standalone use) ──────────
+
+
+@dataclass
+class SessionStateClass:
+    """Holds a real SDK Session plus queues and a background work thread.
+
+    The work thread runs an asyncio event loop that:
+      1. Pops prompt text from ``input_queue``.
+      2. Calls ``prompt_async`` (from ``kimix.utils.prompt``) with an
+         ``output_function`` that pushes captured chunks into ``output_queue``.
+    """
+
+    session: Optional[Session] = None
+    input_queue: queue.Queue = field(default_factory=queue.Queue)
+    output_queue: queue.Queue = field(default_factory=queue.Queue)
+    work_thread: Optional[threading.Thread] = None
+    running: bool = True
+    is_working: bool = False
+    _loop: Optional[asyncio.AbstractEventLoop] = field(default=None, repr=False)
+
+    def stop(self) -> None:
+        """Signal the work loop to stop and join the thread."""
+        self.running = False
+        self.input_queue.put(None)  # sentinel
+        if self.work_thread is not None and self.work_thread.is_alive():
+            self.work_thread.join(timeout=5.0)
+
+    async def close_session(self) -> None:
+        """Close the SDK session if active."""
+        if self.session is not None:
+            try:
+                from kimix.utils import close_session_async
+                await close_session_async(self.session)
+            except Exception:
+                pass
+            self.session = None
 
 
 @dataclass
@@ -36,10 +83,15 @@ class SessionInfo:
 @dataclass
 class SessionStatus:
     type: str = "idle"
-    time: float = 0.0
+    token_count: int = 0
+    context_usage: float = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"type": self.type, "time": self.time}
+        return {
+            "type": self.type,
+            "token_count": self.token_count,
+            "context_usage": self.context_usage,
+        }
 
 
 # ── ID Helpers ──────────────────────────────────────────────────
@@ -57,72 +109,243 @@ def _now_ts() -> float:
     return time.time()
 
 
+# ── Work loop (runs in background thread) ────────────────────────
+
+
+def _work_loop(state: SessionStateClass) -> None:
+    """Background thread target: run an asyncio event loop that processes
+    prompts from ``input_queue`` and feeds output into ``output_queue``."""
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    state._loop = loop
+
+    try:
+        while state.running:
+            try:
+                item = state.input_queue.get(timeout=1.0)
+            except queue.Empty:
+                continue
+
+            if item is None:  # sentinel to stop
+                break
+
+            # item is the prompt text
+            text = item
+
+            state.is_working = True
+            try:
+                loop.run_until_complete(
+                    _process_prompt(state, text)
+                )
+            except Exception:
+                pass
+            finally:
+                # Mark idle when prompt done and no more input queued
+                if state.input_queue.qsize() == 0:
+                    state.is_working = False
+    finally:
+        # Close the SDK session from within its own loop
+        if state.session is not None:
+            try:
+                loop.run_until_complete(state.close_session())
+            except Exception:
+                pass
+        loop.close()
+
+
+async def _process_prompt(
+    state: SessionStateClass, text: str
+) -> None:
+    """Call prompt_async with an output_function that enqueues messages."""
+    from kimix.utils.prompt import prompt_async
+
+    def _output_handler(chunk: str, msg_type: MessageType) -> None:
+        item: Dict[str, Any] = {
+            "type": msg_type.name if hasattr(msg_type, "name") else str(msg_type),
+            "text": chunk,
+            "time": _now_ts(),
+        }
+        if msg_type == MessageType.ToolCalling:
+            name = chunk.split(" ", 1)[0] if chunk else ""
+            if name:
+                item["tool_name"] = name
+        elif msg_type == MessageType.ToolResult:
+            prefix = "[ToolResult] "
+            if chunk.startswith(prefix):
+                item["tool_result"] = chunk[len(prefix):]
+        state.output_queue.put(item)
+
+    await prompt_async(
+        prompt_str=text,
+        session=state.session,
+        output_function=_output_handler,
+        info_print=False,
+    )
+
+
 # ── Dummy Session Manager ────────────────────────────────────────
 
 
 class DummySessionManager:
-    """Drop-in replacement for SessionManager with zero real logic.
+    """Session manager backed by real SDK sessions.
 
-    Every public method prints the incoming request name and its arguments.
-    Return values are minimal, valid stubs so the HTTP layer does not crash.
+    Creates actual ``kimi_agent_sdk.Session`` instances for each API session.
+    Prompts are processed in background threads that call ``prompt_async``.
     """
 
     def __init__(self) -> None:
-        self._dummy_session = SessionInfo(
-            id=_gen_id("ses"),
-            title="Dummy Session",
-            createdAt=_now_ts(),
-            updatedAt=_now_ts(),
-        )
+        self._session_states: Dict[str, SessionStateClass] = {}
+        self._session_infos: Dict[str, SessionInfo] = {}
+        self._lock = threading.Lock()
 
     # ── Session CRUD ─────────────────────────────────────────────
 
-    async def create_session(self, title: Optional[str] = None) -> SessionInfo:
-        """POST /session"""
-        print(f"[DummySessionManager] create_session(title={title!r})")
-        info = SessionInfo(
-            id=_gen_id("ses"),
-            title=title or "Dummy Session",
-            createdAt=_now_ts(),
-            updatedAt=_now_ts(),
+    async def create_session(
+        self,
+        title: Optional[str] = None,
+        supervisor: bool = False,
+        ralph_loop: int = 0,
+    ) -> SessionInfo:
+        """POST /session
+
+        Creates a real SDK session and starts a background work thread.
+        """
+        session_id = _gen_id("ses")
+        now = _now_ts()
+
+        print(
+            f"[DummySessionManager] create_session("
+            f"title={title!r}, supervisor={supervisor!r}, ralph_loop={ralph_loop!r})"
         )
+
+        # Create the appropriate SDK session type (async, no asyncio.run)
+        if supervisor:
+            sdk_session = await _create_session_async(
+                session_id=session_id,
+                agent_file=_default_agent_file_dir / 'agent_boss.json',
+                agent_type=SystemPromptType.Supervisor,
+                max_ralph_iterations=ralph_loop if ralph_loop > 0 else None,
+            )
+        else:
+            sdk_session = await _create_session_async(
+                session_id=session_id,
+                max_ralph_iterations=ralph_loop if ralph_loop > 0 else None,
+            )
+
+        info = SessionInfo(
+            id=session_id,
+            title=title or "Dummy Session",
+            createdAt=now,
+            updatedAt=now,
+        )
+
+        state = SessionStateClass(session=sdk_session)
+        state.work_thread = threading.Thread(
+            target=_work_loop,
+            args=(state,),
+            name=f"session-{session_id}",
+            daemon=True,
+        )
+        state.work_thread.start()
+
+        with self._lock:
+            self._session_states[session_id] = state
+            self._session_infos[session_id] = info
+
         return info
 
     def get_session(self, session_id: str) -> SessionInfo:
         """GET /session/{sessionID}"""
         print(f"[DummySessionManager] get_session(session_id={session_id!r})")
-        return SessionInfo(
-            id=session_id,
-            title="Dummy Session",
-            createdAt=_now_ts(),
-            updatedAt=_now_ts(),
-        )
+        with self._lock:
+            info = self._session_infos.get(session_id)
+        if info is None:
+            raise KeyError(f"Session not found: {session_id}")
+        return info
 
     def list_sessions(self) -> List[SessionInfo]:
         """GET /session"""
         print("[DummySessionManager] list_sessions()")
-        return [self._dummy_session]
+        with self._lock:
+            return sorted(
+                self._session_infos.values(),
+                key=lambda s: s.updatedAt,
+                reverse=True,
+            )
 
     async def delete_session(self, session_id: str) -> bool:
         """DELETE /session/{sessionID}"""
         print(f"[DummySessionManager] delete_session(session_id={session_id!r})")
+        with self._lock:
+            state = self._session_states.pop(session_id, None)
+            self._session_infos.pop(session_id, None)
+        if state is None:
+            return False
+        state.stop()
         return True
 
-    def get_session_status(self) -> Dict[str, Dict[str, Any]]:
-        """GET /session/status"""
-        print("[DummySessionManager] get_session_status()")
-        return {self._dummy_session.id: SessionStatus().to_dict()}
+    def get_session_status(self, session_id: str) -> SessionStatus:
+        """GET /session/{sessionID}/status
+
+        Returns :class:`SessionStatus` with type ``running`` or ``idle``.
+        When idle, also provides context usage percentage and token count.
+        """
+        print(
+            f"[DummySessionManager] get_session_status("
+            f"session_id={session_id!r})"
+        )
+        with self._lock:
+            state = self._session_states.get(session_id)
+        if state is None:
+            raise KeyError(f"Session not found: {session_id}")
+
+        # Determine if the session is actively processing a prompt
+        is_running = state.running and state.is_working
+
+        token_count = 0
+        context_usage = 0.0
+        if state.session is not None:
+            try:
+                sdk_status = state.session.status
+                token_count = getattr(sdk_status, "context_tokens", 0)
+                context_usage = getattr(sdk_status, "context_usage", 0.0)
+            except Exception:
+                pass
+
+        return SessionStatus(
+            type="running" if is_running else "idle",
+            token_count=token_count,
+            context_usage=context_usage,
+        )
 
     # ── Messages ─────────────────────────────────────────────────
 
     def get_messages(
         self, session_id: str, limit: Optional[int] = None
     ) -> List[Dict[str, Any]]:
-        """GET /session/{sessionID}/message"""
+        """GET /session/{sessionID}/message
+
+        Drains the output_queue and returns collected messages.
+        """
         print(
-            f"[DummySessionManager] get_messages(session_id={session_id!r}, limit={limit!r})"
+            f"[DummySessionManager] get_messages("
+            f"session_id={session_id!r}, limit={limit!r})"
         )
-        return []
+        with self._lock:
+            state = self._session_states.get(session_id)
+        if state is None:
+            raise KeyError(f"Session not found: {session_id}")
+
+        messages: List[Dict[str, Any]] = []
+        while not state.output_queue.empty():
+            try:
+                messages.append(state.output_queue.get_nowait())
+            except queue.Empty:
+                break
+        if limit is not None and limit > 0 and len(messages) > limit:
+            messages = messages[-limit:]
+        return messages
 
     # ── Prompt (fire-and-forget) ──────────────────────────────────
 
@@ -130,18 +353,36 @@ class DummySessionManager:
         self,
         session_id: str,
         text: str,
-        agent: Optional[str] = None,
     ) -> None:
-        """POST /session/{sessionID}/prompt_async"""
+        """POST /session/{sessionID}/prompt_async
+
+        Enqueues the prompt text into the session's input_queue.
+        The background work thread will pick it up and call prompt_async.
+        """
         print(
-            f"[DummySessionManager] prompt_async(session_id={session_id!r}, text={text!r}, agent={agent!r})"
+            f"[DummySessionManager] prompt_async("
+            f"session_id={session_id!r}, text={text!r})"
         )
+        with self._lock:
+            state = self._session_states.get(session_id)
+        if state is None:
+            raise KeyError(f"Session not found: {session_id}")
+        state.input_queue.put(text)
 
     # ── Abort ────────────────────────────────────────────────────
 
     def abort_session(self, session_id: str) -> bool:
         """POST /session/{sessionID}/abort"""
         print(f"[DummySessionManager] abort_session(session_id={session_id!r})")
+        with self._lock:
+            state = self._session_states.get(session_id)
+        if state is None:
+            raise KeyError(f"Session not found: {session_id}")
+        if state.session is not None:
+            try:
+                state.session.cancel()
+            except Exception:
+                pass
         return True
 
     # ── Options ─────────────────────────────────────────────────
@@ -149,6 +390,25 @@ class DummySessionManager:
     async def clear_session(self, session_id: str) -> bool:
         """GET /session/{sessionID}/clear"""
         print(f"[DummySessionManager] clear_session(session_id={session_id!r})")
+        with self._lock:
+            state = self._session_states.get(session_id)
+        if state is None:
+            raise KeyError(f"Session not found: {session_id}")
+        if state.session is not None:
+            try:
+                await state.session.clear()
+            except Exception:
+                pass
+        # Drain queues
+        while not state.output_queue.empty():
+            try:
+                state.output_queue.get_nowait()
+            except queue.Empty:
+                break
+        with self._lock:
+            info = self._session_infos.get(session_id)
+            if info:
+                info.updatedAt = _now_ts()
         return True
 
     async def compact_session(
@@ -156,8 +416,22 @@ class DummySessionManager:
     ) -> bool:
         """GET /session/{sessionID}/compact"""
         print(
-            f"[DummySessionManager] compact_session(session_id={session_id!r}, keep={keep!r})"
+            f"[DummySessionManager] compact_session("
+            f"session_id={session_id!r}, keep={keep!r})"
         )
+        with self._lock:
+            state = self._session_states.get(session_id)
+        if state is None:
+            raise KeyError(f"Session not found: {session_id}")
+        if state.session is not None:
+            try:
+                await state.session.compact()
+            except Exception:
+                pass
+        with self._lock:
+            info = self._session_infos.get(session_id)
+            if info:
+                info.updatedAt = _now_ts()
         return True
 
     async def get_session_context(
@@ -165,7 +439,8 @@ class DummySessionManager:
     ) -> Dict[str, Any]:
         """GET /session/{sessionID}/context"""
         print(
-            f"[DummySessionManager] get_session_context(session_id={session_id!r}, keep={keep!r})"
+            f"[DummySessionManager] get_session_context("
+            f"session_id={session_id!r}, keep={keep!r})"
         )
         return {"sessionID": session_id, "context_usage": None}
 
@@ -174,10 +449,20 @@ class DummySessionManager:
     ) -> tuple[str, int]:
         """GET /session/{sessionID}/export"""
         print(
-            f"[DummySessionManager] export_session(session_id={session_id!r}, output_path={output_path!r})"
+            f"[DummySessionManager] export_session("
+            f"session_id={session_id!r}, output_path={output_path!r})"
         )
+        with self._lock:
+            state = self._session_states.get(session_id)
+        if state is None:
+            raise KeyError(f"Session not found: {session_id}")
+        if state.session is not None:
+            try:
+                return await state.session.export(output_path=output_path)
+            except Exception:
+                pass
         return (output_path or f"dummy_export_{session_id}.json", 0)
 
 
-# Global singleton (drop-in for `from kimix.server.session_manager import session_manager`)
+# Global singleton (drop-in for ``from kimix.server.session_manager import session_manager``)
 session_manager = DummySessionManager()

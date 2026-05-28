@@ -10,6 +10,7 @@ All 15 routes are preserved; the SSE /event stream is stubbed (no bus dependency
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import time
 from typing import Any, Dict, List, Optional
@@ -32,6 +33,8 @@ VERSION = "0.1.0"
 
 class CreateSessionRequest(BaseModel):
     title: Optional[str] = Field(None, description="Session title")
+    supervisor: bool = Field(False, description="Create a supervisor session")
+    ralph_loop: int = Field(0, description="Max Ralph loop iterations (0 = default)")
 
 
 class PromptPart(BaseModel):
@@ -41,7 +44,6 @@ class PromptPart(BaseModel):
 
 class PromptInput(BaseModel):
     parts: List[PromptPart] = Field(default_factory=list, description="Message parts")
-    agent: Optional[str] = Field(None, description="Agent name to use")
     model: Optional[str] = Field(None, description="Model name to use")
 
 
@@ -62,8 +64,9 @@ class SessionResponse(BaseModel):
 
 
 class SessionStatusResponse(BaseModel):
-    type: str = Field(..., description="Status: idle | busy | error")
-    time: float = Field(..., description="Status timestamp (unix)")
+    type: str = Field(..., description="Status: running | idle")
+    token_count: int = Field(0, description="Context token count (when idle)")
+    context_usage: float = Field(0.0, description="Context usage percentage (when idle)")
 
 
 class ErrorResponse(BaseModel):
@@ -74,6 +77,11 @@ class ErrorResponse(BaseModel):
 
 
 def create_app() -> FastAPI:
+    @contextlib.asynccontextmanager
+    async def lifespan(app: FastAPI):
+        yield
+        logger.info("Dummy server shutting down")
+
     app = FastAPI(
         title="Kimix API (Dummy)",
         version=VERSION,
@@ -81,6 +89,7 @@ def create_app() -> FastAPI:
         docs_url="/docs",
         openapi_url="/openapi.json",
         redoc_url="/redoc",
+        lifespan=lifespan,
     )
 
     app.add_middleware(
@@ -90,10 +99,6 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
-    @app.on_event("shutdown")
-    async def on_shutdown() -> None:
-        logger.info("Dummy server shutting down")
 
     # ── Health ────────────────────────────────────────────────
 
@@ -161,7 +166,11 @@ def create_app() -> FastAPI:
         status_code=200,
     )
     async def create_session(body: CreateSessionRequest) -> Dict[str, Any]:
-        info = await session_manager.create_session(title=body.title)
+        info = await session_manager.create_session(
+            title=body.title,
+            supervisor=body.supervisor,
+            ralph_loop=body.ralph_loop,
+        )
         return info.to_dict()
 
     @app.get(
@@ -175,14 +184,18 @@ def create_app() -> FastAPI:
         return [s.to_dict() for s in session_manager.list_sessions()]
 
     @app.get(
-        "/session/status",
-        response_model=Dict[str, SessionStatusResponse],
+        "/session/{sessionID}/status",
+        response_model=SessionStatusResponse,
         tags=["Session"],
-        summary="Get all session statuses",
-        description="Returns a map of session ID to current status (idle/busy/error).",
+        summary="Get session status",
+        description="Returns running/idle status. When idle, includes context usage and token count.",
+        responses={404: {"model": ErrorResponse, "description": "Session not found"}},
     )
-    async def session_status() -> Dict[str, Dict[str, Any]]:
-        return session_manager.get_session_status()
+    async def session_status(sessionID: str) -> Dict[str, Any]:
+        try:
+            return session_manager.get_session_status(sessionID).to_dict()
+        except KeyError:
+            raise HTTPException(status_code=404, detail=f"Session not found: {sessionID}")
 
     @app.get(
         "/session/{sessionID}",
@@ -226,7 +239,8 @@ def create_app() -> FastAPI:
         limit: Optional[int] = Query(default=None, description="Maximum number of messages to return"),
     ) -> List[Dict[str, Any]]:
         try:
-            return session_manager.get_messages(sessionID, limit=limit)
+            value = session_manager.get_messages(sessionID, limit=limit)
+            return value
         except KeyError:
             raise HTTPException(status_code=404, detail=f"Session not found: {sessionID}")
 
@@ -252,7 +266,7 @@ def create_app() -> FastAPI:
         try:
             if text:
                 await session_manager.prompt_async(
-                    sessionID, text, agent=body.agent
+                    sessionID, text
                 )
         except KeyError:
             raise HTTPException(status_code=404, detail=f"Session not found: {sessionID}")

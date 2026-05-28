@@ -24,6 +24,7 @@ Routes (opencode-standard):
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import orjson
 import logging
 import time
@@ -90,6 +91,16 @@ class ErrorResponse(BaseModel):
 
 
 def create_app() -> FastAPI:
+    @contextlib.asynccontextmanager
+    async def lifespan(app: FastAPI):
+        yield
+        logger.info("Server shutting down, waking up SSE streams")
+        for q in bus.get_all_queues():
+            try:
+                q.put_nowait(None)
+            except Exception:
+                pass
+
     app = FastAPI(
         title="Kimix API",
         version=VERSION,
@@ -97,6 +108,7 @@ def create_app() -> FastAPI:
         docs_url="/docs",
         openapi_url="/openapi.json",
         redoc_url="/redoc",
+        lifespan=lifespan,
     )
 
     app.add_middleware(
@@ -106,15 +118,6 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
-    @app.on_event("shutdown")
-    async def on_shutdown() -> None:
-        logger.info("Server shutting down, waking up SSE streams")
-        for q in bus.get_all_queues():
-            try:
-                q.put_nowait(None)
-            except Exception:
-                pass
 
     # ── Health ────────────────────────────────────────────────
 

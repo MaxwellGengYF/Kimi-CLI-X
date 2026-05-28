@@ -593,3 +593,195 @@ def test_callable_tool_2_repair_falls_back_to_error():
     tool = TestTool()
     result = asyncio.run(tool.call({"completely_wrong": "Buy milk"}))
     assert isinstance(result, ToolValidateError)
+
+
+# ---------------------------------------------------------------------------
+# Tests for fuzzy field-name matching
+# ---------------------------------------------------------------------------
+
+
+def test_repair_dict_fuzzy_long_field():
+    """Long field names (>=8 chars) are fuzzy-matched with cutoff 0.75."""
+
+    class Params(BaseModel):
+        line_offset: int = Field(default=1)
+        output_path: str | None = Field(default=None)
+
+    repaired = _repair_dict_for_model({"lineoff": 5, "outputh": "/tmp"}, Params)
+    assert repaired == {"line_offset": 5, "output_path": "/tmp"}
+
+
+def test_repair_dict_fuzzy_medium_field():
+    """Medium field names (4-7 chars) are fuzzy-matched with cutoff 0.80."""
+
+    class Params(BaseModel):
+        model: str = Field(default="")
+
+    repaired = _repair_dict_for_model({"modl": "gpt-4"}, Params)
+    assert repaired == {"model": "gpt-4"}
+
+
+def test_repair_dict_fuzzy_short_field_skipped():
+    """Short field names (<4 chars) are not fuzzy-matched."""
+
+    class Params(BaseModel):
+        mod: str = Field(default="")
+
+    repaired = _repair_dict_for_model({"md": "x"}, Params)
+    assert repaired == {"md": "x"}
+
+
+def test_repair_dict_fuzzy_best_match_wins():
+    """When two missing fields match the same unmapped key, the strongest match wins."""
+
+    class Params(BaseModel):
+        case_insensitive: bool = Field(default=False)
+        case_sensitive: bool = Field(default=False)
+
+    # "case_insenstive" is a typo for case_insensitive (ratio 0.968)
+    # It should go to case_insensitive, not case_sensitive (ratio 0.897)
+    repaired = _repair_dict_for_model({"case_insenstive": True}, Params)
+    assert repaired == {"case_insensitive": True}
+
+
+def test_repair_dict_fuzzy_unknown_key_stays():
+    """Keys that do not fuzzy-match any missing field are left untouched."""
+
+    class Params(BaseModel):
+        title: str
+
+    original = {"title": "ok", "timeout": 30}
+    repaired = _repair_dict_for_model(original, Params)
+    assert repaired == original
+
+
+def test_repair_dict_fuzzy_exact_match_untouched():
+    """Exact matches are not affected by fuzzy logic."""
+
+    class Params(BaseModel):
+        line_offset: int
+        char_offset: int
+
+    original = {"line_offset": 1, "char_offset": 2}
+    repaired = _repair_dict_for_model(original, Params)
+    assert repaired == original
+
+
+def test_callable_tool_2_fuzzy_on_call():
+    """CallableTool2.call() auto-repairs via fuzzy matching and succeeds."""
+
+    class Params(BaseModel):
+        background: bool
+        command: str
+
+    class TestTool(CallableTool2[Params]):
+        name: str = "test"
+        description: str = "test"
+        params: type[Params] = Params
+
+        @override
+        async def __call__(self, params: Params) -> ToolReturnValue:
+            return ToolOk(output=f"bg={params.background} cmd={params.command}")
+
+    tool = TestTool()
+    result = asyncio.run(tool.call({"backgroud": True, "commnd": "ls"}))
+    assert result == ToolOk(output="bg=True cmd=ls")
+
+
+# ---------------------------------------------------------------------------
+# Tests for numeric value clamping
+# ---------------------------------------------------------------------------
+
+
+def test_repair_dict_clamp_ge_le():
+    """Values exceeding ge/le bounds are clamped to the boundary."""
+
+    class Params(BaseModel):
+        timeout: int = Field(default=10, ge=3, le=300)
+
+    # Above max → clamp to max
+    assert _repair_dict_for_model({"timeout": 600}, Params) == {"timeout": 300}
+    # Below min → clamp to min
+    assert _repair_dict_for_model({"timeout": 1}, Params) == {"timeout": 3}
+    # In range → unchanged
+    assert _repair_dict_for_model({"timeout": 150}, Params) == {"timeout": 150}
+
+
+def test_repair_dict_clamp_gt_lt_int():
+    """Integer values exceeding gt/lt bounds are clamped just inside the boundary."""
+
+    class Params(BaseModel):
+        count: int = Field(default=50, gt=0, lt=100)
+
+    # Above max (lt) → clamp to max - 1
+    assert _repair_dict_for_model({"count": 100}, Params) == {"count": 99}
+    # At max boundary (lt) → clamp to max - 1
+    assert _repair_dict_for_model({"count": 100}, Params) == {"count": 99}
+    # Below min (gt) → clamp to min + 1
+    assert _repair_dict_for_model({"count": 0}, Params) == {"count": 1}
+    # In range → unchanged
+    assert _repair_dict_for_model({"count": 50}, Params) == {"count": 50}
+
+
+def test_repair_dict_clamp_float():
+    """Float values are clamped to inclusive boundaries."""
+
+    class Params(BaseModel):
+        ratio: float = Field(default=0.5, ge=0.0, le=1.0)
+
+    assert _repair_dict_for_model({"ratio": 2.5}, Params) == {"ratio": 1.0}
+    assert _repair_dict_for_model({"ratio": -0.5}, Params) == {"ratio": 0.0}
+    assert _repair_dict_for_model({"ratio": 0.75}, Params) == {"ratio": 0.75}
+
+
+def test_repair_dict_clamp_skips_bool():
+    """Boolean values are not treated as numbers for clamping."""
+
+    class Params(BaseModel):
+        enabled: bool
+        timeout: int = Field(default=10, ge=3, le=300)
+
+    repaired = _repair_dict_for_model({"enabled": True, "timeout": 600}, Params)
+    assert repaired == {"enabled": True, "timeout": 300}
+
+
+def test_repair_dict_clamp_no_constraints():
+    """Values on fields without numeric constraints pass through unchanged."""
+
+    class Params(BaseModel):
+        name: str
+
+    assert _repair_dict_for_model({"name": "hello"}, Params) == {"name": "hello"}
+
+
+def test_repair_dict_clamp_nested_model():
+    """Clamping recurses into nested BaseModel fields."""
+
+    class Inner(BaseModel):
+        timeout: int = Field(default=10, ge=3, le=300)
+
+    class Outer(BaseModel):
+        inner: Inner
+
+    repaired = _repair_dict_for_model({"inner": {"timeout": 600}}, Outer)
+    assert repaired == {"inner": {"timeout": 300}}
+
+
+def test_callable_tool_2_clamp_on_call():
+    """CallableTool2.call() auto-clamps out-of-range numeric values."""
+
+    class Params(BaseModel):
+        timeout: int = Field(ge=3, le=300)
+
+    class TestTool(CallableTool2[Params]):
+        name: str = "test"
+        description: str = "test"
+        params: type[Params] = Params
+
+        @override
+        async def __call__(self, params: Params) -> ToolReturnValue:
+            return ToolOk(output=f"timeout={params.timeout}")
+
+    tool = TestTool()
+    result = asyncio.run(tool.call({"timeout": 600}))
+    assert result == ToolOk(output="timeout=300")

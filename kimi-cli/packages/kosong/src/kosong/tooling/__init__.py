@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
 from asyncio import Future
+import difflib
+from functools import lru_cache
 import typing
 from typing import Any, ClassVar, Protocol, Self, cast, override, runtime_checkable
 
@@ -482,6 +484,106 @@ def _get_base_model_type(annotation: Any) -> type[BaseModel] | None:
     return None
 
 
+def _clamp_numeric_value(value: Any, finfo: Any) -> Any | None:
+    """Clamp a numeric value to the field's min/max constraints.
+
+    Returns the clamped value if it was out of bounds, otherwise None.
+    """
+    constraints = _extract_constraints(finfo)
+    if constraints is None:
+        return None
+    return _apply_constraints(value, constraints)
+
+
+def _extract_constraints(finfo: Any) -> tuple[float | int | None, float | int | None, bool, bool] | None:
+    """Extract numeric constraints from a FieldInfo's metadata.
+
+    Returns (min_val, max_val, min_inclusive, max_inclusive) if any constraints exist,
+    otherwise None.
+    """
+    min_val: float | int | None = None
+    max_val: float | int | None = None
+    min_inclusive = True
+    max_inclusive = True
+    has_any = False
+
+    for m in getattr(finfo, "metadata", ()):
+        if hasattr(m, "ge"):
+            min_val = m.ge
+            min_inclusive = True
+            has_any = True
+        elif hasattr(m, "gt"):
+            min_val = m.gt
+            min_inclusive = False
+            has_any = True
+        elif hasattr(m, "le"):
+            max_val = m.le
+            max_inclusive = True
+            has_any = True
+        elif hasattr(m, "lt"):
+            max_val = m.lt
+            max_inclusive = False
+            has_any = True
+
+    return (min_val, max_val, min_inclusive, max_inclusive) if has_any else None
+
+
+def _apply_constraints(value: Any, constraints: tuple[float | int | None, float | int | None, bool, bool]) -> Any | None:
+    """Clamp a numeric value to pre-extracted constraints.
+
+    Returns the clamped value if it was out of bounds, otherwise None.
+    """
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return None
+
+    min_val, max_val, min_inclusive, max_inclusive = constraints
+    clamped = value
+
+    if min_val is not None:
+        if min_inclusive and clamped < min_val:
+            clamped = min_val
+        elif not min_inclusive and clamped <= min_val:
+            if isinstance(clamped, int) and isinstance(min_val, int):
+                clamped = min_val + 1
+            else:
+                clamped = min_val
+
+    if max_val is not None:
+        if max_inclusive and clamped > max_val:
+            clamped = max_val
+        elif not max_inclusive and clamped >= max_val:
+            if isinstance(clamped, int) and isinstance(max_val, int):
+                clamped = max_val - 1
+            else:
+                clamped = max_val
+
+    return clamped if clamped != value else None
+
+
+@lru_cache(maxsize=512)
+def _cached_model_field_info(model: type[BaseModel]) -> tuple[
+    dict[str, str],
+    list[tuple[str, type[BaseModel] | None, tuple[float | int | None, float | int | None, bool, bool] | None]],
+]:
+    """Precompute known key mapping and field metadata for a model."""
+    known: dict[str, str] = {}
+    field_meta: list[tuple[str, type[BaseModel] | None, tuple[float | int | None, float | int | None, bool, bool] | None]] = []
+
+    for fname, finfo in model.model_fields.items():
+        known[fname] = fname
+        if finfo.alias and finfo.alias != fname:
+            known[finfo.alias] = fname
+        val_alias = getattr(finfo, "validation_alias", None)
+        if isinstance(val_alias, str) and val_alias != fname:
+            known[val_alias] = fname
+
+        nested = _get_base_model_type(finfo.annotation)
+        constraints = _extract_constraints(finfo)
+        field_meta.append((fname, nested, constraints))
+
+    return known, field_meta
+
+
 def _repair_dict_for_model(
     data: dict[str, Any],
     model: type[BaseModel],
@@ -491,55 +593,85 @@ def _repair_dict_for_model(
 
     1. Map exact field names and declared aliases.
     2. For remaining missing fields, try common LLM aliases.
-    3. Recurse into nested BaseModel fields and list items.
+    3. Fuzzy-match unmapped keys to missing fields.
+    4. Clamp numeric values that exceed field constraints.
+    5. Recurse into nested BaseModel fields and list items.
     """
     if common_aliases is None:
         common_aliases = _COMMON_FIELD_ALIASES
-    fields = model.model_fields
 
-    # Build known key → canonical field name mapping from model metadata.
-    known: dict[str, str] = {}
-    for fname, finfo in fields.items():
-        known[fname] = fname
-        if finfo.alias and finfo.alias != fname:
-            known[finfo.alias] = fname
-        val_alias = getattr(finfo, "validation_alias", None)
-        if isinstance(val_alias, str) and val_alias != fname:
-            known[val_alias] = fname
+    known, field_meta = _cached_model_field_info(model)
 
     # First pass: map known keys.
     mapped: dict[str, Any] = {}
-    unmapped: dict[str, Any] = {}
+    unmapped_keys: set[str] = set()
     for key, value in data.items():
-        if key in known:
-            mapped[known[key]] = value
+        canonical = known.get(key)
+        if canonical is not None:
+            mapped[canonical] = value
         else:
-            unmapped[key] = value
+            unmapped_keys.add(key)
             mapped[key] = value
 
     # Second pass: try common aliases for fields that are still missing.
-    missing = set(fields.keys()) - set(mapped.keys())
-    for missing_field in missing:
-        for bad_key, good_key in common_aliases.items():
-            if good_key == missing_field and bad_key in unmapped:
-                mapped[good_key] = mapped.pop(bad_key)
+    # Build reverse alias map for O(1) lookup of candidate bad keys per good key.
+    reverse_aliases: dict[str, list[str]] = {}
+    for bad_key, good_key in common_aliases.items():
+        reverse_aliases.setdefault(good_key, []).append(bad_key)
+
+    missing = set(model.model_fields.keys()) - set(mapped.keys())
+    for missing_field in list(missing):
+        for bad_key in reverse_aliases.get(missing_field, ()):
+            if bad_key in unmapped_keys:
+                mapped[missing_field] = mapped.pop(bad_key)
+                unmapped_keys.discard(bad_key)
+                missing.discard(missing_field)
                 break
 
-    # Third pass: recurse into nested models.
-    for fname, finfo in fields.items():
+    # Third pass: fuzzy match remaining missing fields against still-available unmapped keys.
+    available = list(unmapped_keys)
+    if available and missing:
+        candidates: list[tuple[float, str, str]] = []
+        for missing_field in missing:
+            if len(missing_field) < 4:
+                continue
+            # Longer field names are harder to type exactly; allow a slightly lower cutoff.
+            cutoff = 0.75 if len(missing_field) >= 8 else 0.80
+            close = difflib.get_close_matches(
+                missing_field, available, n=1, cutoff=cutoff
+            )
+            if close:
+                matched_key = close[0]
+                if len(matched_key) < 4:
+                    continue
+                ratio = difflib.SequenceMatcher(None, missing_field, matched_key).ratio()
+                candidates.append((ratio, missing_field, matched_key))
+        # Apply strongest matches first; each unmapped key can only be used once.
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        used: set[str] = set()
+        for _ratio, missing_field, matched_key in candidates:
+            if matched_key in used:
+                continue
+            used.add(matched_key)
+            mapped[missing_field] = mapped.pop(matched_key)
+
+    # Fourth pass: recurse into nested models and clamp numeric values.
+    for fname, nested, constraints in field_meta:
         if fname not in mapped:
             continue
         val = mapped[fname]
-        nested = _get_base_model_type(finfo.annotation)
-        if nested is None:
-            continue
-        if isinstance(val, dict):
-            mapped[fname] = _repair_dict_for_model(val, nested, common_aliases)
-        elif isinstance(val, list):
-            mapped[fname] = [
-                _repair_dict_for_model(item, nested, common_aliases) if isinstance(item, dict) else item
-                for item in val
-            ]
+        if nested is not None:
+            if isinstance(val, dict):
+                mapped[fname] = _repair_dict_for_model(val, nested, common_aliases)
+            elif isinstance(val, list):
+                mapped[fname] = [
+                    _repair_dict_for_model(item, nested, common_aliases) if isinstance(item, dict) else item
+                    for item in val
+                ]
+        elif constraints is not None:
+            clamped = _apply_constraints(val, constraints)
+            if clamped is not None:
+                mapped[fname] = clamped
 
     return mapped
 

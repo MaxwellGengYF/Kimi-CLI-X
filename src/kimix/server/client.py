@@ -31,8 +31,10 @@ logger = logging.getLogger(__name__)
 
 class MessagePartType(str, Enum):
     TEXT = "text"
-    TOOL = "tool"
-    REASONING = "reasoning"
+    THINKING = "thinking"
+    TOOL_CALLING = "tool_calling"
+    TOOL_CALLING_PART = "tool_calling_part"
+    TOOL_RESULT = "tool_result"
     STEP_START = "step-start"
     STEP_FINISH = "step-finish"
     UNKNOWN = "unknown"
@@ -45,6 +47,7 @@ class MessagePart:
     tool_name: Optional[str] = None
     tool_status: Optional[str] = None
     tool_state: Optional[Dict[str, Any]] = None
+    tool_result: Optional[str] = None
     call_id: Optional[str] = None
     reason: Optional[str] = None
     cost: Optional[float] = None
@@ -54,6 +57,12 @@ class MessagePart:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "MessagePart":
         part_type = data.get("type", "text")
+        # Map opencode type strings to MessagePartType values
+        _OPENCODE_TYPE_MAP: Dict[str, str] = {
+            "tool": "tool_calling",
+            "reasoning": "thinking",
+        }
+        part_type = _OPENCODE_TYPE_MAP.get(part_type, part_type)
         try:
             msg_type = MessagePartType(part_type)
         except ValueError:
@@ -62,13 +71,15 @@ class MessagePart:
         part = cls(type=msg_type)
         if msg_type == MessagePartType.TEXT:
             part.text = data.get("text")
-        elif msg_type == MessagePartType.TOOL:
+        elif msg_type == MessagePartType.TOOL_CALLING:
             part.tool_name = data.get("tool")
             part.call_id = data.get("callID")
             state = data.get("state", {})
             part.tool_status = state.get("status")
             part.tool_state = state
-        elif msg_type == MessagePartType.REASONING:
+        elif msg_type == MessagePartType.THINKING:
+            part.text = data.get("text")
+        elif msg_type in (MessagePartType.TOOL_CALLING_PART, MessagePartType.TOOL_RESULT):
             part.text = data.get("text")
         elif msg_type == MessagePartType.STEP_FINISH:
             # opencode: reason, cost, tokens are at part level
@@ -96,6 +107,34 @@ class Message:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Message":
+        # Handle dummy session manager format from _process_prompt:
+        # {"type": "Text|Thinking|ToolCalling", "text": "...", "time": ts}
+        if "info" not in data:
+            msg_type = data.get("type", "Text")
+            text = data.get("text", "")
+            created_at = data.get("time")
+            # Map MessageType.name values to MessagePartType
+            _TYPE_MAP: Dict[str, MessagePartType] = {
+                "Text": MessagePartType.TEXT,
+                "Thinking": MessagePartType.THINKING,
+                "ToolCalling": MessagePartType.TOOL_CALLING,
+                "ToolCallingPart": MessagePartType.TOOL_CALLING_PART,
+                "ToolResult": MessagePartType.TOOL_RESULT,
+            }
+            part_type = _TYPE_MAP.get(msg_type, MessagePartType.UNKNOWN)
+            part = MessagePart(type=part_type, text=text)
+            if data.get("tool_name"):
+                part.tool_name = data["tool_name"]
+            if data.get("tool_result"):
+                part.tool_result = data["tool_result"]
+            return cls(
+                id="",
+                role="assistant",
+                parts=[part],
+                created_at=created_at,
+            )
+
+        # Opencode format: {"info": {"id":..., "role":..., "time":...}, "parts": [...]}
         info = data.get("info", {})
         time_info = info.get("time", {})
         return cls(
@@ -459,8 +498,14 @@ class KimixAsyncClient:
         resp.raise_for_status()
         return [Message.from_dict(m) for m in resp.json()]
 
-    async def get_session_status(self) -> Dict[str, Any]:
-        resp = await self._client.get(f"{self._base_url}/session/status")
+    async def get_session_status(self, session_id: str) -> Dict[str, Any]:
+        """GET /session/{sessionID}/status
+
+        Returns running/idle status with context usage and token count when idle.
+        """
+        resp = await self._client.get(
+            f"{self._base_url}/session/{session_id}/status"
+        )
         resp.raise_for_status()
         return resp.json()
 

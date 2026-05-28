@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, TextIO
 
 from kimix.base import print_error, print  # noqa: F811 - use base.print for flush support
-from kimix.server.client import KimixAsyncClient, parse_event, EventType, SSEEvent
+from kimix.server.client import KimixAsyncClient, MessagePart, parse_event, EventType, SSEEvent
 
 def _fmt_arg(s: str, max_len: int = 120) -> str:
     """Truncate long arguments, keeping head and tail."""
@@ -25,6 +25,59 @@ def _fmt_ts(unix_t: float) -> str:
     if not unix_t:
         return ""
     return time.strftime("%H:%M:%S", time.localtime(unix_t))
+
+
+def _print_message_part(part: MessagePart) -> None:
+    """Print a single MessagePart with formatting similar to print_agent_json."""
+    from kimix.server.client import MessagePartType
+    from kimix.base import colorful_text, Color
+
+    if part.type == MessagePartType.TEXT:
+        if part.text:
+            print(part.text, end="", flush=True)
+
+    elif part.type == MessagePartType.THINKING:
+        if part.text:
+            print(colorful_text(part.text, fg=Color.BRIGHT_CYAN), end="", flush=True)
+
+    elif part.type == MessagePartType.TOOL_CALLING:
+        tool_name = part.tool_name or "unknown"
+        print(colorful_text(f"\n⚡ {tool_name}", fg=Color.BRIGHT_MAGENTA))
+        status = part.tool_status or "unknown"
+        extra: list[str] = []
+        state = part.tool_state or {}
+        if state.get("input"):
+            extra.append(f"input: {_fmt_arg(str(state['input']))}")
+        if state.get("output"):
+            extra.append(f"output: {_fmt_arg(str(state['output']))}")
+        if state.get("error"):
+            extra.append(f"error: {_fmt_arg(str(state['error']))}")
+        if status != "unknown":
+            print(colorful_text(f"       status={status}", fg=Color.BRIGHT_BLACK))
+        for line in extra:
+            print(colorful_text(f"       {line}", fg=Color.BRIGHT_BLACK))
+
+    elif part.type == MessagePartType.TOOL_CALLING_PART:
+        if part.text:
+            print(part.text, end="", flush=True)
+
+    elif part.type == MessagePartType.TOOL_RESULT:
+        result_text = part.tool_result or part.text or ""
+        if result_text:
+            prefix = "✓ "
+            fg = Color.BRIGHT_GREEN
+            state = part.tool_state or {}
+            if state.get("error"):
+                prefix = "✗ "
+                fg = Color.BRIGHT_RED
+            print(colorful_text(f"\n{prefix}{result_text}", fg=fg))
+
+    elif part.type == MessagePartType.STEP_START:
+        print(colorful_text("\n[STEP START]", fg=Color.BRIGHT_YELLOW))
+
+    elif part.type == MessagePartType.STEP_FINISH:
+        reason = part.reason or ""
+        print(colorful_text(f"\n[STEP FINISH] reason={reason}", fg=Color.BRIGHT_YELLOW))
 
 
 async def _sse_cli_main(host: str, port: int, debug: bool = False) -> None:
@@ -65,7 +118,7 @@ async def _sse_cli_main(host: str, port: int, debug: bool = False) -> None:
         return False
 
     async def _cmd_status(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
-        status = await client.get_session_status()
+        status = await client.get_session_status(session.id)
         print(f"[SSE CLI] Status: {status}")
         return False
 
@@ -153,68 +206,107 @@ async def _sse_cli_main(host: str, port: int, debug: bool = False) -> None:
             continue
 
         print("[SSE CLI] Streaming events...")
-        async for event in client.stream_events_robust(session.id):
-            if debug:
-                ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
-                debug_lines = [
-                    f"[{ts}] ===== SSE RAW EVENT =====",
-                    f"[{ts}] event: {event.event!r}",
-                    f"[{ts}] data: {event.data!r}",
-                    f"[{ts}] id: {event.id!r}",
-                    f"[{ts}] =========================",
-                ]
-                for line in debug_lines:
-                    print(line)
-                    if log_file:
-                        log_file.write(line + "\n")
-                if log_file:
-                    log_file.flush()
-            parsed = parse_event(event, session.id)
-            if parsed.type == EventType.SKIP:
-                continue
-            if parsed.type == EventType.TEXT_DELTA:
-                print(parsed.delta, end="", flush=True)
-            elif parsed.type == EventType.TEXT:
-                print(parsed.delta, end="", flush=True)
-            elif parsed.type == EventType.TOOL:
-                extra: list[str] = []
-                if parsed.tool_input:
-                    extra.append(f"input: {_fmt_arg(parsed.tool_input)}")
-                if parsed.tool_output:
-                    extra.append(f"output: {_fmt_arg(parsed.tool_output)}")
-                if parsed.tool_error:
-                    extra.append(f"error: {_fmt_arg(parsed.tool_error)}")
-                if parsed.tool_call_id:
-                    extra.append(f"callId: {parsed.tool_call_id[:8]}")
+        empty_polls = 0
 
-                ts_info = ""
-                if parsed.tool_status == "running" and parsed.tool_call_id:
-                    tool_start_times[parsed.tool_call_id] = parsed.created_at or time.time()
-                    ts_info = f"  start@{_fmt_ts(parsed.created_at or time.time())}"
-                elif parsed.tool_status in ("completed", "error") and parsed.tool_call_id in tool_start_times:
-                    start_t = tool_start_times.pop(parsed.tool_call_id, 0)
-                    duration = (parsed.created_at or time.time()) - start_t
-                    ts_info = f"  took {duration:.1f}s  end@{_fmt_ts(parsed.created_at or time.time())}"
-                elif parsed.created_at:
-                    ts_info = f"  {_fmt_ts(parsed.created_at)}"
+        while True:
+            await asyncio.sleep(0.5)
 
-                print(f"\n[TOOL] {parsed.tool_name} status={parsed.tool_status}{ts_info}")
-                for line in extra:
-                    print(f"       {line}")
-            elif parsed.type == EventType.REASONING:
-                print(f"\n[REASONING] {parsed.text}")
-            elif parsed.type == EventType.STEP_START:
-                print("\n[STEP START]")
-            elif parsed.type == EventType.STEP_FINISH:
-                print(f"\n[STEP FINISH] reason={parsed.text}")
-            elif parsed.type == EventType.SESSION_IDLE:
-                print("\n[SESSION IDLE]")
-            elif parsed.type == EventType.RECONNECTED:
-                print(f"\n[RECONNECTED] {parsed.text}")
-            elif parsed.type == EventType.UNKNOWN:
-                print(f"\n[UNKNOWN] {parsed.raw}")
-            if parsed.is_terminal():
+            try:
+                messages = await client.get_messages(session.id, limit=50)
+            except Exception as exc:
+                print(f"[SSE CLI] get_messages error: {exc}")
                 break
+
+            new_count = 0
+            for msg in messages:
+                new_count += 1
+
+                for part in msg.parts:
+                    _print_message_part(part)
+
+            if new_count == 0:
+                empty_polls += 1
+                if empty_polls >= 2:
+                    try:
+                        status = await client.get_session_status(session.id)
+                        session_status = status.get("type", "idle")
+                        if session_status in ("idle", "error"):
+                            print(f"[SSE CLI] Session {session_status}, stream ended.")
+                            messages = await client.get_messages(session.id)
+                            for msg in messages:
+                                for part in msg.parts:
+                                    _print_message_part(part)
+                                    
+                            break
+                    except Exception:
+                        pass
+                    empty_polls = 0
+            else:
+                empty_polls = 0
+
+        #### The old legacy loop.
+        # async for event in client.stream_events_robust(session.id):
+        #     if debug:
+        #         ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+        #         debug_lines = [
+        #             f"[{ts}] ===== SSE RAW EVENT =====",
+        #             f"[{ts}] event: {event.event!r}",
+        #             f"[{ts}] data: {event.data!r}",
+        #             f"[{ts}] id: {event.id!r}",
+        #             f"[{ts}] =========================",
+        #         ]
+        #         for line in debug_lines:
+        #             print(line)
+        #             if log_file:
+        #                 log_file.write(line + "\n")
+        #         if log_file:
+        #             log_file.flush()
+        #     parsed = parse_event(event, session.id)
+        #     if parsed.type == EventType.SKIP:
+        #         continue
+        #     if parsed.type == EventType.TEXT_DELTA:
+        #         print(parsed.delta, end="", flush=True)
+        #     elif parsed.type == EventType.TEXT:
+        #         print(parsed.delta, end="", flush=True)
+        #     elif parsed.type == EventType.TOOL:
+        #         extra: list[str] = []
+        #         if parsed.tool_input:
+        #             extra.append(f"input: {_fmt_arg(parsed.tool_input)}")
+        #         if parsed.tool_output:
+        #             extra.append(f"output: {_fmt_arg(parsed.tool_output)}")
+        #         if parsed.tool_error:
+        #             extra.append(f"error: {_fmt_arg(parsed.tool_error)}")
+        #         if parsed.tool_call_id:
+        #             extra.append(f"callId: {parsed.tool_call_id[:8]}")
+
+        #         ts_info = ""
+        #         if parsed.tool_status == "running" and parsed.tool_call_id:
+        #             tool_start_times[parsed.tool_call_id] = parsed.created_at or time.time()
+        #             ts_info = f"  start@{_fmt_ts(parsed.created_at or time.time())}"
+        #         elif parsed.tool_status in ("completed", "error") and parsed.tool_call_id in tool_start_times:
+        #             start_t = tool_start_times.pop(parsed.tool_call_id, 0)
+        #             duration = (parsed.created_at or time.time()) - start_t
+        #             ts_info = f"  took {duration:.1f}s  end@{_fmt_ts(parsed.created_at or time.time())}"
+        #         elif parsed.created_at:
+        #             ts_info = f"  {_fmt_ts(parsed.created_at)}"
+
+        #         print(f"\n[TOOL] {parsed.tool_name} status={parsed.tool_status}{ts_info}")
+        #         for line in extra:
+        #             print(f"       {line}")
+        #     elif parsed.type == EventType.REASONING:
+        #         print(f"\n[REASONING] {parsed.text}")
+        #     elif parsed.type == EventType.STEP_START:
+        #         print("\n[STEP START]")
+        #     elif parsed.type == EventType.STEP_FINISH:
+        #         print(f"\n[STEP FINISH] reason={parsed.text}")
+        #     elif parsed.type == EventType.SESSION_IDLE:
+        #         print("\n[SESSION IDLE]")
+        #     elif parsed.type == EventType.RECONNECTED:
+        #         print(f"\n[RECONNECTED] {parsed.text}")
+        #     elif parsed.type == EventType.UNKNOWN:
+        #         print(f"\n[UNKNOWN] {parsed.raw}")
+        #     if parsed.is_terminal():
+        #         break
         print()  # newline after stream
 
     await client.close()

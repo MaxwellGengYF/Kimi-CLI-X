@@ -40,6 +40,8 @@ class MessageType(Enum):
     Text = "text"
     Thinking = "thinking"
     ToolCalling = "tool_calling"
+    ToolCallingPart = "tool_calling_part"
+    ToolResult = "tool_result"
 
 
 class Color(Enum):
@@ -311,7 +313,7 @@ def _handle_tool_call(wire_msg: ToolCall, output_function: Callable[[str, Messag
 def _handle_tool_call_part(wire_msg: ToolCallPart, output_function: Callable[[str, MessageType], Any] | None) -> None:
     part = wire_msg.arguments_part or ""
     if output_function and part:
-        output_function(part, MessageType.ToolCalling)
+        output_function(part, MessageType.ToolCallingPart)
     _stream.print_word('', True)
 
 
@@ -332,7 +334,7 @@ def _handle_tool_result(wire_msg: ToolResult, output_function: Callable[[str, Me
     if output_function:
         formatted = f"[ToolResult] {_format_tool_result(wire_msg)}"
         if formatted:
-            output_function(formatted, MessageType.ToolCalling)
+            output_function(formatted, MessageType.ToolResult)
 
 
 def _handle_approval_request(wire_msg: ApprovalRequest, _output_function: Callable[[str, MessageType], Any] | None) -> None:
