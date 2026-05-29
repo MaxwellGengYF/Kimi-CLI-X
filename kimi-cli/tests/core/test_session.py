@@ -693,3 +693,76 @@ async def test_exception_cleanup_targets_current_not_previous(
 
     assert not session_b_dir.exists(), "Empty session B from failed _run() should be deleted"
     assert session_a_dir.exists(), "Non-empty session A from previous iteration must be preserved"
+
+
+# ---------------------------------------------------------------------------
+# Session.rename
+# ---------------------------------------------------------------------------
+
+
+async def test_rename_success(isolated_share_dir: Path, work_dir: KaosPath):
+    """Renaming a session should move its directory and preserve content."""
+    old_id = "old-session-name"
+    new_id = "new-session-name"
+    session = await Session.create(work_dir, old_id)
+    _write_context_message(session.context_file, "hello")
+    _write_wire_turn(session.dir, "hello")
+
+    renamed = await Session.rename(work_dir, old_id, new_id)
+
+    assert renamed is not None
+    assert renamed.id == new_id
+    assert renamed.dir.name == new_id
+    assert renamed.context_file.exists()
+    assert (renamed.dir / "wire.jsonl").exists()
+    # Old directory should no longer exist
+    assert not (session.work_dir_meta.sessions_dir / old_id).exists()
+
+
+async def test_rename_updates_last_session_id(
+    isolated_share_dir: Path, work_dir: KaosPath
+):
+    """Renaming the last_session_id should update metadata."""
+    from kimi_cli.metadata import load_metadata, save_metadata
+
+    old_id = "old-session-name"
+    new_id = "new-session-name"
+    session = await Session.create(work_dir, old_id)
+    _write_context_message(session.context_file, "hello")
+
+    meta = load_metadata()
+    wdm = meta.get_work_dir_meta(work_dir)
+    assert wdm is not None
+    wdm.last_session_id = old_id
+    save_metadata(meta)
+
+    renamed = await Session.rename(work_dir, old_id, new_id)
+
+    assert renamed is not None
+    meta = load_metadata()
+    wdm = meta.get_work_dir_meta(work_dir)
+    assert wdm is not None
+    assert wdm.last_session_id == new_id
+
+
+async def test_rename_not_found(isolated_share_dir: Path, work_dir: KaosPath):
+    """Renaming a non-existent session should return None."""
+    result = await Session.rename(work_dir, "nonexistent", "new-name")
+    assert result is None
+
+
+async def test_rename_target_exists(isolated_share_dir: Path, work_dir: KaosPath):
+    """Renaming to an existing session ID should return None."""
+    old_id = "existing-session"
+    new_id = "another-session"
+    old_session = await Session.create(work_dir, old_id)
+    new_session = await Session.create(work_dir, new_id)
+    _write_context_message(old_session.context_file, "hello")
+    _write_context_message(new_session.context_file, "world")
+
+    result = await Session.rename(work_dir, old_id, new_id)
+
+    assert result is None
+    # Both directories should still exist unchanged
+    assert old_session.dir.exists()
+    assert new_session.dir.exists()

@@ -155,6 +155,8 @@ uv run kimix --config <path>
 | `/init` | Interactive LLM config initialization (resets session) |
 | `/compact` | Compact conversation context |
 | `/export:<path>` | Export session messages to file |
+| `/resume:<id>` | Close current session and resume a session by ID |
+| `/rename:<id>` | Rename the current session to a new ID |
 | `/swarm` | Multi-agent swarm execution (end with `/end`, cancel with `/cancel`) |
 | `/ralph:on/off/<num>` | Set Ralph mode |
 | `/supervisor:on/off` | Toggle Supervisor mode (rebuilds session) |

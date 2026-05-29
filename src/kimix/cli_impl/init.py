@@ -294,9 +294,11 @@ def init(initialize: bool = True) -> None:
         if initialize:
             model = _ask_model_name(config.get("model", "kimi-for-coding"))
             config["model"] = model
+            config["model_name"] = model
 
             model_type = _ask_model_type(config.get("type", "kimi"))
             config["type"] = model_type
+            config["name"] = model_type
 
             api_key = _ask_api_key()
             config["api_key"] = api_key

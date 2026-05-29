@@ -9,7 +9,7 @@ from kimix.base import print_success, print_error, print_warning, print_debug, c
 from kimix.utils import (
     clear_default_context, get_default_session, fix_error, compact_default_context,
     print_usage, execute_plan, check_plan_cache, set_ralph_loop,
-    _create_default_session, close_session
+    _create_default_session, close_session, create_session, SystemPromptType
 )
 import kimix.utils._globals as _globals
 from .init import init
@@ -48,6 +48,48 @@ def _cmd_export(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]
     except Exception as e:
         print_error(f'Export failed: {e}')
 
+    return None, False
+
+
+def _cmd_resume(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
+    if len(task_split) < 2:
+        print_error('Command must be /resume:session_id')
+        return None, False
+    session_id = ':'.join(task_split[1:])
+    session = get_default_session()
+    if session:
+        close_session(session)
+    _globals._default_session = None
+    _globals._default_role = None
+    try:
+        new_session = create_session(session_id=session_id, resume=True)
+        _globals._default_session = new_session
+        if base._default_supervisor:
+            _globals._default_role = SystemPromptType.Supervisor
+        else:
+            _globals._default_role = SystemPromptType.Worker
+        print_success(f'Resumed session {session_id}')
+    except Exception as e:
+        print_error(f'Failed to resume session: {e}')
+    return None, False
+
+
+def _cmd_rename(task_split: list[str], text_arr: list[str]) -> tuple[None, bool]:
+    if len(task_split) < 2:
+        print_error('Command must be /rename:session_id')
+        return None, False
+    new_session_id = ':'.join(task_split[1:])
+    session = get_default_session()
+    if session is None:
+        print_error('No active session to rename.')
+        return None, False
+    try:
+        asyncio.run(session.rename(new_session_id))
+        print_success(f'Session renamed to {new_session_id}')
+    except Exception as e:
+        import traceback
+        print_error(f'Rename failed: {e}')
+        print_error(traceback.format_exc())
     return None, False
 
 
@@ -353,6 +395,8 @@ _command_map = {
     'plan': _cmd_plan,
     'compact': _cmd_compact,
     'export': _cmd_export,
+    'resume': _cmd_resume,
+    'rename': _cmd_rename,
     'swarm': _cmd_swarm,
     'ralph': _cmd_ralph,
     'cot': _cmd_cot,

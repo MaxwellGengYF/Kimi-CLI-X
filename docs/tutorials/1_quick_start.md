@@ -298,6 +298,8 @@ uv run kimix --clean --manually-cot
 | `/init` | 交互式初始化默认 LLM 配置文件（执行后会重置当前会话） |
 | `/compact` | 压缩对话上下文 |
 | `/export:<path>` | 导出当前会话消息到指定文件 |
+| `/resume:<id>` | 关闭当前会话并按 ID 恢复已有会话 |
+| `/rename:<id>` | 将当前会话重命名为新 ID |
 | `/swarm` | 多 Agent 协作执行 Swarm 任务（以 `/end` 结束，`/cancel` 取消） |
 | `/ralph:on` / `/ralph:off` / `/ralph:<num>` | 设置 Ralph 模式循环次数 |
 | `/supervisor:on` / `/supervisor:off` | 开启 / 关闭 Supervisor 模式（切换后会重建会话） |

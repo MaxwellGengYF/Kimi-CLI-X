@@ -123,6 +123,58 @@ class Session:
         self._cancel_event = None
         self._closed = False
 
+    async def rename(self, new_session_id: str) -> None:
+        """Rename the session to a new session ID.
+
+        This cancels any ongoing prompt, cleans up tool resources, renames the
+        session directory, and resumes the session with the new session ID.
+        If the session is closed or cannot be renamed, a new session is created
+        with the given session ID.
+
+        Args:
+            new_session_id: The new session ID to rename to.
+        """
+        work_dir = self._cli.session.work_dir
+        old_session_id: str | None = None
+
+        if not self._closed:
+            if self._cancel_event is not None:
+                self._cancel_event.set()
+            await self._cleanup_tools()
+
+            old_session_id = self._cli.session.id
+            cli_session = await CliSession.rename(work_dir, old_session_id, new_session_id)
+        else:
+            cli_session = None
+
+        if cli_session is None:
+            cli_session = await CliSession.create(work_dir, new_session_id)
+
+        # Preserve provider_dict from old session's custom_config for sub-agent spawning
+        old_custom_config = self._cli.session.custom_config
+        custom_config = await _load_config_json(work_dir)
+        if "provider_dict" in old_custom_config and "provider_dict" not in custom_config:
+            custom_config["provider_dict"] = old_custom_config["provider_dict"]
+        if "chat_provider" in old_custom_config and "chat_provider" not in custom_config:
+            custom_config["chat_provider"] = old_custom_config["chat_provider"]
+        cli_session.custom_config = custom_config
+
+        kwargs = self._create_kwargs.copy()
+        kwargs.pop("resumed", None)
+        try:
+            self._cli = await KimiCLI.create(cli_session, **kwargs)
+        except Exception:
+            # Rollback: attempt to rename the session directory back
+            if old_session_id:
+                try:
+                    await CliSession.rename(work_dir, new_session_id, old_session_id)
+                except Exception:
+                    pass
+            raise
+        self._cancel_event = None
+        self._closed = False
+        self._anonymous = new_session_id is None
+
     async def compact(self, *, custom_instruction: str = "") -> None:
         """Compact the session context.
 

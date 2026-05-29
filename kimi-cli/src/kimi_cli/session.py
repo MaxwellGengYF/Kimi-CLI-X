@@ -386,6 +386,68 @@ class Session:
         )
         return await Session.find(work_dir, work_dir_meta.last_session_id)
 
+    @staticmethod
+    async def rename(
+        work_dir: KaosPath, session_id: str, new_session_id: str
+    ) -> Session | None:
+        """Rename a session to a new session ID.
+
+        Args:
+            work_dir: Working directory containing the session.
+            session_id: The current session ID to rename.
+            new_session_id: The new session ID.
+
+        Returns:
+            Session | None: The renamed session, or None if the session
+                was not found or the new session ID already exists.
+        """
+        work_dir = work_dir.canonical()
+        logger.debug(
+            "Renaming session for work directory: {work_dir}, "
+            "session ID: {session_id} to {new_session_id}",
+            work_dir=work_dir,
+            session_id=session_id,
+            new_session_id=new_session_id,
+        )
+
+        metadata = load_metadata()
+        work_dir_meta = metadata.get_work_dir_meta(work_dir)
+        if work_dir_meta is None:
+            logger.debug("Work directory never been used")
+            return None
+
+        old_session_dir = work_dir_meta.sessions_dir / session_id
+        if not old_session_dir.is_dir():
+            logger.debug(
+                "Session directory not found: {session_dir}",
+                session_dir=old_session_dir,
+            )
+            return None
+
+        old_context_file = old_session_dir / "context.jsonl"
+        if not old_context_file.exists():
+            logger.debug(
+                "Session context file not found: {context_file}",
+                context_file=old_context_file,
+            )
+            return None
+
+        new_session_dir = work_dir_meta.sessions_dir / new_session_id
+        if new_session_dir.exists():
+            logger.debug(
+                "Target session directory already exists: {session_dir}",
+                session_dir=new_session_dir,
+            )
+            return None
+
+        old_session_dir.rename(new_session_dir)
+
+        if work_dir_meta.last_session_id == session_id:
+            work_dir_meta.last_session_id = new_session_id
+            save_metadata(metadata)
+
+        return await Session.find(work_dir, new_session_id)
+
 
 def _migrate_session_context_file(work_dir_meta: WorkDirMeta, session_id: str) -> None:
     old_context_file = work_dir_meta.sessions_dir / f"{session_id}.jsonl"
